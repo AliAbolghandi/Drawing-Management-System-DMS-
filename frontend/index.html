@@ -1,229 +1,48 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
-
+<html lang="en" dir="ltr">
 <head>
-
-    <meta charset="UTF-8">
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
-    <title>Drawing Management System</title>
-
-    <link rel="stylesheet" href="css/style.css">
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drawing Management System</title>
+<link rel="stylesheet" href="css/style.css">
 </head>
-
 <body>
-
-    <!-- =====================================
-         Header
-    ====================================== -->
-
-    <header class="top-header">
-
-        <div class="header-title">
-            <h1>Drawing Management System</h1>
-            <span>مدیریت ساختار تجهیزات و نقشه‌ها</span>
-        </div>
-
-        <div class="header-status">
-
-            <span id="connectionStatus"
-                  class="status disconnected">
-                در حال اتصال...
-            </span>
-
-        </div>
-
-    </header>
-
-
-    <!-- =====================================
-         Main Layout
-    ====================================== -->
-
-    <main class="main-container">
-
-        <!-- Sidebar / Tree -->
-
-        <section class="tree-panel">
-
-            <div class="panel-header">
-
-                <div>
-                    <h2>ساختار تجهیزات</h2>
-                    <span id="nodeCount">
-                        در حال دریافت اطلاعات...
-                    </span>
-                </div>
-
-                <div class="tree-actions">
-
-                    <button id="expandAllBtn">
-                        باز کردن همه
-                    </button>
-
-                    <button id="collapseAllBtn">
-                        بستن همه
-                    </button>
-
-                </div>
-
-            </div>
-
-
-            <!-- Search -->
-
-            <div class="search-box">
-
-                <input
-                    type="text"
-                    id="searchInput"
-                    placeholder="جستجوی کد یا نام..."
-                    autocomplete="off"
-                >
-
-            </div>
-
-
-            <!-- Tree -->
-
-            <div id="treeContainer"
-                 class="tree-container">
-
-                <div class="loading">
-                    در حال دریافت ساختار درخت...
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- =====================================
-             Node Details
-        ====================================== -->
-
-        <section class="details-panel">
-
-            <div id="emptyDetails"
-                 class="empty-details">
-
-                <div class="empty-icon">
-                    ◈
-                </div>
-
-                <h2>یک Node را انتخاب کنید</h2>
-
-                <p>
-                    برای مشاهده اطلاعات Node،
-                    روی یکی از آیتم‌های درخت کلیک کنید.
-                </p>
-
-            </div>
-
-
-            <div id="nodeDetails"
-                 class="node-details hidden">
-
-                <div class="details-header">
-
-                    <div>
-                        <span class="details-label">
-                            Node
-                        </span>
-
-                        <h2 id="detailName">
-                            -
-                        </h2>
-                    </div>
-
-                    <span id="detailStatus"
-                          class="node-status">
-                        Active
-                    </span>
-
-                </div>
-
-
-                <div class="details-grid">
-
-                    <div class="detail-item">
-
-                        <span>
-                            Node ID
-                        </span>
-
-                        <strong id="detailId">
-                            -
-                        </strong>
-
-                    </div>
-
-
-                    <div class="detail-item">
-
-                        <span>
-                            Parent ID
-                        </span>
-
-                        <strong id="detailParent">
-                            -
-                        </strong>
-
-                    </div>
-
-
-                    <div class="detail-item">
-
-                        <span>
-                            Node Code
-                        </span>
-
-                        <strong id="detailCode">
-                            -
-                        </strong>
-
-                    </div>
-
-
-                    <div class="detail-item">
-
-                        <span>
-                            Node Name
-                        </span>
-
-                        <strong id="detailNodeName">
-                            -
-                        </strong>
-
-                    </div>
-
-                </div>
-
-
-                <div class="details-section">
-
-                    <h3 class="section-title">
-                        فایل‌های PDF
-                    </h3>
-
-                    <div id="pdfList"
-                         class="pdf-list">
-                    </div>
-
-                </div>
-
-            </div>
-
-        </section>
-
-    </main>
-
-
-    <script src="js/script.js"></script>
-
+<header class="top-header">
+  <div class="header-title">
+    <h1>Drawing Management System</h1>
+    <span>Equipment structure and drawing management</span>
+  </div>
+  <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span></div>
+</header>
+<main class="main-container">
+  <section class="tree-panel">
+    <div class="panel-header">
+      <div><h2>Equipment Structure</h2><span id="nodeCount">Loading nodes...</span></div>
+      <div class="tree-actions"><button id="expandAllBtn" type="button">Expand All</button><button id="collapseAllBtn" type="button">Collapse All</button></div>
+    </div>
+    <div class="search-box">
+      <input type="search" id="searchInput" placeholder="Search by node code or name..." autocomplete="off" aria-label="Search nodes">
+      <button id="searchBtn" type="button">Search</button>
+    </div>
+    <div id="searchInfo" class="search-info hidden"></div>
+    <div id="treeContainer" class="tree-container"><div class="loading">Loading equipment structure...</div></div>
+  </section>
+  <section class="details-panel">
+    <div id="emptyDetails" class="empty-details">
+      <div class="empty-icon">◈</div><h2>Select a Node</h2><p>Select an item from the tree to view its information.</p>
+    </div>
+    <div id="nodeDetails" class="node-details hidden">
+      <div class="details-header"><div><span class="details-label">NODE</span><h2 id="detailName">-</h2></div><span id="detailStatus" class="node-status">Active</span></div>
+      <div class="details-grid">
+        <div class="detail-item"><span>Node ID</span><strong id="detailId">-</strong></div>
+        <div class="detail-item"><span>Parent ID</span><strong id="detailParent">-</strong></div>
+        <div class="detail-item"><span>Node Code</span><strong id="detailCode">-</strong></div>
+        <div class="detail-item"><span>Node Name</span><strong id="detailNodeName">-</strong></div>
+      </div>
+      <div class="details-section"><h3 class="section-title">PDF Files</h3><div id="pdfList" class="pdf-list"></div></div>
+    </div>
+  </section>
+</main>
+<script src="js/script.js"></script>
 </body>
-
 </html>
