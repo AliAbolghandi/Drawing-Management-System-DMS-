@@ -1,9 +1,12 @@
 // ======================================================
 // Drawing Management System - Tree Renderer
+// LAN version: API uses the same host/port as the frontend.
 // ======================================================
-const API_URL = 'http://localhost:3000/api/nodes';
-const API_PDF_URL = 'http://localhost:3000/api/pdfs';
-const API_PDF_OPEN_URL = 'http://localhost:3000/api/pdf-open';
+
+const API_BASE_URL = '/api';
+const API_URL = `${API_BASE_URL}/nodes`;
+const API_PDF_URL = `${API_BASE_URL}/pdfs`;
+const API_PDF_FILE_URL = `${API_BASE_URL}/pdf-file`;
 
 let allNodes = [];
 let nodeElements = new Map();
@@ -235,23 +238,17 @@ function renderPdfList(nodeId) {
     }
 
     pdfList.innerHTML = pdfs.map(pdf => `
-        <div class="pdf-item" data-pdf-id="${escapeHtml(pdf.PDFID)}" title="Open with the system default application">
+        <div class="pdf-item" data-pdf-id="${escapeHtml(pdf.PDFID)}" title="Open PDF in browser">
             <span class="pdf-icon">📄</span>
             <span class="pdf-name">${escapeHtml(pdf.PDFName || '(Unnamed)')}</span>
         </div>`).join('');
 
-    pdfList.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => openPdfInDefaultApp(item.dataset.pdfId)));
+    pdfList.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => openPdfInBrowser(item.dataset.pdfId)));
 }
 
-async function openPdfInDefaultApp(pdfId) {
-    try {
-        const response = await fetch(`${API_PDF_OPEN_URL}/${encodeURIComponent(pdfId)}`);
-        const data = await response.json();
-        if (!response.ok || !data.success) alert(`Unable to open PDF: ${data.error || 'Unknown error'}`);
-    } catch (error) {
-        console.error('PDF open request failed:', error);
-        alert('Unable to connect to the server to open the PDF.');
-    }
+function openPdfInBrowser(pdfId) {
+    const url = `${API_PDF_FILE_URL}/${encodeURIComponent(pdfId)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function expandAll() {
@@ -279,8 +276,6 @@ function nodeMatches(node, query) {
     return String(node.NodeCode || '').toLowerCase().includes(q) || String(node.NodeName || '').toLowerCase().includes(q);
 }
 
-// Search runs ONLY when the Search button is clicked (or Enter is pressed).
-// The complete tree remains in the DOM/data; only ancestor paths of matches are expanded.
 function searchTree() {
     const query = searchInput.value.trim();
     currentSearchQuery = query;
