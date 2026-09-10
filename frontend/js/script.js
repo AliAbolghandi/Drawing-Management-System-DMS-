@@ -369,17 +369,20 @@ function renderSrscFolderCards(nodeId, folders) {
     });
 }
 
-async function openSrscFolder(nodeId, folderName) {
+async function openSrscFolder(nodeId, folderName, subPath = '') {
     const container = document.getElementById('srscContent');
     container.innerHTML = '<div class="srsc-loading">Loading folder...</div>';
 
     try {
-        const response = await fetch(`${API_SRSC_FILES_URL}/${encodeURIComponent(nodeId)}/${encodeURIComponent(folderName)}`);
+        let url = `${API_SRSC_FILES_URL}/${encodeURIComponent(nodeId)}/${encodeURIComponent(folderName)}`;
+        if (subPath) url += `?subPath=${encodeURIComponent(subPath)}`;
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
 
-        renderSrscFolderContents(nodeId, folderName, data.items || []);
+        renderSrscFolderContents(nodeId, folderName, subPath, data.items || []);
     } catch (error) {
         console.error('SRSC folder contents error:', error);
         container.innerHTML = `
@@ -391,15 +394,29 @@ async function openSrscFolder(nodeId, folderName) {
     }
 }
 
-function renderSrscFolderContents(nodeId, folderName, items) {
+// Goes up exactly one level: from a nested subPath to its parent, or
+// from a top-level SRSC folder back to the folder grid (SLD/DOC/PIC/Catalog).
+function goBackSrsc(nodeId, folderName, subPath) {
+    if (!subPath) {
+        loadSrscFolders(nodeId);
+        return;
+    }
+    const parts = subPath.split('/');
+    parts.pop();
+    openSrscFolder(nodeId, folderName, parts.join('/'));
+}
+
+function renderSrscFolderContents(nodeId, folderName, subPath, items) {
     const container = document.getElementById('srscContent');
+
+    const breadcrumb = [folderName, ...(subPath ? subPath.split('/') : [])].join(' / ');
 
     const header = `
         <div class="srsc-browser-header">
             <button type="button" class="srsc-back-button" id="srscBackButton">← Back</button>
             <div class="srsc-current-folder">
                 <span>📁</span>
-                <strong>${escapeHtml(folderName)}</strong>
+                <strong>${escapeHtml(breadcrumb)}</strong>
                 <small>${items.length} item${items.length === 1 ? '' : 's'}</small>
             </div>
         </div>`;
@@ -411,7 +428,7 @@ function renderSrscFolderContents(nodeId, folderName, items) {
                 <strong>This folder is empty</strong>
                 <span>No files are currently available in this folder.</span>
             </div>`;
-        document.getElementById('srscBackButton')?.addEventListener('click', () => loadSrscFolders(nodeId));
+        document.getElementById('srscBackButton')?.addEventListener('click', () => goBackSrsc(nodeId, folderName, subPath));
         return;
     }
 
@@ -442,27 +459,26 @@ function renderSrscFolderContents(nodeId, folderName, items) {
             }).join('')}
         </div>`;
 
-    document.getElementById('srscBackButton')?.addEventListener('click', () => loadSrscFolders(nodeId));
+    document.getElementById('srscBackButton')?.addEventListener('click', () => goBackSrsc(nodeId, folderName, subPath));
 
     container.querySelectorAll('.srsc-file').forEach(row => {
-        row.addEventListener('click', () => openSrscFile(nodeId, folderName, row.dataset.file, row.dataset.kind));
+        row.addEventListener('click', () => openSrscFile(nodeId, folderName, subPath, row.dataset.file, row.dataset.kind));
     });
 
-    // Nested folders are supported without exposing arbitrary folders at Node level.
+    // Any subfolder inside the allowed SLD/DOC/PIC/Catalog folder can now be
+    // browsed into, no matter how deep. The backend keeps this safely confined
+    // to the Node's own folder tree (see isSafeChildPath in server.js).
     container.querySelectorAll('.srsc-subfolder').forEach(row => {
-        row.addEventListener('click', () => openNestedSrscFolder(nodeId, folderName, row.dataset.subfolder));
+        row.addEventListener('click', () => {
+            const nextSubPath = subPath ? `${subPath}/${row.dataset.subfolder}` : row.dataset.subfolder;
+            openSrscFolder(nodeId, folderName, nextSubPath);
+        });
     });
 }
 
-async function openNestedSrscFolder(nodeId, topFolderName, relativeFolder) {
-    // The current backend endpoint accepts a top-level allowed folder only.
-    // Nested folder browsing is intentionally disabled here to keep the exposed
-    // filesystem surface limited to the four SRSC root folders.
-    alert('Nested folders are not available in this version. Files in the SRSC folder can be opened or downloaded directly.');
-}
-
-function openSrscFile(nodeId, folderName, fileName, kind) {
-    const url = `${API_SRSC_FILE_URL}?nodeId=${encodeURIComponent(nodeId)}&folder=${encodeURIComponent(folderName)}&file=${encodeURIComponent(fileName)}`;
+function openSrscFile(nodeId, folderName, subPath, fileName, kind) {
+    const relativeFile = subPath ? `${subPath}/${fileName}` : fileName;
+    const url = `${API_SRSC_FILE_URL}?nodeId=${encodeURIComponent(nodeId)}&folder=${encodeURIComponent(folderName)}&file=${encodeURIComponent(relativeFile)}`;
 
     if (kind === 'pdf' || kind === 'image') {
         window.open(url, '_blank', 'noopener');
