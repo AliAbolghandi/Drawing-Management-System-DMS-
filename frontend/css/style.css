@@ -76,7 +76,6 @@ button {
 }
 
 .tree-panel {
-    
     grid-column: 1;
     background: #fff;
     border-right: 1px solid #e3e8ef;
@@ -306,7 +305,6 @@ mark {
 }
 
 .details-panel {
-    
     grid-column: 2;
     background: #f6f8fb;
     padding: 28px;
@@ -342,7 +340,7 @@ mark {
 }
 
 .node-details {
-    max-width: 90%;
+    max-width: 100%;
     background: #fff;
     border: 1px solid #e1e6ed;
     border-radius: 12px;
@@ -418,11 +416,23 @@ mark {
     padding-top: 18px
 }
 
+.section-heading-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px
+}
+
 .section-title {
     font-size: 13px;
     font-weight: 700;
     color: #374457;
-    margin-bottom: 10px
+    margin-bottom: 3px
+}
+
+.section-subtitle {
+    color: #98a2b2;
+    font-size: 10px
 }
 
 .pdf-list {
@@ -466,6 +476,200 @@ mark {
     text-align: center
 }
 
+/* ========================================
+   SRSC Company File Browser
+   ======================================== */
+
+.srsc-content {
+    min-height: 50px
+}
+
+.srsc-folder-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px
+}
+
+.srsc-folder-card {
+    position: relative;
+    min-width: 0;
+    border: 1px solid #dfe5ed;
+    background: #f8fafc;
+    border-radius: 9px;
+    padding: 13px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+    color: #344054;
+    text-align: left;
+    transition: .12s ease
+}
+
+.srsc-folder-card:hover {
+    background: #eef4fb;
+    border-color: #c8d4e2;
+    transform: translateY(-1px)
+}
+
+.srsc-folder-icon {
+    font-size: 22px
+}
+
+.srsc-folder-name {
+    font-size: 12px;
+    font-weight: 700
+}
+
+.srsc-folder-arrow {
+    position: absolute;
+    right: 9px;
+    bottom: 9px;
+    color: #8c98a8;
+    font-size: 17px
+}
+
+.srsc-browser-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px
+}
+
+.srsc-back-button {
+    border: 1px solid #d8dee8;
+    background: #fff;
+    color: #526074;
+    border-radius: 7px;
+    padding: 6px 9px;
+    font-size: 10px;
+    white-space: nowrap
+}
+
+.srsc-back-button:hover {
+    background: #f3f6fa
+}
+
+.srsc-current-folder {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0
+}
+
+.srsc-current-folder strong {
+    font-size: 12px;
+    color: #344054
+}
+
+.srsc-current-folder small {
+    color: #98a2b2;
+    font-size: 10px
+}
+
+.srsc-file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 420px;
+    overflow: auto;
+    padding-right: 2px
+}
+
+.srsc-file-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    border: 1px solid #e1e6ed;
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: .12s ease
+}
+
+.srsc-file-row:hover {
+    background: #eef4fb;
+    border-color: #cbd7e5
+}
+
+.srsc-file-icon {
+    width: 30px;
+    flex: 0 0 30px;
+    text-align: center;
+    font-size: 19px
+}
+
+.srsc-file-main {
+    min-width: 0;
+    flex: 1
+}
+
+.srsc-file-main strong {
+    display: block;
+    color: #344054;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis
+}
+
+.srsc-file-main small {
+    display: block;
+    margin-top: 3px;
+    color: #98a2b2;
+    font-size: 9px;
+    text-transform: uppercase
+}
+
+.srsc-file-action {
+    color: #66768a;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap
+}
+
+.srsc-loading {
+    color: #8d98a8;
+    font-size: 11px;
+    padding: 12px;
+    text-align: center;
+    background: #f8fafc;
+    border: 1px dashed #dfe4eb;
+    border-radius: 8px
+}
+
+.srsc-empty {
+    color: #98a2b2;
+    font-size: 11px;
+    background: #f8fafc;
+    border: 1px dashed #dfe4eb;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px
+}
+
+.srsc-empty strong {
+    color: #6d7888;
+    font-size: 11px
+}
+
+.srsc-empty-icon {
+    font-size: 22px;
+    margin-bottom: 2px
+}
+
+.srsc-warning {
+    background: #fffaf0;
+    border-color: #f0dfb5
+}
+
 .loading {
     text-align: center;
     padding: 40px;
@@ -482,8 +686,13 @@ mark {
     font-size: 12px
 }
 
-@media(max-width:900px) {
+@media(max-width:1100px) {
+    .srsc-folder-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+}
 
+@media(max-width:900px) {
     html,
     body {
         height: auto;
@@ -508,10 +717,15 @@ mark {
         grid-column: 1;
         grid-row: 2;
         min-height: 420px
-        
     }
 
     .details-grid {
         grid-template-columns: 1fr
+    }
+}
+
+@media(max-width:500px) {
+    .srsc-folder-grid {
+        grid-template-columns: 1fr 1fr
     }
 }
