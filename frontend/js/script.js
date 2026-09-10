@@ -1,15 +1,27 @@
 // ======================================================
-// Drawing Management System - Tree Renderer
+// Drawing Management System - Tree + SRSC File Browser
 // ======================================================
-const API_URL = 'http://localhost:3000/api/nodes';
-const API_PDF_URL = 'http://localhost:3000/api/pdfs';
-const API_PDF_OPEN_URL = 'http://localhost:3000/api/pdf-open';
+
+// Use the same host as the browser for LAN access.
+// When index.html is opened directly from disk, fall back to localhost.
+const API_HOST = window.location.hostname || 'localhost';
+const API_BASE = `http://${API_HOST}:3000`;
+
+const API_URL = `${API_BASE}/api/nodes`;
+const API_PDF_URL = `${API_BASE}/api/pdfs`;
+const API_PDF_OPEN_URL = `${API_BASE}/api/pdf-open`;
+const API_SRSC_FOLDERS_URL = `${API_BASE}/api/node-folders`;
+const API_SRSC_FILES_URL = `${API_BASE}/api/node-folder-files`;
+const API_SRSC_FILE_URL = `${API_BASE}/api/node-file`;
+
+const SRSC_FOLDER_ORDER = ['SLD', 'DOC', 'PIC', 'Catalog'];
 
 let allNodes = [];
 let nodeElements = new Map();
 let pdfsByNodeId = new Map();
 let currentSearchQuery = '';
 let parentById = new Map();
+let currentSelectedNode = null;
 
 const treeContainer = document.getElementById('treeContainer');
 const connectionStatus = document.getElementById('connectionStatus');
@@ -40,11 +52,38 @@ function escapeHtml(value) {
         .replaceAll("'", '&#039;');
 }
 
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function highlightText(value, query) {
     const text = escapeHtml(value || '');
     if (!query) return text || '-';
-    const escaped = String(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
+    return text.replace(new RegExp(`(${escapeRegExp(query)})`, 'gi'), '<mark>$1</mark>');
+}
+
+function formatFileSize(bytes) {
+    if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0) return '';
+    const size = Number(bytes);
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function getFileIcon(item) {
+    if (item.type === 'folder') return '📁';
+    if (item.kind === 'pdf') return '📄';
+    if (item.kind === 'image') return '🖼️';
+    if (item.kind === 'cad') return '📐';
+    if (item.kind === 'document') return '📝';
+    return '📎';
+}
+
+function getFileActionLabel(item) {
+    if (item.type === 'folder') return 'Open';
+    if (item.kind === 'pdf' || item.kind === 'image') return 'Open';
+    return 'Download';
 }
 
 async function loadNodes() {
@@ -205,6 +244,7 @@ function createNodeElement(node, isRoot = false) {
 function selectNode(node, row) {
     document.querySelectorAll('.node-row.selected').forEach(el => el.classList.remove('selected'));
     row.classList.add('selected');
+    currentSelectedNode = node;
     showNodeDetails(node);
 }
 
@@ -221,7 +261,9 @@ function showNodeDetails(node) {
     const active = node.IsActive === true || Number(node.IsActive) === 1;
     status.textContent = active ? 'Active' : 'Inactive';
     status.className = active ? 'node-status' : 'node-status inactive';
+
     renderPdfList(node._id ?? normalizeNodeId(node.NodeID));
+    loadSrscFolders(node._id ?? normalizeNodeId(node.NodeID));
 }
 
 function renderPdfList(nodeId) {
@@ -254,6 +296,187 @@ async function openPdfInDefaultApp(pdfId) {
     }
 }
 
+async function loadSrscFolders(nodeId) {
+    const container = document.getElementById('srscContent');
+    if (!container) return;
+
+    container.innerHTML = '<div class="srsc-loading">Loading company files...</div>';
+
+    try {
+        const response = await fetch(`${API_SRSC_FOLDERS_URL}/${encodeURIComponent(nodeId)}`);
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+
+        if (!data.hasFolderPath) {
+            container.innerHTML = `
+                <div class="srsc-empty">
+                    <div class="srsc-empty-icon">▱</div>
+                    <strong>No SRSC folder configured</strong>
+                    <span>This Node does not have a FolderPath.</span>
+                </div>`;
+            return;
+        }
+
+        if (data.folderExists === false) {
+            container.innerHTML = `
+                <div class="srsc-empty srsc-warning">
+                    <div class="srsc-empty-icon">⚠</div>
+                    <strong>SRSC folder not found</strong>
+                    <span>The configured Node folder could not be found on the server.</span>
+                </div>`;
+            return;
+        }
+
+        const folders = SRSC_FOLDER_ORDER
+            .map(name => (data.folders || []).find(folder => folder.name.toLowerCase() === name.toLowerCase()))
+            .filter(Boolean);
+
+        if (!folders.length) {
+            container.innerHTML = `
+                <div class="srsc-empty">
+                    <div class="srsc-empty-icon">▱</div>
+                    <strong>No company folders found</strong>
+                    <span>SLD, DOC, PIC and Catalog are the only folders exposed here.</span>
+                </div>`;
+            return;
+        }
+
+        renderSrscFolderCards(nodeId, folders);
+    } catch (error) {
+        console.error('SRSC folder loading error:', error);
+        container.innerHTML = `
+            <div class="error">
+                <strong>Unable to load SRSC files</strong><br><br>${escapeHtml(error.message)}
+            </div>`;
+    }
+}
+
+function renderSrscFolderCards(nodeId, folders) {
+    const container = document.getElementById('srscContent');
+    container.innerHTML = `
+        <div class="srsc-folder-grid">
+            ${folders.map(folder => `
+                <button type="button" class="srsc-folder-card" data-folder="${escapeHtml(folder.name)}">
+                    <span class="srsc-folder-icon">📁</span>
+                    <span class="srsc-folder-name">${escapeHtml(folder.name)}</span>
+                    <span class="srsc-folder-arrow">›</span>
+                </button>`).join('')}
+        </div>`;
+
+    container.querySelectorAll('.srsc-folder-card').forEach(button => {
+        button.addEventListener('click', () => openSrscFolder(nodeId, button.dataset.folder));
+    });
+}
+
+async function openSrscFolder(nodeId, folderName) {
+    const container = document.getElementById('srscContent');
+    container.innerHTML = '<div class="srsc-loading">Loading folder...</div>';
+
+    try {
+        const response = await fetch(`${API_SRSC_FILES_URL}/${encodeURIComponent(nodeId)}/${encodeURIComponent(folderName)}`);
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+
+        renderSrscFolderContents(nodeId, folderName, data.items || []);
+    } catch (error) {
+        console.error('SRSC folder contents error:', error);
+        container.innerHTML = `
+            <div class="error">
+                <strong>Unable to load folder</strong><br><br>${escapeHtml(error.message)}
+            </div>
+            <button type="button" class="srsc-back-button" id="srscErrorBack">← Back to SRSC folders</button>`;
+        document.getElementById('srscErrorBack')?.addEventListener('click', () => loadSrscFolders(nodeId));
+    }
+}
+
+function renderSrscFolderContents(nodeId, folderName, items) {
+    const container = document.getElementById('srscContent');
+
+    const header = `
+        <div class="srsc-browser-header">
+            <button type="button" class="srsc-back-button" id="srscBackButton">← Back</button>
+            <div class="srsc-current-folder">
+                <span>📁</span>
+                <strong>${escapeHtml(folderName)}</strong>
+                <small>${items.length} item${items.length === 1 ? '' : 's'}</small>
+            </div>
+        </div>`;
+
+    if (!items.length) {
+        container.innerHTML = `${header}
+            <div class="srsc-empty">
+                <div class="srsc-empty-icon">∅</div>
+                <strong>This folder is empty</strong>
+                <span>No files are currently available in this folder.</span>
+            </div>`;
+        document.getElementById('srscBackButton')?.addEventListener('click', () => loadSrscFolders(nodeId));
+        return;
+    }
+
+    container.innerHTML = `${header}
+        <div class="srsc-file-list">
+            ${items.map(item => {
+                if (item.type === 'folder') {
+                    return `
+                        <div class="srsc-file-row srsc-subfolder" data-subfolder="${escapeHtml(item.name)}">
+                            <span class="srsc-file-icon">📁</span>
+                            <span class="srsc-file-main">
+                                <strong>${escapeHtml(item.name)}</strong>
+                                <small>Folder</small>
+                            </span>
+                            <span class="srsc-file-action">Open ›</span>
+                        </div>`;
+                }
+
+                return `
+                    <div class="srsc-file-row srsc-file" data-file="${escapeHtml(item.name)}" data-kind="${escapeHtml(item.kind || 'file')}" title="${getFileActionLabel(item)}">
+                        <span class="srsc-file-icon">${getFileIcon(item)}</span>
+                        <span class="srsc-file-main">
+                            <strong>${escapeHtml(item.name)}</strong>
+                            <small>${escapeHtml(item.extension || '').replace('.', '').toUpperCase() || 'FILE'}${item.size !== undefined ? ` · ${formatFileSize(item.size)}` : ''}</small>
+                        </span>
+                        <span class="srsc-file-action">${getFileActionLabel(item)}</span>
+                    </div>`;
+            }).join('')}
+        </div>`;
+
+    document.getElementById('srscBackButton')?.addEventListener('click', () => loadSrscFolders(nodeId));
+
+    container.querySelectorAll('.srsc-file').forEach(row => {
+        row.addEventListener('click', () => openSrscFile(nodeId, folderName, row.dataset.file, row.dataset.kind));
+    });
+
+    // Nested folders are supported without exposing arbitrary folders at Node level.
+    container.querySelectorAll('.srsc-subfolder').forEach(row => {
+        row.addEventListener('click', () => openNestedSrscFolder(nodeId, folderName, row.dataset.subfolder));
+    });
+}
+
+async function openNestedSrscFolder(nodeId, topFolderName, relativeFolder) {
+    // The current backend endpoint accepts a top-level allowed folder only.
+    // Nested folder browsing is intentionally disabled here to keep the exposed
+    // filesystem surface limited to the four SRSC root folders.
+    alert('Nested folders are not available in this version. Files in the SRSC folder can be opened or downloaded directly.');
+}
+
+function openSrscFile(nodeId, folderName, fileName, kind) {
+    const url = `${API_SRSC_FILE_URL}?nodeId=${encodeURIComponent(nodeId)}&folder=${encodeURIComponent(folderName)}&file=${encodeURIComponent(fileName)}`;
+
+    if (kind === 'pdf' || kind === 'image') {
+        window.open(url, '_blank', 'noopener');
+        return;
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+}
+
 function expandAll() {
     let changed = true;
     while (changed) {
@@ -280,7 +503,6 @@ function nodeMatches(node, query) {
 }
 
 // Search runs ONLY when the Search button is clicked (or Enter is pressed).
-// The complete tree remains in the DOM/data; only ancestor paths of matches are expanded.
 function searchTree() {
     const query = searchInput.value.trim();
     currentSearchQuery = query;
