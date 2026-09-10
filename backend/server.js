@@ -273,6 +273,7 @@ app.get('/api/node-folders/:nodeId', async (req, res) => {
 app.get('/api/node-folder-files/:nodeId/:folderName', async (req, res) => {
     const nodeId = Number(req.params.nodeId);
     const folderName = getCanonicalAllowedFolder(req.params.folderName);
+    const subPath = typeof req.query.subPath === 'string' ? req.query.subPath : '';
 
     if (!Number.isInteger(nodeId) || nodeId <= 0) {
         return res.status(400).json({ error: 'Invalid Node ID' });
@@ -317,13 +318,28 @@ app.get('/api/node-folder-files/:nodeId/:folderName', async (req, res) => {
             return res.status(404).json({ error: 'SRSC folder not found' });
         }
 
-        const entries = fs.readdirSync(targetFolder, { withFileTypes: true });
+        // Resolve an optional nested subPath *inside* the allowed top-level folder.
+        // isSafeChildPath already rejects '..' segments and absolute paths, so
+        // browsing stays confined to targetFolder no matter how deep the user goes.
+        let browseFolder = targetFolder;
+
+        if (subPath) {
+            const resolvedSubFolder = isSafeChildPath(targetFolder, subPath);
+
+            if (!resolvedSubFolder || !fs.existsSync(resolvedSubFolder) || !fs.statSync(resolvedSubFolder).isDirectory()) {
+                return res.status(404).json({ error: 'Subfolder not found' });
+            }
+
+            browseFolder = resolvedSubFolder;
+        }
+
+        const entries = fs.readdirSync(browseFolder, { withFileTypes: true });
         const items = [];
 
         for (const entry of entries) {
             if (entry.name.startsWith('~$')) continue;
 
-            const fullPath = path.join(targetFolder, entry.name);
+            const fullPath = path.join(browseFolder, entry.name);
 
             try {
                 const stat = fs.statSync(fullPath);
@@ -358,6 +374,7 @@ app.get('/api/node-folder-files/:nodeId/:folderName', async (req, res) => {
             nodeId,
             nodeCode: node.NodeCode,
             folder: folderName,
+            subPath,
             items
         });
     } catch (err) {
