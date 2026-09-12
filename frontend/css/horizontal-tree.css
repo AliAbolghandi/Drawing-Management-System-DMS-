@@ -1,0 +1,35 @@
+/* Horizontal tree layout override.
+   Children are displayed beside the parent, not underneath it. */
+.tree-node {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: max-content;
+    min-width: 100%;
+}
+
+.tree-children {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    margin-left: 18px;
+    padding-left: 14px;
+    border-left: 1px dashed var(--line-strong);
+}
+
+.tree-children.collapsed {
+    display: none;
+}
+
+.node-row {
+    flex: 0 0 auto;
+}
+
+.node-content {
+    flex: 0 1 auto;
+}
+
+.tree-container {
+    overflow: auto;
+}
