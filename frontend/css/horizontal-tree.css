@@ -1,7 +1,7 @@
 /* ======================================================
    Compact horizontal tree layout
    Children open to the RIGHT of their parent.
-   No artificial full-width gap between tree levels.
+   Expanded branches do NOT push sibling nodes downward.
    ====================================================== */
 
 .tree-container {
@@ -10,25 +10,34 @@
     white-space: nowrap;
 }
 
-/* Each node consists of its own row + its children beside it. */
+/* Every node occupies only the height of its own row. */
 .tree-node {
     position: relative;
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
+    display: block;
     width: max-content;
     min-width: 0;
     max-width: none;
 }
 
-/* Children form a compact vertical column immediately to the right. */
+/*
+   IMPORTANT:
+   The opened branch is taken out of normal document flow.
+   Therefore opening GP0BV001 does not create a vertical gap
+   before GP0BV002, GP0BV003, etc.
+*/
 .tree-children {
+    position: absolute;
+    top: 0;
+    left: 100%;
+    z-index: 10;
+
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     align-items: flex-start;
-    flex: 0 0 auto;
+
     width: max-content;
+    min-width: 0;
     margin-left: 10px;
     padding-left: 10px;
     border-left: 1px dashed var(--line-strong);
@@ -38,8 +47,9 @@
     display: none;
 }
 
-/* Do not stretch a node row across the tree panel. */
+/* Node row never stretches across the tree panel. */
 .node-row {
+    display: flex;
     flex: 0 0 auto;
     width: max-content;
     min-width: 0;
@@ -50,8 +60,10 @@
     min-width: 0;
 }
 
-/* Keep nested levels tight; the next level starts directly beside its parent. */
+/* Nested branches use exactly the same compact horizontal rule. */
 .tree-node > .tree-children > .tree-node {
+    position: relative;
+    display: block;
     width: max-content;
     min-width: 0;
 }
