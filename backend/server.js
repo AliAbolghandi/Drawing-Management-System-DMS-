@@ -41,6 +41,13 @@ const INLINE_EXTENSIONS = new Set([
     '.pdf', ...IMAGE_EXTENSIONS
 ]);
 
+// Cache for the bulk "which nodes have an SRSC folder on disk" scan.
+// Scanning 100,000+ nodes against the filesystem on every page load would be
+// far too slow, so the result is computed once and reused until a refresh
+// is explicitly requested (see /api/srsc-status?refresh=1).
+let srscStatusCache = null;
+let srscStatusComputing = null;
+
 function normalizeRelativePath(value) {
     if (value === null || value === undefined) return null;
 
@@ -176,6 +183,85 @@ app.get('/api/pdfs', async (req, res) => {
         res.json(result.recordset);
     } catch (err) {
         console.error('PDFs query failed:');
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ========================================
+// API - Get Nodes That Have An SRSC Folder
+// ========================================
+
+// Scans every Node's FolderPath on disk and returns the NodeIDs that have
+// at least one of the allowed SRSC folders (SLD / DOC / PIC / Catalog)
+// actually present. Mirrors the same folderExists / folders logic used by
+// /api/node-folders/:nodeId, just applied in bulk.
+async function computeSrscStatus() {
+    const result = await sql.query(`
+        SELECT
+            N.NodeID,
+            N.FolderPath,
+            N.PathID,
+            P.RootPath
+        FROM dbo.Nodes N
+        LEFT JOIN dbo.tblPath P
+            ON N.PathID = P.PathID
+    `);
+
+    const nodeIds = [];
+
+    for (const row of result.recordset) {
+        const nodeRoot = getSafeNodeRoot(row.RootPath, row.FolderPath);
+        if (!nodeRoot) continue;
+
+        try {
+            if (!fs.existsSync(nodeRoot) || !fs.statSync(nodeRoot).isDirectory()) continue;
+        } catch (_) {
+            continue;
+        }
+
+        const hasAnySrscFolder = ALLOWED_SRSC_FOLDERS.some(name => {
+            try {
+                const fullPath = path.join(nodeRoot, name);
+                return fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory();
+            } catch (_) {
+                return false;
+            }
+        });
+
+        if (hasAnySrscFolder) nodeIds.push(row.NodeID);
+    }
+
+    return nodeIds;
+}
+
+async function getSrscStatus(forceRefresh) {
+    if (!forceRefresh && srscStatusCache) return srscStatusCache;
+    if (srscStatusComputing) return srscStatusComputing;
+
+    srscStatusComputing = computeSrscStatus()
+        .then(nodeIds => {
+            srscStatusCache = nodeIds;
+            srscStatusComputing = null;
+            return nodeIds;
+        })
+        .catch(err => {
+            srscStatusComputing = null;
+            throw err;
+        });
+
+    return srscStatusComputing;
+}
+
+app.get('/api/srsc-status', async (req, res) => {
+    try {
+        const forceRefresh = req.query.refresh === '1';
+        const nodeIds = await getSrscStatus(forceRefresh);
+
+        console.log(`SRSC status: ${nodeIds.length} node(s) have an SRSC folder`);
+        res.json({ nodeIds, count: nodeIds.length });
+    } catch (err) {
+        console.error('SRSC status scan failed:');
         console.error(err);
         res.status(500).json({ error: err.message });
     }
@@ -555,4 +641,8 @@ app.get('/api/pdf-file/:pdfId', async (req, res) => {
 app.listen(3000, '0.0.0.0', async () => {
     console.log('Server running on http://0.0.0.0:3000');
     await testDatabaseConnection();
+
+    getSrscStatus(false)
+        .then(nodeIds => console.log(`SRSC status cache warmed: ${nodeIds.length} node(s) have an SRSC folder`))
+        .catch(err => console.error('SRSC status warm-up failed:', err.message));
 });
