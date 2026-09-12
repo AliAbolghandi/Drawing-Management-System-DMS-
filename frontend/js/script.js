@@ -13,12 +13,14 @@ const API_PDF_OPEN_URL = `${API_BASE}/api/pdf-open`;
 const API_SRSC_FOLDERS_URL = `${API_BASE}/api/node-folders`;
 const API_SRSC_FILES_URL = `${API_BASE}/api/node-folder-files`;
 const API_SRSC_FILE_URL = `${API_BASE}/api/node-file`;
+const API_SRSC_STATUS_URL = `${API_BASE}/api/srsc-status`;
 
 const SRSC_FOLDER_ORDER = ['SLD', 'DOC', 'PIC', 'Catalog'];
 
 let allNodes = [];
 let nodeElements = new Map();
 let pdfsByNodeId = new Map();
+let srscNodeIds = new Set();
 let currentSearchQuery = '';
 let parentById = new Map();
 let currentSelectedNode = null;
@@ -131,6 +133,20 @@ async function loadPdfs() {
     }
 }
 
+async function loadSrscStatus() {
+    try {
+        const response = await fetch(API_SRSC_STATUS_URL);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (!Array.isArray(data.nodeIds)) return;
+
+        srscNodeIds = new Set(data.nodeIds.map(normalizeNodeId));
+        nodeElements.forEach((entry, nodeId) => entry.row.classList.toggle('has-srsc', srscNodeIds.has(nodeId)));
+    } catch (error) {
+        console.error('SRSC status loading error:', error);
+    }
+}
+
 function buildTree(nodes) {
     const nodeMap = new Map();
     const roots = [];
@@ -197,7 +213,7 @@ function createNodeElement(node, isRoot = false) {
 
     const label = document.createElement('div');
     label.className = 'node-label';
-    label.innerHTML = `${highlightText(node.NodeCode || '', currentSearchQuery)} <span class="node-separator">—</span> ${highlightText(node.NodeName || '(Unnamed)', currentSearchQuery)}`;
+    label.innerHTML = `<span class="code">${highlightText(node.NodeCode || '', currentSearchQuery)}</span><span class="node-separator">—</span><span class="desc">${highlightText(node.NodeName || '(Unnamed)', currentSearchQuery)}</span>`;
     content.appendChild(label);
 
     row.append(expandButton, icon, content);
@@ -236,6 +252,7 @@ function createNodeElement(node, isRoot = false) {
 
     row.addEventListener('click', () => selectNode(node, row));
     if (pdfsByNodeId.has(node._id)) row.classList.add('has-pdf');
+    if (srscNodeIds.has(node._id)) row.classList.add('has-srsc');
 
     nodeElements.set(node._id, { node, wrapper, row, hasChildren, setExpanded });
     return wrapper;
@@ -555,7 +572,7 @@ function searchTree() {
     nodeElements.forEach(entry => {
         const isMatch = matchIds.has(entry.node._id);
         entry.row.classList.toggle('search-match', isMatch);
-        entry.row.querySelector('.node-label').innerHTML = `${highlightText(entry.node.NodeCode || '', currentSearchQuery)} <span class="node-separator">—</span> ${highlightText(entry.node.NodeName || '(Unnamed)', currentSearchQuery)}`;
+        entry.row.querySelector('.node-label').innerHTML = `<span class="code">${highlightText(entry.node.NodeCode || '', currentSearchQuery)}</span><span class="node-separator">—</span><span class="desc">${highlightText(entry.node.NodeName || '(Unnamed)', currentSearchQuery)}</span>`;
     });
 
     if (matches.length) {
@@ -578,3 +595,4 @@ collapseAllBtn.addEventListener('click', collapseAll);
 
 loadNodes();
 loadPdfs();
+loadSrscStatus();
