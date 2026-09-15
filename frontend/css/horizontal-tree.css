@@ -1,0 +1,60 @@
+/* Horizontal tree layout: each child branch opens to the right of its parent. */
+.tree-container {
+    overflow: auto;
+    white-space: nowrap;
+}
+
+.tree-container > .tree-node {
+    display: flex;
+    align-items: flex-start;
+    width: max-content;
+}
+
+.tree-node {
+    display: flex;
+    align-items: flex-start;
+    width: max-content;
+}
+
+.tree-node > .node-row {
+    width: max-content;
+    min-width: 240px;
+    flex: 0 0 auto;
+}
+
+.tree-children {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-left: 18px;
+    padding-left: 18px;
+    border-left: 1px dashed var(--line-strong);
+    min-height: 34px;
+}
+
+.tree-children > .tree-node {
+    flex: 0 0 auto;
+}
+
+.tree-children.collapsed {
+    display: none;
+}
+
+/* Keep labels readable while allowing the tree itself to scroll horizontally. */
+.node-content {
+    min-width: 180px;
+}
+
+.node-label {
+    max-width: 360px;
+}
+
+@media (max-width: 900px) {
+    .tree-node > .node-row {
+        min-width: 210px;
+    }
+
+    .node-label {
+        max-width: 280px;
+    }
+}
