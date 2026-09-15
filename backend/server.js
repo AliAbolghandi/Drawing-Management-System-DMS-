@@ -7,14 +7,8 @@ const util = require('util');
 const execAsync = util.promisify(require('child_process').exec);
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
-
-// ========================================
-// SQL Server Configuration
-// Windows Authentication
-// ========================================
 
 const config = {
     connectionString:
@@ -25,53 +19,26 @@ const config = {
         'TrustServerCertificate=Yes;'
 };
 
-// ========================================
-// SRSC Company Folder Configuration
-// ========================================
-
-// Only these four folders are exposed at the Node level.
-// Other folders inside a Node folder are intentionally hidden.
 const ALLOWED_SRSC_FOLDERS = ['SLD', 'DOC', 'PIC', 'Catalog'];
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tif', '.tiff', '.ico']);
+const INLINE_EXTENSIONS = new Set(['.pdf', ...IMAGE_EXTENSIONS]);
 
-const IMAGE_EXTENSIONS = new Set([
-    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tif', '.tiff', '.ico'
-]);
-
-const INLINE_EXTENSIONS = new Set([
-    '.pdf', ...IMAGE_EXTENSIONS
-]);
-
-// Cache for the bulk "which nodes have an SRSC folder on disk" scan.
-// Scanning 100,000+ nodes against the filesystem on every page load would be
-// far too slow, so the result is computed once and reused until a refresh
-// is explicitly requested (see /api/srsc-status?refresh=1).
 let srscStatusCache = null;
 let srscStatusComputing = null;
 
 function normalizeRelativePath(value) {
     if (value === null || value === undefined) return null;
-
     const normalized = String(value).trim().replace(/\\/g, '/');
-
     if (!normalized) return null;
-
-    // FolderPath must be relative. Absolute paths and traversal are rejected.
-    if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) {
-        return null;
-    }
-
+    if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) return null;
     const parts = normalized.split('/').filter(Boolean);
     if (parts.includes('..')) return null;
-
     return parts.join(path.sep);
 }
 
 function getSafeNodeRoot(rootPath, folderPath) {
-    if (!rootPath || !folderPath) return null;
-
     const relativeFolder = normalizeRelativePath(folderPath);
-    if (!relativeFolder) return null;
-
+    if (!rootPath || !relativeFolder) return null;
     return path.resolve(String(rootPath), relativeFolder);
 }
 
@@ -82,54 +49,28 @@ function isPathInside(parentPath, childPath) {
     return relative === '' || (relative && !relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative));
 }
 
-function isAllowedFolder(folderName) {
-    return ALLOWED_SRSC_FOLDERS.some(name => name.toLowerCase() === String(folderName).toLowerCase());
-}
-
 function getCanonicalAllowedFolder(folderName) {
     return ALLOWED_SRSC_FOLDERS.find(name => name.toLowerCase() === String(folderName).toLowerCase()) || null;
 }
 
 function isSafeChildPath(basePath, requestedRelativePath) {
     if (requestedRelativePath === null || requestedRelativePath === undefined) return null;
-
     const normalized = String(requestedRelativePath).replace(/\\/g, '/');
     const parts = normalized.split('/').filter(Boolean);
-
     if (!parts.length || parts.includes('..')) return null;
     if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) return null;
-
     const fullPath = path.resolve(basePath, ...parts);
     return isPathInside(basePath, fullPath) ? fullPath : null;
 }
 
 function getFileKind(fileName) {
     const ext = path.extname(fileName).toLowerCase();
-
     if (ext === '.pdf') return 'pdf';
     if (IMAGE_EXTENSIONS.has(ext)) return 'image';
     if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf'].includes(ext)) return 'document';
     if (['.dwg', '.dxf', '.dws', '.dwt', '.sldprt', '.sldasm', '.slddrw', '.step', '.stp', '.iges', '.igs'].includes(ext)) return 'cad';
-
     return 'file';
 }
-
-// ========================================
-// Display Configuration
-// ========================================
-
-console.log('========================================');
-console.log('SQL Server Configuration');
-console.log('========================================');
-console.log('SERVER   : localhost');
-console.log('DATABASE : dbDrawingManagment');
-console.log('AUTH     : Windows Authentication');
-console.log('DRIVER   : ODBC Driver 17 for SQL Server');
-console.log('========================================');
-
-// ========================================
-// Test Database Connection
-// ========================================
 
 async function testDatabaseConnection() {
     try {
@@ -142,507 +83,281 @@ async function testDatabaseConnection() {
     }
 }
 
-// ========================================
-// API - Get All Nodes
-// ========================================
-
 app.get('/api/nodes', async (req, res) => {
     try {
-        const result = await sql.query(`
-            SELECT *
-            FROM dbo.Nodes
-            ORDER BY NodeID
-        `);
-
-        console.log(`Nodes loaded: ${result.recordset.length}`);
+        const result = await sql.query(`SELECT * FROM dbo.Nodes ORDER BY NodeID`);
         res.json(result.recordset);
     } catch (err) {
-        console.error('Nodes query failed:');
-        console.error(err);
+        console.error('Nodes query failed:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-// ========================================
-// API - Get All PDFs
-// ========================================
+// Create a new Node. NodeID is generated server-side because it is the primary key.
+// If NodeID is an IDENTITY column, SQL Server generates it. Otherwise a serializable
+// transaction allocates MAX(NodeID)+1 safely. ParentID, PathID and FolderPath are
+// inherited/generated from the selected parent.
+app.post('/api/nodes', async (req, res) => {
+    const nodeCode = typeof req.body?.NodeCode === 'string' ? req.body.NodeCode.trim() : '';
+    const nodeName = typeof req.body?.NodeName === 'string' ? req.body.NodeName.trim() : '';
+    const parentId = Number(req.body?.ParentID);
+
+    if (!nodeCode) return res.status(400).json({ error: 'Node Code is required.' });
+    if (!nodeName) return res.status(400).json({ error: 'Node Name is required.' });
+    if (!Number.isInteger(parentId) || parentId <= 0) return res.status(400).json({ error: 'A valid parent Node is required.' });
+    if (nodeCode.length > 100) return res.status(400).json({ error: 'Node Code must be 100 characters or less.' });
+    if (nodeName.length > 255) return res.status(400).json({ error: 'Node Name must be 255 characters or less.' });
+
+    const pool = await sql.connect(config);
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+
+        const request = new sql.Request(transaction);
+        request.input('parentId', sql.Int, parentId);
+        request.input('nodeCode', sql.NVarChar(100), nodeCode);
+        request.input('nodeName', sql.NVarChar(255), nodeName);
+
+        const parentResult = await request.query(`
+            SELECT TOP 1 NodeID, FolderPath, PathID
+            FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)
+            WHERE NodeID = @parentId
+        `);
+
+        if (!parentResult.recordset.length) {
+            await transaction.rollback();
+            return res.status(404).json({ error: 'Parent Node not found.' });
+        }
+
+        const duplicateResult = await request.query(`
+            SELECT TOP 1 NodeID
+            FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)
+            WHERE NodeCode = @nodeCode
+        `);
+
+        if (duplicateResult.recordset.length) {
+            await transaction.rollback();
+            return res.status(409).json({ error: `Node Code "${nodeCode}" already exists (NodeID ${duplicateResult.recordset[0].NodeID}).` });
+        }
+
+        const parent = parentResult.recordset[0];
+        const safeFolderPart = value => String(value).replace(/[\\/:*?"<>|]/g, '-').trim();
+        const parentFolder = parent.FolderPath ? String(parent.FolderPath).trim().replace(/\\/g, '\\') : '';
+        const childFolder = `${safeFolderPart(nodeCode)} -${safeFolderPart(nodeName)}`;
+        const folderPath = parentFolder ? `${parentFolder}\\${childFolder}` : childFolder;
+
+        const identityResult = await new sql.Request(transaction).query(`
+            SELECT COLUMNPROPERTY(OBJECT_ID('dbo.Nodes'), 'NodeID', 'IsIdentity') AS IsIdentity
+        `);
+        const isIdentity = Number(identityResult.recordset[0]?.IsIdentity) === 1;
+        let inserted;
+
+        if (isIdentity) {
+            const insertRequest = new sql.Request(transaction);
+            insertRequest.input('parentId', sql.Int, parentId);
+            insertRequest.input('nodeCode', sql.NVarChar(100), nodeCode);
+            insertRequest.input('nodeName', sql.NVarChar(255), nodeName);
+            insertRequest.input('folderPath', sql.NVarChar(sql.MAX), folderPath);
+            insertRequest.input('pathId', sql.Int, parent.PathID ?? null);
+            inserted = await insertRequest.query(`
+                INSERT INTO dbo.Nodes (ParentID, NodeCode, NodeName, IsActive, CreatedAt, UpdatedAt, FolderPath, PathID)
+                OUTPUT INSERTED.*
+                VALUES (@parentId, @nodeCode, @nodeName, 1, SYSUTCDATETIME(), SYSUTCDATETIME(), @folderPath, @pathId)
+            `);
+        } else {
+            const idResult = await new sql.Request(transaction).query(`SELECT ISNULL(MAX(NodeID), 0) + 1 AS NewNodeID FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)`);
+            const newNodeId = Number(idResult.recordset[0].NewNodeID);
+            if (!Number.isSafeInteger(newNodeId) || newNodeId <= 0) throw new Error('Unable to allocate a valid NodeID.');
+
+            const insertRequest = new sql.Request(transaction);
+            insertRequest.input('nodeId', sql.Int, newNodeId);
+            insertRequest.input('parentId', sql.Int, parentId);
+            insertRequest.input('nodeCode', sql.NVarChar(100), nodeCode);
+            insertRequest.input('nodeName', sql.NVarChar(255), nodeName);
+            insertRequest.input('folderPath', sql.NVarChar(sql.MAX), folderPath);
+            insertRequest.input('pathId', sql.Int, parent.PathID ?? null);
+            inserted = await insertRequest.query(`
+                INSERT INTO dbo.Nodes (NodeID, ParentID, NodeCode, NodeName, IsActive, CreatedAt, UpdatedAt, FolderPath, PathID)
+                OUTPUT INSERTED.*
+                VALUES (@nodeId, @parentId, @nodeCode, @nodeName, 1, SYSUTCDATETIME(), SYSUTCDATETIME(), @folderPath, @pathId)
+            `);
+        }
+
+        await transaction.commit();
+        srscStatusCache = null;
+
+        const created = inserted.recordset[0];
+        console.log(`Node created: ${created.NodeID} / ${created.NodeCode}`);
+        res.status(201).json({ success: true, node: created });
+    } catch (err) {
+        try { await transaction.rollback(); } catch (_) {}
+        console.error('Node creation failed:', err);
+        if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'A Node with the same primary key or unique value already exists.' });
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.get('/api/pdfs', async (req, res) => {
     try {
-        const result = await sql.query(`
-            SELECT
-                PDFID,
-                NodeID,
-                NodeCode,
-                PDFName
-            FROM dbo.DanieliPDF
-            ORDER BY NodeID, PDFID
-        `);
-
-        console.log(`PDFs loaded: ${result.recordset.length}`);
+        const result = await sql.query(`SELECT PDFID, NodeID, NodeCode, PDFName FROM dbo.DanieliPDF ORDER BY NodeID, PDFID`);
         res.json(result.recordset);
     } catch (err) {
-        console.error('PDFs query failed:');
-        console.error(err);
+        console.error('PDFs query failed:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-// ========================================
-// API - Get Nodes That Have An SRSC Folder
-// ========================================
-
-// Scans every Node's FolderPath on disk and returns the NodeIDs that have
-// at least one of the allowed SRSC folders (SLD / DOC / PIC / Catalog)
-// actually present. Mirrors the same folderExists / folders logic used by
-// /api/node-folders/:nodeId, just applied in bulk.
 async function computeSrscStatus() {
     const result = await sql.query(`
-        SELECT
-            N.NodeID,
-            N.FolderPath,
-            N.PathID,
-            P.RootPath
+        SELECT N.NodeID, N.FolderPath, N.PathID, P.RootPath
         FROM dbo.Nodes N
-        LEFT JOIN dbo.tblPath P
-            ON N.PathID = P.PathID
+        LEFT JOIN dbo.tblPath P ON N.PathID = P.PathID
     `);
-
     const nodeIds = [];
-
     for (const row of result.recordset) {
         const nodeRoot = getSafeNodeRoot(row.RootPath, row.FolderPath);
         if (!nodeRoot) continue;
-
         try {
             if (!fs.existsSync(nodeRoot) || !fs.statSync(nodeRoot).isDirectory()) continue;
-        } catch (_) {
-            continue;
-        }
-
-        const hasAnySrscFolder = ALLOWED_SRSC_FOLDERS.some(name => {
-            try {
-                const fullPath = path.join(nodeRoot, name);
-                return fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory();
-            } catch (_) {
-                return false;
-            }
-        });
-
-        if (hasAnySrscFolder) nodeIds.push(row.NodeID);
+            const hasAny = ALLOWED_SRSC_FOLDERS.some(name => {
+                try { const fullPath = path.join(nodeRoot, name); return fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory(); }
+                catch (_) { return false; }
+            });
+            if (hasAny) nodeIds.push(row.NodeID);
+        } catch (_) {}
     }
-
     return nodeIds;
 }
 
 async function getSrscStatus(forceRefresh) {
     if (!forceRefresh && srscStatusCache) return srscStatusCache;
     if (srscStatusComputing) return srscStatusComputing;
-
-    srscStatusComputing = computeSrscStatus()
-        .then(nodeIds => {
-            srscStatusCache = nodeIds;
-            srscStatusComputing = null;
-            return nodeIds;
-        })
-        .catch(err => {
-            srscStatusComputing = null;
-            throw err;
-        });
-
+    srscStatusComputing = computeSrscStatus().then(nodeIds => {
+        srscStatusCache = nodeIds;
+        srscStatusComputing = null;
+        return nodeIds;
+    }).catch(err => { srscStatusComputing = null; throw err; });
     return srscStatusComputing;
 }
 
 app.get('/api/srsc-status', async (req, res) => {
-    try {
-        const forceRefresh = req.query.refresh === '1';
-        const nodeIds = await getSrscStatus(forceRefresh);
-
-        console.log(`SRSC status: ${nodeIds.length} node(s) have an SRSC folder`);
-        res.json({ nodeIds, count: nodeIds.length });
-    } catch (err) {
-        console.error('SRSC status scan failed:');
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
+    try { const nodeIds = await getSrscStatus(req.query.refresh === '1'); res.json({ nodeIds, count: nodeIds.length }); }
+    catch (err) { console.error('SRSC status scan failed:', err); res.status(500).json({ error: err.message }); }
 });
-
-// ========================================
-// API - Get SRSC Folders For A Node
-// ========================================
 
 app.get('/api/node-folders/:nodeId', async (req, res) => {
     const nodeId = Number(req.params.nodeId);
-
-    if (!Number.isInteger(nodeId) || nodeId <= 0) {
-        return res.status(400).json({ error: 'Invalid Node ID' });
-    }
-
+    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
     try {
-        const request = new sql.Request();
-        request.input('nodeId', sql.Int, nodeId);
-
+        const request = new sql.Request(); request.input('nodeId', sql.Int, nodeId);
         const result = await request.query(`
-            SELECT TOP 1
-                N.NodeID,
-                N.NodeCode,
-                N.FolderPath,
-                N.PathID,
-                P.SourceName,
-                P.RootPath
-            FROM dbo.Nodes N
-            LEFT JOIN dbo.tblPath P
-                ON N.PathID = P.PathID
-            WHERE N.NodeID = @nodeId
+            SELECT TOP 1 N.NodeID, N.NodeCode, N.FolderPath, N.PathID, P.SourceName, P.RootPath
+            FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID = P.PathID WHERE N.NodeID = @nodeId
         `);
-
-        if (!result.recordset.length) {
-            return res.status(404).json({ error: 'Node not found' });
-        }
-
+        if (!result.recordset.length) return res.status(404).json({ error: 'Node not found' });
         const node = result.recordset[0];
         const nodeRoot = getSafeNodeRoot(node.RootPath, node.FolderPath);
-
-        if (!nodeRoot) {
-            return res.json({
-                nodeId,
-                nodeCode: node.NodeCode,
-                hasFolderPath: false,
-                folders: []
-            });
-        }
-
-        if (!fs.existsSync(nodeRoot) || !fs.statSync(nodeRoot).isDirectory()) {
-            return res.json({
-                nodeId,
-                nodeCode: node.NodeCode,
-                hasFolderPath: true,
-                folderExists: false,
-                folders: []
-            });
-        }
-
+        if (!nodeRoot) return res.json({ nodeId, nodeCode: node.NodeCode, hasFolderPath: false, folders: [] });
+        if (!fs.existsSync(nodeRoot) || !fs.statSync(nodeRoot).isDirectory()) return res.json({ nodeId, nodeCode: node.NodeCode, hasFolderPath: true, folderExists: false, folders: [] });
         const folders = ALLOWED_SRSC_FOLDERS.map(name => {
             const fullPath = path.join(nodeRoot, name);
-            let exists = false;
-
-            try {
-                exists = fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory();
-            } catch (_) {
-                exists = false;
-            }
-
-            return {
-                name,
-                exists
-            };
-        }).filter(folder => folder.exists);
-
-        res.json({
-            nodeId,
-            nodeCode: node.NodeCode,
-            hasFolderPath: true,
-            folderExists: true,
-            folders
-        });
-    } catch (err) {
-        console.error('SRSC folder query failed:');
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
+            try { return { name, exists: fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory() }; } catch (_) { return { name, exists: false }; }
+        }).filter(f => f.exists);
+        res.json({ nodeId, nodeCode: node.NodeCode, hasFolderPath: true, folderExists: true, folders });
+    } catch (err) { console.error('SRSC folder query failed:', err); res.status(500).json({ error: err.message }); }
 });
-
-// ========================================
-// API - Get Contents Of One Allowed SRSC Folder
-// ========================================
 
 app.get('/api/node-folder-files/:nodeId/:folderName', async (req, res) => {
     const nodeId = Number(req.params.nodeId);
     const folderName = getCanonicalAllowedFolder(req.params.folderName);
     const subPath = typeof req.query.subPath === 'string' ? req.query.subPath : '';
-
-    if (!Number.isInteger(nodeId) || nodeId <= 0) {
-        return res.status(400).json({ error: 'Invalid Node ID' });
-    }
-
-    if (!folderName) {
-        return res.status(400).json({ error: 'Folder is not allowed' });
-    }
-
+    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
+    if (!folderName) return res.status(400).json({ error: 'Folder is not allowed' });
     try {
-        const request = new sql.Request();
-        request.input('nodeId', sql.Int, nodeId);
-
-        const result = await request.query(`
-            SELECT TOP 1
-                N.NodeID,
-                N.NodeCode,
-                N.FolderPath,
-                N.PathID,
-                P.SourceName,
-                P.RootPath
-            FROM dbo.Nodes N
-            LEFT JOIN dbo.tblPath P
-                ON N.PathID = P.PathID
-            WHERE N.NodeID = @nodeId
-        `);
-
-        if (!result.recordset.length) {
-            return res.status(404).json({ error: 'Node not found' });
-        }
-
+        const request = new sql.Request(); request.input('nodeId', sql.Int, nodeId);
+        const result = await request.query(`SELECT TOP 1 N.NodeID, N.NodeCode, N.FolderPath, N.PathID, P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.NodeID=@nodeId`);
+        if (!result.recordset.length) return res.status(404).json({ error: 'Node not found' });
         const node = result.recordset[0];
         const nodeRoot = getSafeNodeRoot(node.RootPath, node.FolderPath);
-
-        if (!nodeRoot) {
-            return res.status(404).json({ error: 'No valid FolderPath is configured for this Node' });
-        }
-
+        if (!nodeRoot) return res.status(404).json({ error: 'No valid FolderPath is configured for this Node' });
         const targetFolder = path.join(nodeRoot, folderName);
-
-        if (!isPathInside(nodeRoot, targetFolder) || !fs.existsSync(targetFolder) || !fs.statSync(targetFolder).isDirectory()) {
-            return res.status(404).json({ error: 'SRSC folder not found' });
-        }
-
-        // Resolve an optional nested subPath *inside* the allowed top-level folder.
-        // isSafeChildPath already rejects '..' segments and absolute paths, so
-        // browsing stays confined to targetFolder no matter how deep the user goes.
+        if (!isPathInside(nodeRoot, targetFolder) || !fs.existsSync(targetFolder) || !fs.statSync(targetFolder).isDirectory()) return res.status(404).json({ error: 'SRSC folder not found' });
         let browseFolder = targetFolder;
-
         if (subPath) {
-            const resolvedSubFolder = isSafeChildPath(targetFolder, subPath);
-
-            if (!resolvedSubFolder || !fs.existsSync(resolvedSubFolder) || !fs.statSync(resolvedSubFolder).isDirectory()) {
-                return res.status(404).json({ error: 'Subfolder not found' });
-            }
-
-            browseFolder = resolvedSubFolder;
+            const resolved = isSafeChildPath(targetFolder, subPath);
+            if (!resolved || !fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) return res.status(404).json({ error: 'Subfolder not found' });
+            browseFolder = resolved;
         }
-
         const entries = fs.readdirSync(browseFolder, { withFileTypes: true });
         const items = [];
-
         for (const entry of entries) {
             if (entry.name.startsWith('~$')) continue;
-
             const fullPath = path.join(browseFolder, entry.name);
-
             try {
                 const stat = fs.statSync(fullPath);
-
-                if (entry.isDirectory()) {
-                    items.push({
-                        name: entry.name,
-                        type: 'folder',
-                        kind: 'folder'
-                    });
-                } else if (entry.isFile()) {
-                    items.push({
-                        name: entry.name,
-                        type: 'file',
-                        kind: getFileKind(entry.name),
-                        extension: path.extname(entry.name).toLowerCase(),
-                        size: stat.size,
-                        modifiedAt: stat.mtime.toISOString()
-                    });
-                }
-            } catch (_) {
-                // Ignore files that cannot be inspected.
-            }
+                if (entry.isDirectory()) items.push({ name: entry.name, type: 'folder', kind: 'folder' });
+                else if (entry.isFile()) items.push({ name: entry.name, type: 'file', kind: getFileKind(entry.name), extension: path.extname(entry.name).toLowerCase(), size: stat.size, modifiedAt: stat.mtime.toISOString() });
+            } catch (_) {}
         }
-
-        items.sort((a, b) => {
-            if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
-            return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-        });
-
-        res.json({
-            nodeId,
-            nodeCode: node.NodeCode,
-            folder: folderName,
-            subPath,
-            items
-        });
-    } catch (err) {
-        console.error('SRSC folder contents query failed:');
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
+        items.sort((a,b) => a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        res.json({ nodeId, nodeCode: node.NodeCode, folder: folderName, subPath, items });
+    } catch (err) { console.error('SRSC folder contents query failed:', err); res.status(500).json({ error: err.message }); }
 });
-
-// ========================================
-// API - Serve / Download A File From SRSC Folder
-// ========================================
 
 app.get('/api/node-file', async (req, res) => {
     const nodeId = Number(req.query.nodeId);
     const folderName = getCanonicalAllowedFolder(req.query.folder);
     const requestedFile = req.query.file;
-
-    if (!Number.isInteger(nodeId) || nodeId <= 0) {
-        return res.status(400).json({ error: 'Invalid Node ID' });
-    }
-
-    if (!folderName) {
-        return res.status(400).json({ error: 'Folder is not allowed' });
-    }
-
-    if (!requestedFile || typeof requestedFile !== 'string') {
-        return res.status(400).json({ error: 'File name is required' });
-    }
-
+    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
+    if (!folderName) return res.status(400).json({ error: 'Folder is not allowed' });
+    if (!requestedFile || typeof requestedFile !== 'string') return res.status(400).json({ error: 'File name is required' });
     try {
-        const request = new sql.Request();
-        request.input('nodeId', sql.Int, nodeId);
-
-        const result = await request.query(`
-            SELECT TOP 1
-                N.NodeID,
-                N.NodeCode,
-                N.FolderPath,
-                N.PathID,
-                P.RootPath
-            FROM dbo.Nodes N
-            LEFT JOIN dbo.tblPath P
-                ON N.PathID = P.PathID
-            WHERE N.NodeID = @nodeId
-        `);
-
-        if (!result.recordset.length) {
-            return res.status(404).json({ error: 'Node not found' });
-        }
-
+        const request = new sql.Request(); request.input('nodeId', sql.Int, nodeId);
+        const result = await request.query(`SELECT TOP 1 N.NodeID, N.NodeCode, N.FolderPath, N.PathID, P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.NodeID=@nodeId`);
+        if (!result.recordset.length) return res.status(404).json({ error: 'Node not found' });
         const node = result.recordset[0];
         const nodeRoot = getSafeNodeRoot(node.RootPath, node.FolderPath);
-
-        if (!nodeRoot) {
-            return res.status(404).json({ error: 'No valid FolderPath is configured for this Node' });
-        }
-
+        if (!nodeRoot) return res.status(404).json({ error: 'No valid FolderPath is configured for this Node' });
         const targetFolder = path.join(nodeRoot, folderName);
-        if (!fs.existsSync(targetFolder) || !fs.statSync(targetFolder).isDirectory()) {
-            return res.status(404).json({ error: 'SRSC folder not found' });
-        }
-
+        if (!fs.existsSync(targetFolder) || !fs.statSync(targetFolder).isDirectory()) return res.status(404).json({ error: 'SRSC folder not found' });
         const fullPath = isSafeChildPath(targetFolder, requestedFile);
-        if (!fullPath || !fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
-            return res.status(404).json({ error: 'File not found' });
-        }
-
+        if (!fullPath || !fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) return res.status(404).json({ error: 'File not found' });
         const ext = path.extname(fullPath).toLowerCase();
-
-        if (INLINE_EXTENSIONS.has(ext)) {
-            res.setHeader('Content-Disposition', `inline; filename="${path.basename(fullPath).replace(/"/g, '')}"`);
-        } else {
-            res.setHeader('Content-Disposition', `attachment; filename="${path.basename(fullPath).replace(/"/g, '')}"`);
-        }
-
+        res.setHeader('Content-Disposition', `${INLINE_EXTENSIONS.has(ext) ? 'inline' : 'attachment'}; filename="${path.basename(fullPath).replace(/"/g, '')}"`);
         res.sendFile(fullPath);
-    } catch (err) {
-        console.error('SRSC file request failed:');
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { console.error('SRSC file request failed:', err); res.status(500).json({ error: err.message }); }
 });
-
-// ========================================
-// API - Open A PDF With The OS Default App
-// ========================================
 
 app.get('/api/pdf-open/:pdfId', async (req, res) => {
     const pdfId = Number(req.params.pdfId);
-
-    if (!Number.isInteger(pdfId) || pdfId <= 0) {
-        return res.status(400).json({ error: 'Invalid PDF ID' });
-    }
-
+    if (!Number.isInteger(pdfId) || pdfId <= 0) return res.status(400).json({ error: 'Invalid PDF ID' });
     try {
-        const pdfRequest = new sql.Request();
-        pdfRequest.input('pdfId', sql.Int, pdfId);
-
-        const pdfResult = await pdfRequest.query(`
-            SELECT
-                d.PDFName,
-                p.RootPath
-            FROM dbo.DanieliPDF d
-            JOIN dbo.tblPath p
-                ON d.PathID = p.PathID
-            WHERE d.PDFID = @pdfId
-        `);
-
-        if (pdfResult.recordset.length === 0) {
-            return res.status(404).json({ error: 'PDF record not found (or its PathID has no matching row in tblPath)' });
-        }
-
-        const { PDFName: pdfName, RootPath: rootPath } = pdfResult.recordset[0];
-        const fullPath = path.join(rootPath, pdfName);
-
-        if (!fs.existsSync(fullPath)) {
-            return res.status(404).json({ error: 'PDF file not found on disk', path: fullPath });
-        }
-
+        const request = new sql.Request(); request.input('pdfId', sql.Int, pdfId);
+        const result = await request.query(`SELECT d.PDFName, p.RootPath FROM dbo.DanieliPDF d JOIN dbo.tblPath p ON d.PathID=p.PathID WHERE d.PDFID=@pdfId`);
+        if (!result.recordset.length) return res.status(404).json({ error: 'PDF record not found (or its PathID has no matching row in tblPath)' });
+        const fullPath = path.join(result.recordset[0].RootPath, result.recordset[0].PDFName);
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'PDF file not found on disk', path: fullPath });
         await execAsync(`start "" "${fullPath}"`);
         res.json({ success: true });
-    } catch (err) {
-        console.error('PDF open request failed:');
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { console.error('PDF open request failed:', err); res.status(500).json({ error: err.message }); }
 });
-
-// ========================================
-// API - Serve A Single Registered PDF File
-// ========================================
 
 app.get('/api/pdf-file/:pdfId', async (req, res) => {
     const pdfId = Number(req.params.pdfId);
-
-    if (!Number.isInteger(pdfId) || pdfId <= 0) {
-        return res.status(400).json({ error: 'Invalid PDF ID' });
-    }
-
+    if (!Number.isInteger(pdfId) || pdfId <= 0) return res.status(400).json({ error: 'Invalid PDF ID' });
     try {
-        const pdfRequest = new sql.Request();
-        pdfRequest.input('pdfId', sql.Int, pdfId);
-
-        const pdfResult = await pdfRequest.query(`
-            SELECT
-                d.PDFName,
-                p.RootPath
-            FROM dbo.DanieliPDF d
-            JOIN dbo.tblPath p
-                ON d.PathID = p.PathID
-            WHERE d.PDFID = @pdfId
-        `);
-
-        if (pdfResult.recordset.length === 0) {
-            return res.status(404).json({ error: 'PDF record not found' });
-        }
-
-        const { PDFName: pdfName, RootPath: rootPath } = pdfResult.recordset[0];
-        const fullPath = path.join(rootPath, pdfName);
-
-        if (!fs.existsSync(fullPath)) {
-            return res.status(404).json({ error: 'PDF file not found on disk', path: fullPath });
-        }
-
+        const request = new sql.Request(); request.input('pdfId', sql.Int, pdfId);
+        const result = await request.query(`SELECT d.PDFName, p.RootPath FROM dbo.DanieliPDF d JOIN dbo.tblPath p ON d.PathID=p.PathID WHERE d.PDFID=@pdfId`);
+        if (!result.recordset.length) return res.status(404).json({ error: 'PDF record not found' });
+        const fullPath = path.join(result.recordset[0].RootPath, result.recordset[0].PDFName);
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'PDF file not found on disk', path: fullPath });
         res.sendFile(fullPath);
-    } catch (err) {
-        console.error('PDF file request failed:');
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { console.error('PDF file request failed:', err); res.status(500).json({ error: err.message }); }
 });
-
-// ========================================
-// Start Server
-// ========================================
 
 app.listen(3000, '0.0.0.0', async () => {
     console.log('Server running on http://0.0.0.0:3000');
     await testDatabaseConnection();
-
-    getSrscStatus(false)
-        .then(nodeIds => console.log(`SRSC status cache warmed: ${nodeIds.length} node(s) have an SRSC folder`))
-        .catch(err => console.error('SRSC status warm-up failed:', err.message));
+    getSrscStatus(false).then(ids => console.log(`SRSC status cache warmed: ${ids.length} node(s) have an SRSC folder`)).catch(err => console.error('SRSC status warm-up failed:', err.message));
 });
