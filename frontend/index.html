@@ -10,36 +10,22 @@
   <link rel="stylesheet" href="css/node-create.css">
   <link rel="stylesheet" href="css/node-actions.css">
   <style>
-    /* Status is shown by text color only; never color the whole Node row. */
     .node-row.has-pdf,
     .node-row.has-srsc,
-    .node-row.has-pdf.has-srsc {
-      background: transparent !important;
-      border: 0 !important;
-    }
+    .node-row.has-pdf.has-srsc { background: transparent !important; border: 0 !important; }
     .node-row.has-pdf .node-label .code,
-    .node-row.has-pdf .node-label .desc {
-      color: var(--amber) !important;
-    }
+    .node-row.has-pdf .node-label .desc { color: var(--amber) !important; }
     .node-row.has-srsc .node-label .code,
     .node-row.has-srsc .node-label .desc,
     .node-row.has-pdf.has-srsc .node-label .code,
-    .node-row.has-pdf.has-srsc .node-label .desc {
-      color: var(--ok) !important;
-    }
-    .node-row.selected {
-      background: rgba(111, 227, 255, .1) !important;
-    }
+    .node-row.has-pdf.has-srsc .node-label .desc { color: var(--ok) !important; }
+    .node-row.selected { background: rgba(111, 227, 255, .1) !important; }
     .node-row.selected.has-pdf .node-label .code,
-    .node-row.selected.has-pdf .node-label .desc {
-      color: var(--amber) !important;
-    }
+    .node-row.selected.has-pdf .node-label .desc { color: var(--amber) !important; }
     .node-row.selected.has-srsc .node-label .code,
     .node-row.selected.has-srsc .node-label .desc,
     .node-row.selected.has-pdf.has-srsc .node-label .code,
-    .node-row.selected.has-pdf.has-srsc .node-label .desc {
-      color: var(--ok) !important;
-    }
+    .node-row.selected.has-pdf.has-srsc .node-label .desc { color: var(--ok) !important; }
   </style>
 </head>
 <body>
@@ -51,51 +37,36 @@
         <span>Equipment structure and drawing management</span>
       </div>
     </div>
-    <div class="header-status">
-      <span id="connectionStatus" class="status disconnected">Connecting...</span>
-    </div>
+    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span></div>
   </header>
 
   <main class="main-container">
     <section class="tree-panel">
       <div class="panel-header">
-        <div>
-          <h2>Equipment Structure</h2>
-          <span id="nodeCount">Loading nodes...</span>
-        </div>
+        <div><h2>Equipment Structure</h2><span id="nodeCount">Loading nodes...</span></div>
         <div class="tree-actions">
           <button id="createNewNodeBtn" type="button">Edit Node</button>
           <button id="expandAllBtn" type="button">Expand All</button>
           <button id="collapseAllBtn" type="button">Collapse All</button>
         </div>
       </div>
-
       <div class="search-box">
         <input type="search" id="searchInput" placeholder="Search by node code or name..." autocomplete="off" aria-label="Search nodes">
         <button id="searchBtn" type="button">Search</button>
       </div>
       <div id="searchInfo" class="search-info hidden"></div>
-      <div id="treeContainer" class="tree-container">
-        <div class="loading">Loading equipment structure...</div>
-      </div>
+      <div id="treeContainer" class="tree-container"><div class="loading">Loading equipment structure...</div></div>
     </section>
 
     <section class="details-panel">
       <div id="emptyDetails" class="empty-details">
-        <div class="empty-icon">◈</div>
-        <h2>Select a Node</h2>
-        <p>Select an item from the tree to view its information.</p>
+        <div class="empty-icon">◈</div><h2>Select a Node</h2><p>Select an item from the tree to view its information.</p>
       </div>
-
       <div id="nodeDetails" class="node-details hidden">
         <div class="details-header">
-          <div>
-            <span class="details-label">NODE</span>
-            <h2 id="detailName">-</h2>
-          </div>
+          <div><span class="details-label">NODE</span><h2 id="detailName">-</h2></div>
           <span id="detailStatus" class="node-status">Active</span>
         </div>
-
         <div class="details-grid">
           <div class="detail-item"><span>Node Code</span><strong id="detailCode">-</strong></div>
           <div class="detail-item"><span>Node Name</span><strong id="detailNodeName">-</strong></div>
@@ -103,23 +74,11 @@
           <div class="detail-item"><span>Norme</span><strong id="detailNorme">-</strong></div>
           <div class="detail-item"><span>Mass</span><strong id="detailMass">-</strong></div>
         </div>
-
         <div class="details-section srsc-section">
-          <div class="section-heading-row">
-            <div>
-              <h3 class="section-title">SRSC Company Files</h3>
-              <span class="section-subtitle">Company drawings and documents stored for this node</span>
-            </div>
-          </div>
-          <div id="srscContent" class="srsc-content">
-            <div class="pdf-empty">Loading company files...</div>
-          </div>
+          <div class="section-heading-row"><div><h3 class="section-title">SRSC Company Files</h3><span class="section-subtitle">Company drawings and documents stored for this node</span></div></div>
+          <div id="srscContent" class="srsc-content"><div class="pdf-empty">Loading company files...</div></div>
         </div>
-
-        <div class="details-section">
-          <h3 class="section-title">PDF Files</h3>
-          <div id="pdfList" class="pdf-list"></div>
-        </div>
+        <div class="details-section"><h3 class="section-title">PDF Files</h3><div id="pdfList" class="pdf-list"></div></div>
       </div>
     </section>
   </main>
@@ -127,50 +86,21 @@
   <div id="createNodeModal" class="create-node-modal hidden" role="dialog" aria-modal="true" aria-labelledby="createNodeTitle">
     <div class="create-node-dialog">
       <div class="create-node-dialog-header">
-        <div>
-          <h2 id="createNodeTitle">Edit Node</h2>
-          <p>Edit the selected Node information.</p>
-        </div>
+        <div><h2 id="createNodeTitle">Edit Node</h2><p>Edit the selected Node information.</p></div>
         <button id="createNodeClose" class="create-node-close" type="button" aria-label="Close">×</button>
       </div>
-
       <form id="createNodeForm">
-        <div class="create-node-field">
-          <label for="createNodeCode">Node Code *</label>
-          <input id="createNodeCode" name="NodeCode" maxlength="100" required autocomplete="off">
-        </div>
-        <div class="create-node-field">
-          <label for="createNodeName">Node Name *</label>
-          <input id="createNodeName" name="NodeName" maxlength="255" required autocomplete="off">
-        </div>
-        <div class="create-node-field">
-          <label for="editJet">JET Position</label>
-          <input id="editJet" maxlength="255">
-        </div>
-        <div class="create-node-field">
-          <label for="editNorme">Norme</label>
-          <input id="editNorme" maxlength="255">
-        </div>
-        <div class="create-node-field">
-          <label for="editMass">Mass</label>
-          <input id="editMass" maxlength="255">
-        </div>
-        <div class="create-node-field">
-          <label for="editNv">nv</label>
-          <input id="editNv" maxlength="255">
-        </div>
-        <div class="create-node-field">
-          <label><input id="editIsActive" type="checkbox" checked> Active</label>
-        </div>
+        <div class="create-node-field"><label for="createNodeCode">Node Code *</label><input id="createNodeCode" name="NodeCode" maxlength="100" required autocomplete="off"></div>
+        <div class="create-node-field"><label for="createNodeName">Node Name *</label><input id="createNodeName" name="NodeName" maxlength="255" required autocomplete="off"></div>
+        <div class="create-node-field"><label for="editJet">JET Position</label><input id="editJet" maxlength="255"></div>
+        <div class="create-node-field"><label for="editNorme">Norme</label><input id="editNorme" maxlength="255"></div>
+        <div class="create-node-field"><label for="editMass">Mass</label><input id="editMass" maxlength="255"></div>
+        <div class="create-node-field"><label><input id="editIsActive" type="checkbox" checked> Active</label></div>
         <div id="createNodeError" class="create-node-error hidden" role="alert"></div>
-        <div class="create-node-actions">
-          <button id="createNodeCancel" class="create-node-cancel" type="button">Cancel</button>
-          <button id="createNodeSubmit" class="create-node-submit" type="submit">Save Changes</button>
-        </div>
+        <div class="create-node-actions"><button id="createNodeCancel" class="create-node-cancel" type="button">Cancel</button><button id="createNodeSubmit" class="create-node-submit" type="submit">Save Changes</button></div>
       </form>
     </div>
   </div>
-
   <script src="js/script.js"></script>
   <script src="js/node-actions.js"></script>
   <script src="js/node-create.js"></script>
