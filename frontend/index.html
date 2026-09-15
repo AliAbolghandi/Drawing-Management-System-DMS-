@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/horizontal-tree.css">
+<link rel="stylesheet" href="css/node-create.css">
 </head>
 <body>
 <header class="top-header">
@@ -24,7 +25,11 @@
   <section class="tree-panel">
     <div class="panel-header">
       <div><h2>Equipment Structure</h2><span id="nodeCount">Loading nodes...</span></div>
-      <div class="tree-actions"><button id="expandAllBtn" type="button">Expand All</button><button id="collapseAllBtn" type="button">Collapse All</button></div>
+      <div class="tree-actions">
+        <button id="createNewNodeBtn" type="button">Create New Node</button>
+        <button id="expandAllBtn" type="button">Expand All</button>
+        <button id="collapseAllBtn" type="button">Collapse All</button>
+      </div>
     </div>
     <div class="search-box">
       <input type="search" id="searchInput" placeholder="Search by node code or name..." autocomplete="off" aria-label="Search nodes">
@@ -65,7 +70,41 @@
     </div>
   </section>
 </main>
+
+<!-- Create New Node dialog -->
+<div id="createNodeModal" class="create-node-modal hidden" role="dialog" aria-modal="true" aria-labelledby="createNodeTitle">
+  <div class="create-node-dialog">
+    <div class="create-node-dialog-header">
+      <div>
+        <h2 id="createNodeTitle">Create New Node</h2>
+        <p>The new Node will be created as a child of the selected parent.</p>
+      </div>
+      <button id="createNodeClose" class="create-node-close" type="button" aria-label="Close">×</button>
+    </div>
+    <form id="createNodeForm">
+      <div class="create-node-field">
+        <label>Parent Node</label>
+        <div id="createNodeParent" class="create-node-parent">-</div>
+      </div>
+      <div class="create-node-field">
+        <label for="createNodeCode">Node Code *</label>
+        <input id="createNodeCode" name="NodeCode" maxlength="100" required autocomplete="off" placeholder="e.g. GP 0BV0019999">
+      </div>
+      <div class="create-node-field">
+        <label for="createNodeName">Node Name *</label>
+        <input id="createNodeName" name="NodeName" maxlength="255" required autocomplete="off" placeholder="e.g. New Assembly">
+      </div>
+      <div id="createNodeError" class="create-node-error hidden" role="alert"></div>
+      <div class="create-node-actions">
+        <button id="createNodeCancel" class="create-node-cancel" type="button">Cancel</button>
+        <button id="createNodeSubmit" class="create-node-submit" type="submit">Create Node</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="js/script.js"></script>
 <script src="js/tree-layout.js"></script>
+<script src="js/node-create.js"></script>
 </body>
 </html>
