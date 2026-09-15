@@ -135,8 +135,7 @@ createNodeForm.addEventListener('submit', async event => {
     }
 });
 
-// script.js calls loadNodes() before this file is loaded. Re-render once here
-// so the initial tree also receives the + buttons.
-if (Array.isArray(window.allNodes) && window.allNodes.length && typeof window.renderTree === 'function') {
-    window.renderTree(window.allNodes);
+// script.js loads first, so these variables/functions are available here.
+if (Array.isArray(allNodes) && allNodes.length && typeof renderTree === 'function') {
+    renderTree(allNodes);
 }
