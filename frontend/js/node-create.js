@@ -12,6 +12,7 @@ const createNodeError = document.getElementById('createNodeError');
 const createNodeCancel = document.getElementById('createNodeCancel');
 const createNodeClose = document.getElementById('createNodeClose');
 const createNodeSubmit = document.getElementById('createNodeSubmit');
+const treeContainerForCreate = document.getElementById('treeContainer');
 
 let createNodeMode = false;
 
@@ -32,15 +33,9 @@ function openCreateNodeModal(parentNode) {
     setTimeout(() => createNodeCode.focus(), 50);
 }
 
-function setCreateNodeMode(enabled) {
-    createNodeMode = enabled;
-    createNodeBtn.classList.toggle('active', enabled);
-    createNodeBtn.textContent = enabled ? 'Cancel New Node' : 'Create New Node';
-    document.body.classList.toggle('create-node-mode', enabled);
-    document.querySelectorAll('.node-add-btn').forEach(button => button.classList.toggle('hidden', !enabled));
-}
-
 function attachCreateNodeButton(row, node) {
+    if (row.querySelector(':scope > .node-add-btn')) return;
+
     const addButton = document.createElement('button');
     addButton.type = 'button';
     addButton.className = `node-add-btn${createNodeMode ? '' : ' hidden'}`;
@@ -53,19 +48,28 @@ function attachCreateNodeButton(row, node) {
     row.appendChild(addButton);
 }
 
-// createNodeElement() belongs to script.js. Wrap it so every newly rendered
-// tree row receives its own + button without changing the existing tree logic.
-const originalCreateNodeElement = window.createNodeElement;
-if (typeof originalCreateNodeElement === 'function') {
-    window.createNodeElement = function(node, isRoot = false) {
-        const wrapper = originalCreateNodeElement(node, isRoot);
-        const row = wrapper.querySelector(':scope > .node-row');
-        if (row) attachCreateNodeButton(row, node);
-        return wrapper;
-    };
+function refreshCreateNodeButtons() {
+    if (!treeContainerForCreate) return;
+    nodeElements.forEach(entry => {
+        attachCreateNodeButton(entry.row, entry.node);
+        const button = entry.row.querySelector(':scope > .node-add-btn');
+        if (button) button.classList.toggle('hidden', !createNodeMode);
+    });
 }
 
-createNodeBtn.addEventListener('click', () => setCreateNodeMode(!createNodeMode));
+// renderTree() in script.js creates rows dynamically. A MutationObserver lets
+// this feature add the + button to every current/future row without modifying
+// the existing tree/search implementation.
+if (treeContainerForCreate) {
+    const observer = new MutationObserver(() => refreshCreateNodeButtons());
+    observer.observe(treeContainerForCreate, { childList: true, subtree: true });
+}
+
+createNodeBtn.addEventListener('click', () => {
+    setCreateNodeMode(!createNodeMode);
+    refreshCreateNodeButtons();
+});
+
 createNodeCancel.addEventListener('click', closeCreateNodeModal);
 createNodeClose.addEventListener('click', closeCreateNodeModal);
 createNodeModal.addEventListener('click', event => {
@@ -135,7 +139,4 @@ createNodeForm.addEventListener('submit', async event => {
     }
 });
 
-// script.js loads first, so these variables/functions are available here.
-if (Array.isArray(allNodes) && allNodes.length && typeof renderTree === 'function') {
-    renderTree(allNodes);
-}
+refreshCreateNodeButtons();
