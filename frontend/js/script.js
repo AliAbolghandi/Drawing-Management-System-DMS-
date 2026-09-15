@@ -1,12 +1,5 @@
-// ======================================================
-// Drawing Management System - Tree + SRSC File Browser
-// ======================================================
-
-// Use the same host as the browser for LAN access.
-// When index.html is opened directly from disk, fall back to localhost.
 const API_HOST = window.location.hostname || 'localhost';
 const API_BASE = `http://${API_HOST}:3000`;
-
 const API_URL = `${API_BASE}/api/nodes`;
 const API_PDF_URL = `${API_BASE}/api/pdfs`;
 const API_PDF_OPEN_URL = `${API_BASE}/api/pdf-open`;
@@ -14,16 +7,16 @@ const API_SRSC_FOLDERS_URL = `${API_BASE}/api/node-folders`;
 const API_SRSC_FILES_URL = `${API_BASE}/api/node-folder-files`;
 const API_SRSC_FILE_URL = `${API_BASE}/api/node-file`;
 const API_SRSC_STATUS_URL = `${API_BASE}/api/srsc-status`;
+const SRSC_FOLDER_ORDER = ['SLD','DOC','PIC','Catalog'];
 
-const SRSC_FOLDER_ORDER = ['SLD', 'DOC', 'PIC', 'Catalog'];
-
-let allNodes = [];
 let nodeElements = new Map();
+let nodeCache = new Map();
+let parentById = new Map();
 let pdfsByNodeId = new Map();
 let srscNodeIds = new Set();
 let currentSearchQuery = '';
-let parentById = new Map();
 let currentSelectedNode = null;
+let loadedNodeCount = 0;
 
 const treeContainer = document.getElementById('treeContainer');
 const connectionStatus = document.getElementById('connectionStatus');
@@ -34,565 +27,125 @@ const searchInfo = document.getElementById('searchInfo');
 const expandAllBtn = document.getElementById('expandAllBtn');
 const collapseAllBtn = document.getElementById('collapseAllBtn');
 
-function normalizeNodeId(value) {
-    const n = Number(value);
-    return Number.isNaN(n) ? null : n;
+function normalizeNodeId(v){const n=Number(v);return Number.isNaN(n)?null:n;}
+function normalizeParentId(v){if(v===null||v===undefined||v==='')return null;const n=Number(v);return Number.isNaN(n)?null:n;}
+function escapeHtml(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
+function escapeRegExp(v){return String(v).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function highlightText(v,q){const text=escapeHtml(v||'');if(!q)return text||'-';return text.replace(new RegExp(`(${escapeRegExp(q)})`,'gi'),'<mark>$1</mark>');}
+function formatFileSize(bytes){const n=Number(bytes);if(!Number.isFinite(n)||n<0)return '';if(n<1024)return `${n} B`;if(n<1048576)return `${(n/1024).toFixed(1)} KB`;if(n<1073741824)return `${(n/1048576).toFixed(1)} MB`;return `${(n/1073741824).toFixed(1)} GB`;}
+function getFileIcon(item){if(item.type==='folder')return '📁';if(item.kind==='pdf')return '📄';if(item.kind==='image')return '🖼️';if(item.kind==='cad')return '📐';if(item.kind==='document')return '📝';return '📎';}
+function getFileActionLabel(item){return item.type==='folder'?'Open':(item.kind==='pdf'||item.kind==='image'?'Open':'Download');}
+
+function applyNodeStatus(entry,nodeId){
+  const pdf=pdfsByNodeId.has(nodeId), srsc=srscNodeIds.has(nodeId);
+  entry.row.classList.toggle('has-pdf',pdf);
+  entry.row.classList.toggle('has-srsc',srsc);
+  entry.row.classList.toggle('has-both',pdf&&srsc);
 }
 
-function normalizeParentId(value) {
-    if (value === null || value === undefined || value === '') return null;
-    const n = Number(value);
-    return Number.isNaN(n) ? null : n;
+async function fetchChildren(parentId){
+  const key=parentId===null?'root':String(parentId);
+  const existing=[...nodeCache.values()].filter(n=>(normalizeParentId(n.ParentID)===parentId));
+  if(existing.length || nodeCache.has(`__loaded_${key}`)) return existing.sort((a,b)=>Number(a.NodeID)-Number(b.NodeID));
+  const url=parentId===null?`${API_URL}?parentId=`:`${API_URL}?parentId=${encodeURIComponent(parentId)}`;
+  const response=await fetch(url);
+  if(!response.ok)throw new Error(`HTTP ${response.status}`);
+  const data=await response.json();
+  data.forEach(n=>{const id=normalizeNodeId(n.NodeID);nodeCache.set(id,n);parentById.set(id,normalizeParentId(n.ParentID));});
+  nodeCache.set(`__loaded_${key}`,true);
+  loadedNodeCount=[...nodeCache.keys()].filter(k=>typeof k==='number').length;
+  nodeCount.textContent=`${loadedNodeCount.toLocaleString('en-US')} loaded nodes`;
+  return data.sort((a,b)=>Number(a.NodeID)-Number(b.NodeID));
 }
 
-function escapeHtml(value) {
-    return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+async function prefetchBranchData(nodes){
+  const ids=nodes.map(n=>normalizeNodeId(n.NodeID)).filter(Number.isInteger);
+  if(!ids.length)return;
+  try{
+    const r=await fetch(`${API_PDF_URL}?nodeIds=${ids.join(',')}`);
+    if(r.ok){const data=await r.json();data.forEach(pdf=>{const id=normalizeNodeId(pdf.NodeID);if(!pdfsByNodeId.has(id))pdfsByNodeId.set(id,[]);pdfsByNodeId.get(id).push(pdf);});}
+  }catch(e){console.error('Branch PDF prefetch failed:',e);}
+  try{
+    const r=await fetch(API_SRSC_STATUS_URL);
+    if(r.ok){const data=await r.json();if(Array.isArray(data.nodeIds))srscNodeIds=new Set(data.nodeIds.map(normalizeNodeId));}
+  }catch(e){console.error('Branch SRSC status refresh failed:',e);}
+  ids.forEach(id=>{const entry=nodeElements.get(id);if(entry)applyNodeStatus(entry,id);});
 }
 
-function escapeRegExp(value) {
-    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+async function loadRootNodes(){
+  try{
+    treeContainer.innerHTML='<div class="loading">Loading equipment structure...</div>';
+    const roots=await fetchChildren(null);
+    connectionStatus.textContent='Connected';connectionStatus.className='status connected';
+    treeContainer.innerHTML='';nodeElements.clear();
+    if(!roots.length){treeContainer.innerHTML='<div class="error">No root nodes were found.</div>';return;}
+    roots.forEach(root=>treeContainer.appendChild(createNodeElement(root,true)));
+    await prefetchBranchData(roots);
+    // Keep the previous convenient behavior: roots are open, but their children are loaded only now.
+    for(const root of roots){const entry=nodeElements.get(normalizeNodeId(root.NodeID));if(entry)await entry.setExpanded(true);}
+  }catch(e){console.error('Tree loading error:',e);connectionStatus.textContent='Connection Error';connectionStatus.className='status disconnected';treeContainer.innerHTML=`<div class="error"><strong>Unable to load equipment structure</strong><br><br>${escapeHtml(e.message)}</div>`;}
 }
 
-function highlightText(value, query) {
-    const text = escapeHtml(value || '');
-    if (!query) return text || '-';
-    return text.replace(new RegExp(`(${escapeRegExp(query)})`, 'gi'), '<mark>$1</mark>');
+function createNodeElement(node,isRoot=false){
+  const id=normalizeNodeId(node.NodeID);
+  const wrapper=document.createElement('div');wrapper.className=`tree-node${isRoot?' root':''}`;
+  const row=document.createElement('div');row.className='node-row';
+  const expandButton=document.createElement('button');expandButton.type='button';expandButton.className='expand-btn';expandButton.textContent='+';
+  const icon=document.createElement('div');icon.className='node-icon';icon.textContent='▪';
+  const content=document.createElement('div');content.className='node-content';
+  const label=document.createElement('div');label.className='node-label';
+  label.innerHTML=`<span class="code">${highlightText(node.NodeCode||'',currentSearchQuery)}</span><span class="node-separator">—</span><span class="desc">${highlightText(node.NodeName||'(Unnamed)',currentSearchQuery)}</span>`;
+  content.appendChild(label);row.append(expandButton,icon,content);wrapper.appendChild(row);
+  let childrenContainer=null,isExpanded=false,childrenLoaded=false,hasChildrenKnown=null;
+
+  async function ensureChildren(){
+    if(childrenLoaded)return;
+    const children=await fetchChildren(id);childrenLoaded=true;hasChildrenKnown=children.length>0;
+    if(!hasChildrenKnown){expandButton.classList.add('empty');expandButton.textContent='';icon.textContent='▪';return;}
+    icon.textContent='▰';childrenContainer=document.createElement('div');childrenContainer.className='tree-children';
+    children.forEach(child=>childrenContainer.appendChild(createNodeElement(child,false)));wrapper.appendChild(childrenContainer);
+    await prefetchBranchData(children);
+  }
+  async function setExpanded(expand){
+    if(expand){await ensureChildren();if(!hasChildrenKnown)return;childrenContainer.classList.remove('collapsed');expandButton.textContent='−';isExpanded=true;}
+    else{if(childrenContainer)childrenContainer.classList.add('collapsed');expandButton.textContent='+';isExpanded=false;}
+  }
+  expandButton.addEventListener('click',async ev=>{ev.stopPropagation();try{await setExpanded(!isExpanded);}catch(e){console.error('Expand failed:',e);}});
+  row.addEventListener('click',()=>selectNode(node,row));
+  nodeElements.set(id,{node,wrapper,row,setExpanded,hasChildren:true,childrenLoaded:false});
+  applyNodeStatus(nodeElements.get(id),id);
+  // A cheap child existence check is done only when needed; no full tree query at startup.
+  return wrapper;
 }
 
-function formatFileSize(bytes) {
-    if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0) return '';
-    const size = Number(bytes);
-    if (size < 1024) return `${size} B`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-    if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+function selectNode(node,row){document.querySelectorAll('.node-row.selected').forEach(el=>el.classList.remove('selected'));row.classList.add('selected');currentSelectedNode=node;showNodeDetails(node);}
+
+function showNodeDetails(node){
+  document.getElementById('emptyDetails').classList.add('hidden');document.getElementById('nodeDetails').classList.remove('hidden');
+  document.getElementById('detailName').textContent=node.NodeName||'-';document.getElementById('detailCode').textContent=node.NodeCode||'-';document.getElementById('detailNodeName').textContent=node.NodeName||'-';
+  document.getElementById('detailJet').textContent=node.JET_Position??'-';document.getElementById('detailNorme').textContent=node.Norme??'-';document.getElementById('detailMass').textContent=node.Mass??'-';
+  const status=document.getElementById('detailStatus');const active=node.IsActive===true||Number(node.IsActive)===1;status.textContent=active?'Active':'Inactive';status.className=active?'node-status':'node-status inactive';
+  renderPdfList(normalizeNodeId(node.NodeID));loadSrscFolders(normalizeNodeId(node.NodeID));
 }
-
-function getFileIcon(item) {
-    if (item.type === 'folder') return '📁';
-    if (item.kind === 'pdf') return '📄';
-    if (item.kind === 'image') return '🖼️';
-    if (item.kind === 'cad') return '📐';
-    if (item.kind === 'document') return '📝';
-    return '📎';
-}
-
-function getFileActionLabel(item) {
-    if (item.type === 'folder') return 'Open';
-    if (item.kind === 'pdf' || item.kind === 'image') return 'Open';
-    return 'Download';
-}
-
-async function loadNodes() {
-    try {
-        treeContainer.innerHTML = '<div class="loading">Loading equipment structure...</div>';
-        const response = await fetch(API_URL);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (!Array.isArray(data)) throw new Error('Nodes API did not return an array.');
-
-        allNodes = data;
-        parentById = new Map();
-        allNodes.forEach(node => parentById.set(normalizeNodeId(node.NodeID), normalizeParentId(node.ParentID)));
-
-        connectionStatus.textContent = 'Connected';
-        connectionStatus.className = 'status connected';
-        nodeCount.textContent = `${allNodes.length.toLocaleString('en-US')} nodes`;
-        renderTree(allNodes);
-    } catch (error) {
-        console.error('Tree loading error:', error);
-        connectionStatus.textContent = 'Connection Error';
-        connectionStatus.className = 'status disconnected';
-        treeContainer.innerHTML = `<div class="error"><strong>Unable to load equipment structure</strong><br><br>${escapeHtml(error.message)}</div>`;
-    }
-}
-
-async function loadPdfs() {
-    try {
-        const response = await fetch(API_PDF_URL);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (!Array.isArray(data)) return;
-
-        pdfsByNodeId = new Map();
-        data.forEach(pdf => {
-            const nodeId = normalizeNodeId(pdf.NodeID);
-            if (nodeId === null) return;
-            if (!pdfsByNodeId.has(nodeId)) pdfsByNodeId.set(nodeId, []);
-            pdfsByNodeId.get(nodeId).push(pdf);
-        });
-
-        nodeElements.forEach((entry, nodeId) => entry.row.classList.toggle('has-pdf', pdfsByNodeId.has(nodeId)));
-    } catch (error) {
-        console.error('PDF loading error:', error);
-    }
-}
-
-async function loadSrscStatus() {
-    try {
-        const response = await fetch(API_SRSC_STATUS_URL);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (!Array.isArray(data.nodeIds)) return;
-
-        srscNodeIds = new Set(data.nodeIds.map(normalizeNodeId));
-        nodeElements.forEach((entry, nodeId) => entry.row.classList.toggle('has-srsc', srscNodeIds.has(nodeId)));
-    } catch (error) {
-        console.error('SRSC status loading error:', error);
-    }
-}
-
-function buildTree(nodes) {
-    const nodeMap = new Map();
-    const roots = [];
-
-    nodes.forEach(node => {
-        const id = normalizeNodeId(node.NodeID);
-        if (id === null) return;
-        nodeMap.set(id, { ...node, _id: id, _parentId: normalizeParentId(node.ParentID), children: [] });
-    });
-
-    nodeMap.forEach(node => {
-        if (node._parentId === null || !nodeMap.has(node._parentId)) roots.push(node);
-        else nodeMap.get(node._parentId).children.push(node);
-    });
-
-    function sort(node) {
-        node.children.sort((a, b) => a._id - b._id);
-        node.children.forEach(sort);
-    }
-
-    roots.sort((a, b) => a._id - b._id);
-    roots.forEach(sort);
-    return roots;
-}
-
-function renderTree(nodes) {
-    treeContainer.innerHTML = '';
-    nodeElements.clear();
-    const roots = buildTree(nodes);
-
-    if (!roots.length) {
-        treeContainer.innerHTML = '<div class="error">No root nodes were found.</div>';
-        return;
-    }
-
-    roots.forEach(root => {
-        treeContainer.appendChild(createNodeElement(root, true));
-        const entry = nodeElements.get(root._id);
-        if (entry && entry.hasChildren) entry.setExpanded(true);
-    });
-}
-
-function createNodeElement(node, isRoot = false) {
-    const wrapper = document.createElement('div');
-    wrapper.className = `tree-node${isRoot ? ' root' : ''}`;
-
-    const row = document.createElement('div');
-    row.className = 'node-row';
-
-    const expandButton = document.createElement('button');
-    expandButton.type = 'button';
-    expandButton.className = 'expand-btn';
-
-    const hasChildren = node.children.length > 0;
-    if (hasChildren) expandButton.textContent = '+';
-    else expandButton.classList.add('empty');
-
-    const icon = document.createElement('div');
-    icon.className = 'node-icon';
-    icon.textContent = hasChildren ? '▰' : '▪';
-
-    const content = document.createElement('div');
-    content.className = 'node-content';
-
-    const label = document.createElement('div');
-    label.className = 'node-label';
-    label.innerHTML = `<span class="code">${highlightText(node.NodeCode || '', currentSearchQuery)}</span><span class="node-separator">—</span><span class="desc">${highlightText(node.NodeName || '(Unnamed)', currentSearchQuery)}</span>`;
-    content.appendChild(label);
-
-    row.append(expandButton, icon, content);
-    wrapper.appendChild(row);
-
-    let childrenContainer = null;
-    let isExpanded = false;
-
-    function buildChildrenIfNeeded() {
-        if (childrenContainer) return;
-        childrenContainer = document.createElement('div');
-        childrenContainer.className = 'tree-children';
-        node.children.forEach(child => childrenContainer.appendChild(createNodeElement(child)));
-        wrapper.appendChild(childrenContainer);
-    }
-
-    function setExpanded(expand) {
-        if (!hasChildren) return;
-        if (expand) {
-            buildChildrenIfNeeded();
-            childrenContainer.classList.remove('collapsed');
-            expandButton.textContent = '−';
-        } else {
-            if (childrenContainer) childrenContainer.classList.add('collapsed');
-            expandButton.textContent = '+';
-        }
-        isExpanded = expand;
-    }
-
-    if (hasChildren) {
-        expandButton.addEventListener('click', event => {
-            event.stopPropagation();
-            setExpanded(!isExpanded);
-        });
-    }
-
-    row.addEventListener('click', () => selectNode(node, row));
-    if (pdfsByNodeId.has(node._id)) row.classList.add('has-pdf');
-    if (srscNodeIds.has(node._id)) row.classList.add('has-srsc');
-
-    nodeElements.set(node._id, { node, wrapper, row, hasChildren, setExpanded });
-    return wrapper;
-}
-
-function selectNode(node, row) {
-    document.querySelectorAll('.node-row.selected').forEach(el => el.classList.remove('selected'));
-    row.classList.add('selected');
-    currentSelectedNode = node;
-    showNodeDetails(node);
-}
-
-function showNodeDetails(node) {
-    document.getElementById('emptyDetails').classList.add('hidden');
-    document.getElementById('nodeDetails').classList.remove('hidden');
-    document.getElementById('detailName').textContent = node.NodeName || '-';
-    document.getElementById('detailId').textContent = node.NodeID ?? '-';
-    document.getElementById('detailParent').textContent = node.ParentID ?? 'Root';
-    document.getElementById('detailCode').textContent = node.NodeCode || '-';
-    document.getElementById('detailNodeName').textContent = node.NodeName || '-';
-
-    const status = document.getElementById('detailStatus');
-    const active = node.IsActive === true || Number(node.IsActive) === 1;
-    status.textContent = active ? 'Active' : 'Inactive';
-    status.className = active ? 'node-status' : 'node-status inactive';
-
-    renderPdfList(node._id ?? normalizeNodeId(node.NodeID));
-    loadSrscFolders(node._id ?? normalizeNodeId(node.NodeID));
-}
-
-function renderPdfList(nodeId) {
-    const pdfList = document.getElementById('pdfList');
-    if (!pdfList) return;
-    const pdfs = pdfsByNodeId.get(nodeId) || [];
-
-    if (!pdfs.length) {
-        pdfList.innerHTML = '<div class="pdf-empty">No PDF files registered.</div>';
-        return;
-    }
-
-    pdfList.innerHTML = pdfs.map(pdf => `
-        <div class="pdf-item" data-pdf-id="${escapeHtml(pdf.PDFID)}" title="Open with the system default application">
-            <span class="pdf-icon">📄</span>
-            <span class="pdf-name">${escapeHtml(pdf.PDFName || '(Unnamed)')}</span>
-        </div>`).join('');
-
-    pdfList.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => openPdfInDefaultApp(item.dataset.pdfId)));
-}
-
-async function openPdfInDefaultApp(pdfId) {
-    try {
-        const response = await fetch(`${API_PDF_OPEN_URL}/${encodeURIComponent(pdfId)}`);
-        const data = await response.json();
-        if (!response.ok || !data.success) alert(`Unable to open PDF: ${data.error || 'Unknown error'}`);
-    } catch (error) {
-        console.error('PDF open request failed:', error);
-        alert('Unable to connect to the server to open the PDF.');
-    }
-}
-
-async function loadSrscFolders(nodeId) {
-    const container = document.getElementById('srscContent');
-    if (!container) return;
-
-    container.innerHTML = '<div class="srsc-loading">Loading company files...</div>';
-
-    try {
-        const response = await fetch(`${API_SRSC_FOLDERS_URL}/${encodeURIComponent(nodeId)}`);
-        const data = await response.json();
-
-        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-
-        if (!data.hasFolderPath) {
-            container.innerHTML = `
-                <div class="srsc-empty">
-                    <div class="srsc-empty-icon">▱</div>
-                    <strong>No SRSC folder configured</strong>
-                    <span>This Node does not have a FolderPath.</span>
-                </div>`;
-            return;
-        }
-
-        if (data.folderExists === false) {
-            container.innerHTML = `
-                <div class="srsc-empty srsc-warning">
-                    <div class="srsc-empty-icon">⚠</div>
-                    <strong>SRSC folder not found</strong>
-                    <span>The configured Node folder could not be found on the server.</span>
-                </div>`;
-            return;
-        }
-
-        const folders = SRSC_FOLDER_ORDER
-            .map(name => (data.folders || []).find(folder => folder.name.toLowerCase() === name.toLowerCase()))
-            .filter(Boolean);
-
-        if (!folders.length) {
-            container.innerHTML = `
-                <div class="srsc-empty">
-                    <div class="srsc-empty-icon">▱</div>
-                    <strong>No company folders found</strong>
-                    <span>SLD, DOC, PIC and Catalog are the only folders exposed here.</span>
-                </div>`;
-            return;
-        }
-
-        renderSrscFolderCards(nodeId, folders);
-    } catch (error) {
-        console.error('SRSC folder loading error:', error);
-        container.innerHTML = `
-            <div class="error">
-                <strong>Unable to load SRSC files</strong><br><br>${escapeHtml(error.message)}
-            </div>`;
-    }
-}
-
-function renderSrscFolderCards(nodeId, folders) {
-    const container = document.getElementById('srscContent');
-    container.innerHTML = `
-        <div class="srsc-folder-grid">
-            ${folders.map(folder => `
-                <button type="button" class="srsc-folder-card" data-folder="${escapeHtml(folder.name)}">
-                    <span class="srsc-folder-icon">📁</span>
-                    <span class="srsc-folder-name">${escapeHtml(folder.name)}</span>
-                    <span class="srsc-folder-arrow">›</span>
-                </button>`).join('')}
-        </div>`;
-
-    container.querySelectorAll('.srsc-folder-card').forEach(button => {
-        button.addEventListener('click', () => openSrscFolder(nodeId, button.dataset.folder));
-    });
-}
-
-async function openSrscFolder(nodeId, folderName, subPath = '') {
-    const container = document.getElementById('srscContent');
-    container.innerHTML = '<div class="srsc-loading">Loading folder...</div>';
-
-    try {
-        let url = `${API_SRSC_FILES_URL}/${encodeURIComponent(nodeId)}/${encodeURIComponent(folderName)}`;
-        if (subPath) url += `?subPath=${encodeURIComponent(subPath)}`;
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-
-        renderSrscFolderContents(nodeId, folderName, subPath, data.items || []);
-    } catch (error) {
-        console.error('SRSC folder contents error:', error);
-        container.innerHTML = `
-            <div class="error">
-                <strong>Unable to load folder</strong><br><br>${escapeHtml(error.message)}
-            </div>
-            <button type="button" class="srsc-back-button" id="srscErrorBack">← Back to SRSC folders</button>`;
-        document.getElementById('srscErrorBack')?.addEventListener('click', () => loadSrscFolders(nodeId));
-    }
-}
-
-// Goes up exactly one level: from a nested subPath to its parent, or
-// from a top-level SRSC folder back to the folder grid (SLD/DOC/PIC/Catalog).
-function goBackSrsc(nodeId, folderName, subPath) {
-    if (!subPath) {
-        loadSrscFolders(nodeId);
-        return;
-    }
-    const parts = subPath.split('/');
-    parts.pop();
-    openSrscFolder(nodeId, folderName, parts.join('/'));
-}
-
-function renderSrscFolderContents(nodeId, folderName, subPath, items) {
-    const container = document.getElementById('srscContent');
-
-    const breadcrumb = [folderName, ...(subPath ? subPath.split('/') : [])].join(' / ');
-
-    const header = `
-        <div class="srsc-browser-header">
-            <button type="button" class="srsc-back-button" id="srscBackButton">← Back</button>
-            <div class="srsc-current-folder">
-                <span>📁</span>
-                <strong>${escapeHtml(breadcrumb)}</strong>
-                <small>${items.length} item${items.length === 1 ? '' : 's'}</small>
-            </div>
-        </div>`;
-
-    if (!items.length) {
-        container.innerHTML = `${header}
-            <div class="srsc-empty">
-                <div class="srsc-empty-icon">∅</div>
-                <strong>This folder is empty</strong>
-                <span>No files are currently available in this folder.</span>
-            </div>`;
-        document.getElementById('srscBackButton')?.addEventListener('click', () => goBackSrsc(nodeId, folderName, subPath));
-        return;
-    }
-
-    container.innerHTML = `${header}
-        <div class="srsc-file-list">
-            ${items.map(item => {
-                if (item.type === 'folder') {
-                    return `
-                        <div class="srsc-file-row srsc-subfolder" data-subfolder="${escapeHtml(item.name)}">
-                            <span class="srsc-file-icon">📁</span>
-                            <span class="srsc-file-main">
-                                <strong>${escapeHtml(item.name)}</strong>
-                                <small>Folder</small>
-                            </span>
-                            <span class="srsc-file-action">Open ›</span>
-                        </div>`;
-                }
-
-                return `
-                    <div class="srsc-file-row srsc-file" data-file="${escapeHtml(item.name)}" data-kind="${escapeHtml(item.kind || 'file')}" title="${getFileActionLabel(item)}">
-                        <span class="srsc-file-icon">${getFileIcon(item)}</span>
-                        <span class="srsc-file-main">
-                            <strong>${escapeHtml(item.name)}</strong>
-                            <small>${escapeHtml(item.extension || '').replace('.', '').toUpperCase() || 'FILE'}${item.size !== undefined ? ` · ${formatFileSize(item.size)}` : ''}</small>
-                        </span>
-                        <span class="srsc-file-action">${getFileActionLabel(item)}</span>
-                    </div>`;
-            }).join('')}
-        </div>`;
-
-    document.getElementById('srscBackButton')?.addEventListener('click', () => goBackSrsc(nodeId, folderName, subPath));
-
-    container.querySelectorAll('.srsc-file').forEach(row => {
-        row.addEventListener('click', () => openSrscFile(nodeId, folderName, subPath, row.dataset.file, row.dataset.kind));
-    });
-
-    // Any subfolder inside the allowed SLD/DOC/PIC/Catalog folder can now be
-    // browsed into, no matter how deep. The backend keeps this safely confined
-    // to the Node's own folder tree (see isSafeChildPath in server.js).
-    container.querySelectorAll('.srsc-subfolder').forEach(row => {
-        row.addEventListener('click', () => {
-            const nextSubPath = subPath ? `${subPath}/${row.dataset.subfolder}` : row.dataset.subfolder;
-            openSrscFolder(nodeId, folderName, nextSubPath);
-        });
-    });
-}
-
-function openSrscFile(nodeId, folderName, subPath, fileName, kind) {
-    const relativeFile = subPath ? `${subPath}/${fileName}` : fileName;
-    const url = `${API_SRSC_FILE_URL}?nodeId=${encodeURIComponent(nodeId)}&folder=${encodeURIComponent(folderName)}&file=${encodeURIComponent(relativeFile)}`;
-
-    if (kind === 'pdf' || kind === 'image') {
-        window.open(url, '_blank', 'noopener');
-        return;
-    }
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-}
-
-function expandAll() {
-    let changed = true;
-    while (changed) {
-        changed = false;
-        [...nodeElements.values()].forEach(entry => {
-            if (entry.hasChildren) {
-                const before = nodeElements.size;
-                entry.setExpanded(true);
-                if (nodeElements.size !== before) changed = true;
-            }
-        });
-    }
-}
-
-function collapseAll() {
-    nodeElements.forEach(entry => {
-        if (entry.hasChildren) entry.setExpanded(false);
-    });
-}
-
-function nodeMatches(node, query) {
-    const q = query.toLowerCase();
-    return String(node.NodeCode || '').toLowerCase().includes(q) || String(node.NodeName || '').toLowerCase().includes(q);
-}
-
-// Search runs ONLY when the Search button is clicked (or Enter is pressed).
-function searchTree() {
-    const query = searchInput.value.trim();
-    currentSearchQuery = query;
-
-    if (!query) {
-        searchInfo.classList.add('hidden');
-        renderTree(allNodes);
-        return;
-    }
-
-    renderTree(allNodes);
-    collapseAll();
-
-    const matches = allNodes.filter(node => nodeMatches(node, query));
-    const matchIds = new Set(matches.map(node => normalizeNodeId(node.NodeID)));
-
-    matches.forEach(node => {
-        let id = normalizeNodeId(node.NodeID);
-        const path = [];
-        const visited = new Set();
-
-        while (id !== null && !visited.has(id)) {
-            visited.add(id);
-            path.unshift(id);
-            id = parentById.get(id) ?? null;
-        }
-
-        for (let i = 0; i < path.length - 1; i++) {
-            const entry = nodeElements.get(path[i]);
-            if (entry && entry.hasChildren) entry.setExpanded(true);
-        }
-    });
-
-    nodeElements.forEach(entry => {
-        const isMatch = matchIds.has(entry.node._id);
-        entry.row.classList.toggle('search-match', isMatch);
-        entry.row.querySelector('.node-label').innerHTML = `<span class="code">${highlightText(entry.node.NodeCode || '', currentSearchQuery)}</span><span class="node-separator">—</span><span class="desc">${highlightText(entry.node.NodeName || '(Unnamed)', currentSearchQuery)}</span>`;
-    });
-
-    if (matches.length) {
-        searchInfo.textContent = `${matches.length.toLocaleString('en-US')} matching node${matches.length === 1 ? '' : 's'} found. Other branches remain available and collapsed.`;
-        searchInfo.classList.remove('hidden');
-        const firstMatch = nodeElements.get(normalizeNodeId(matches[0].NodeID));
-        if (firstMatch) firstMatch.row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    } else {
-        searchInfo.textContent = `No nodes found for “${query}”.`;
-        searchInfo.classList.remove('hidden');
-    }
-}
-
-searchBtn.addEventListener('click', searchTree);
-searchInput.addEventListener('keydown', event => {
-    if (event.key === 'Enter') searchTree();
-});
-expandAllBtn.addEventListener('click', expandAll);
-collapseAllBtn.addEventListener('click', collapseAll);
-
-loadNodes();
-loadPdfs();
-loadSrscStatus();
+function renderPdfList(nodeId){const box=document.getElementById('pdfList');if(!box)return;const pdfs=pdfsByNodeId.get(nodeId)||[];if(!pdfs.length){box.innerHTML='<div class="pdf-empty">No PDF files registered.</div>';return;}box.innerHTML=pdfs.map(pdf=>`<div class="pdf-item" data-pdf-id="${escapeHtml(pdf.PDFID)}" title="Open with the system default application"><span class="pdf-icon">📄</span><span class="pdf-name">${escapeHtml(pdf.PDFName||'(Unnamed)')}</span></div>`).join('');box.querySelectorAll('.pdf-item').forEach(item=>item.addEventListener('click',()=>openPdfInDefaultApp(item.dataset.pdfId)));}
+async function openPdfInDefaultApp(pdfId){try{const r=await fetch(`${API_PDF_OPEN_URL}/${encodeURIComponent(pdfId)}`);const d=await r.json();if(!r.ok||!d.success)alert(`Unable to open PDF: ${d.error||'Unknown error'}`);}catch(e){console.error(e);alert('Unable to connect to the server to open the PDF.');}}
+
+async function loadSrscFolders(nodeId){const container=document.getElementById('srscContent');if(!container)return;container.innerHTML='<div class="srsc-loading">Loading company files...</div>';try{const r=await fetch(`${API_SRSC_FOLDERS_URL}/${encodeURIComponent(nodeId)}`);const d=await r.json();if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);if(!d.hasFolderPath){container.innerHTML='<div class="srsc-empty"><div class="srsc-empty-icon">▱</div><strong>No SRSC folder configured</strong><span>This Node does not have a FolderPath.</span></div>';return;}if(d.folderExists===false){container.innerHTML='<div class="srsc-empty srsc-warning"><div class="srsc-empty-icon">⚠</div><strong>SRSC folder not found</strong><span>The configured Node folder could not be found on the server.</span></div>';return;}const folders=SRSC_FOLDER_ORDER.map(name=>(d.folders||[]).find(f=>f.name.toLowerCase()===name.toLowerCase())).filter(Boolean);if(!folders.length){container.innerHTML='<div class="srsc-empty"><div class="srsc-empty-icon">▱</div><strong>No company folders found</strong><span>SLD, DOC, PIC and Catalog are the only folders exposed here.</span></div>';return;}renderSrscFolderCards(nodeId,folders);}catch(e){container.innerHTML=`<div class="error"><strong>Unable to load SRSC files</strong><br><br>${escapeHtml(e.message)}</div>`;}}
+function renderSrscFolderCards(nodeId,folders){const c=document.getElementById('srscContent');c.innerHTML=`<div class="srsc-folder-grid">${folders.map(f=>`<button type="button" class="srsc-folder-card" data-folder="${escapeHtml(f.name)}"><span class="srsc-folder-icon">📁</span><span class="srsc-folder-name">${escapeHtml(f.name)}</span><span class="srsc-folder-arrow">›</span></button>`).join('')}</div>`;c.querySelectorAll('.srsc-folder-card').forEach(b=>b.addEventListener('click',()=>openSrscFolder(nodeId,b.dataset.folder)));}
+async function openSrscFolder(nodeId,folderName,subPath=''){const c=document.getElementById('srscContent');c.innerHTML='<div class="srsc-loading">Loading folder...</div>';try{let url=`${API_SRSC_FILES_URL}/${encodeURIComponent(nodeId)}/${encodeURIComponent(folderName)}`;if(subPath)url+=`?subPath=${encodeURIComponent(subPath)}`;const r=await fetch(url),d=await r.json();if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);renderSrscFolderContents(nodeId,folderName,subPath,d.items||[]);}catch(e){c.innerHTML=`<div class="error"><strong>Unable to load folder</strong><br><br>${escapeHtml(e.message)}</div><button type="button" class="srsc-back-button" id="srscErrorBack">← Back to SRSC folders</button>`;document.getElementById('srscErrorBack')?.addEventListener('click',()=>loadSrscFolders(nodeId));}}
+function goBackSrsc(nodeId,folderName,subPath){if(!subPath){loadSrscFolders(nodeId);return;}const p=subPath.split('/');p.pop();openSrscFolder(nodeId,folderName,p.join('/'));}
+function renderSrscFolderContents(nodeId,folderName,subPath,items){const c=document.getElementById('srscContent');const breadcrumb=[folderName,...(subPath?subPath.split('/'):[])].join(' / ');const header=`<div class="srsc-browser-header"><button type="button" class="srsc-back-button" id="srscBackButton">← Back</button><div class="srsc-current-folder"><span>📁</span><strong>${escapeHtml(breadcrumb)}</strong><small>${items.length} item${items.length===1?'':'s'}</small></div></div>`;if(!items.length){c.innerHTML=`${header}<div class="srsc-empty"><div class="srsc-empty-icon">∅</div><strong>This folder is empty</strong><span>No files are currently available in this folder.</span></div>`;document.getElementById('srscBackButton')?.addEventListener('click',()=>goBackSrsc(nodeId,folderName,subPath));return;}c.innerHTML=`${header}<div class="srsc-file-list">${items.map(item=>item.type==='folder'?`<div class="srsc-file-row srsc-subfolder" data-subfolder="${escapeHtml(item.name)}"><span class="srsc-file-icon">📁</span><span class="srsc-file-main"><strong>${escapeHtml(item.name)}</strong><small>Folder</small></span><span class="srsc-file-action">Open ›</span></div>`:`<div class="srsc-file-row srsc-file" data-file="${escapeHtml(item.name)}" data-kind="${escapeHtml(item.kind||'file')}" title="${getFileActionLabel(item)}"><span class="srsc-file-icon">${getFileIcon(item)}</span><span class="srsc-file-main"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.extension||'').replace('.','').toUpperCase()||'FILE'}${item.size!==undefined?` · ${formatFileSize(item.size)}`:''}</small></span><span class="srsc-file-action">${getFileActionLabel(item)}</span></div>`).join('')}</div>`;document.getElementById('srscBackButton')?.addEventListener('click',()=>goBackSrsc(nodeId,folderName,subPath));c.querySelectorAll('.srsc-file').forEach(row=>row.addEventListener('click',()=>openSrscFile(nodeId,folderName,subPath,row.dataset.file,row.dataset.kind)));c.querySelectorAll('.srsc-subfolder').forEach(row=>row.addEventListener('click',()=>openSrscFolder(nodeId,folderName,subPath?`${subPath}/${row.dataset.subfolder}`:row.dataset.subfolder)));}
+function openSrscFile(nodeId,folderName,subPath,fileName,kind){const relativeFile=subPath?`${subPath}/${fileName}`:fileName;const url=`${API_SRSC_FILE_URL}?nodeId=${encodeURIComponent(nodeId)}&folder=${encodeURIComponent(folderName)}&file=${encodeURIComponent(relativeFile)}`;if(kind==='pdf'||kind==='image'){window.open(url,'_blank','noopener');return;}const a=document.createElement('a');a.href=url;a.download=fileName;document.body.appendChild(a);a.click();a.remove();}
+
+async function expandAll(){const queue=[...nodeElements.values()];for(const entry of queue){try{await entry.setExpanded(true);if(entry.wrapper.querySelector('.tree-children'))entry.wrapper.querySelectorAll(':scope > .tree-children > .tree-node').forEach(el=>{const id=[...nodeElements.entries()].find(([,x])=>x.wrapper===el)?.[0];if(id!==undefined)queue.push(nodeElements.get(id));});}catch(e){console.error(e);}}}
+function collapseAll(){nodeElements.forEach(e=>e.setExpanded(false));}
+
+async function searchTree(){const query=searchInput.value.trim();currentSearchQuery=query;if(!query){searchInfo.classList.add('hidden');treeContainer.innerHTML='';nodeElements.clear();nodeCache=new Map();parentById=new Map();loadedNodeCount=0;await loadRootNodes();return;}try{searchInfo.textContent='Searching...';searchInfo.classList.remove('hidden');const r=await fetch(`${API_URL}/search?q=${encodeURIComponent(query)}`),d=await r.json();if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);treeContainer.innerHTML='';nodeElements.clear();nodeCache=new Map();parentById=new Map();for(const n of d.matches||[]){nodeCache.set(normalizeNodeId(n.NodeID),n);parentById.set(normalizeNodeId(n.NodeID),normalizeParentId(n.ParentID));}const needed=new Set([...(d.ancestorIds||[]),...(d.matchIds||[])]);let roots=[];for(const id of needed){let cur=Number(id);while(cur){const r2=await fetch(`${API_URL}/${cur}`).catch(()=>null);break;}}// Load roots, then only the paths containing matches.
+  const rootData=await fetchChildren(null);roots=rootData.filter(n=>{let id=normalizeNodeId(n.NodeID);return needed.has(id)||[...needed].some(x=>parentById.get(Number(x))===id);});
+  for(const root of roots){const w=createNodeElement(root,true);treeContainer.appendChild(w);const entry=nodeElements.get(normalizeNodeId(root.NodeID));if(entry)await entry.setExpanded(true);}
+  nodeElements.forEach(e=>{const match=(d.matchIds||[]).includes(e.node.NodeID);e.row.classList.toggle('search-match',match);e.row.querySelector('.node-label').innerHTML=`<span class="code">${highlightText(e.node.NodeCode||'',query)}</span><span class="node-separator">—</span><span class="desc">${highlightText(e.node.NodeName||'(Unnamed)',query)}</span>`;});
+  searchInfo.textContent=`${(d.matches||[]).length.toLocaleString('en-US')} matching node${(d.matches||[]).length===1?'':'s'} found.`;
+}catch(e){console.error(e);searchInfo.textContent=`Search failed: ${e.message}`;searchInfo.classList.remove('hidden');}}
+
+searchBtn.addEventListener('click',searchTree);searchInput.addEventListener('keydown',e=>{if(e.key==='Enter')searchTree();});expandAllBtn.addEventListener('click',expandAll);collapseAllBtn.addEventListener('click',collapseAll);
+loadRootNodes();
