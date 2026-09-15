@@ -19,6 +19,7 @@ function closeCreateNodeModal() {
     createNodeModal.classList.add('hidden');
     createNodeError.classList.add('hidden');
     createNodeForm.reset();
+    delete createNodeForm.dataset.parentId;
 }
 
 function openCreateNodeModal(parentNode) {
@@ -36,10 +37,7 @@ function setCreateNodeMode(enabled) {
     createNodeBtn.classList.toggle('active', enabled);
     createNodeBtn.textContent = enabled ? 'Cancel New Node' : 'Create New Node';
     document.body.classList.toggle('create-node-mode', enabled);
-
-    document.querySelectorAll('.node-add-btn').forEach(button => {
-        button.classList.toggle('hidden', !enabled);
-    });
+    document.querySelectorAll('.node-add-btn').forEach(button => button.classList.toggle('hidden', !enabled));
 }
 
 function attachCreateNodeButton(row, node) {
@@ -55,8 +53,8 @@ function attachCreateNodeButton(row, node) {
     row.appendChild(addButton);
 }
 
-// createNodeElement() belongs to script.js. We wrap it once so every node gets
-// the + action without changing the existing tree/search logic.
+// createNodeElement() belongs to script.js. Wrap it so every newly rendered
+// tree row receives its own + button without changing the existing tree logic.
 const originalCreateNodeElement = window.createNodeElement;
 if (typeof originalCreateNodeElement === 'function') {
     window.createNodeElement = function(node, isRoot = false) {
@@ -115,7 +113,6 @@ createNodeForm.addEventListener('submit', async event => {
         if (createdId !== null) {
             const entry = nodeElements.get(createdId);
             if (entry) {
-                // Expand the new node's complete parent chain and select it.
                 let parent = normalizeParentId(data.node?.ParentID);
                 const visited = new Set();
                 while (parent !== null && !visited.has(parent)) {
@@ -137,3 +134,9 @@ createNodeForm.addEventListener('submit', async event => {
         createNodeSubmit.textContent = 'Create Node';
     }
 });
+
+// script.js calls loadNodes() before this file is loaded. Re-render once here
+// so the initial tree also receives the + buttons.
+if (Array.isArray(window.allNodes) && window.allNodes.length && typeof window.renderTree === 'function') {
+    window.renderTree(window.allNodes);
+}
