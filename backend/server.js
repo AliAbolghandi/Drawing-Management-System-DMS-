@@ -86,8 +86,6 @@ async function testDatabaseConnection() {
 
 app.get('/api/nodes', async (req, res) => {
     try {
-        // Only return fields required by the tree. FolderPath/PathID are not
-        // needed until a node is selected, which keeps the initial payload small.
         const result = await sql.query(`
             SELECT NodeID, ParentID, NodeCode, NodeName, IsActive
             FROM dbo.Nodes
@@ -189,9 +187,20 @@ app.post('/api/nodes', async (req, res) => {
     }
 });
 
+// Return PDFs only for a selected node. The old all-PDF startup query was
+// unnecessarily expensive on large DanieliPDF tables.
 app.get('/api/pdfs', async (req, res) => {
+    const nodeId = Number(req.query.nodeId);
+    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.json([]);
     try {
-        const result = await sql.query(`SELECT PDFID, NodeID, NodeCode, PDFName FROM dbo.DanieliPDF ORDER BY NodeID, PDFID`);
+        const request = new sql.Request();
+        request.input('nodeId', sql.Int, nodeId);
+        const result = await request.query(`
+            SELECT PDFID, NodeID, NodeCode, PDFName
+            FROM dbo.DanieliPDF
+            WHERE NodeID = @nodeId
+            ORDER BY PDFID
+        `);
         res.json(result.recordset);
     } catch (err) {
         console.error('PDFs query failed:', err);
@@ -199,9 +208,68 @@ app.get('/api/pdfs', async (req, res) => {
     }
 });
 
+// Safe Node deletion: only a leaf Node can be deleted and it must not have
+// registered PDF records. This prevents accidental subtree/data loss and
+// lets SQL foreign keys protect any other related tables.
+app.delete('/api/nodes/:nodeId', async (req, res) => {
+    const nodeId = Number(req.params.nodeId);
+    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error: 'Invalid Node ID.' });
+
+    try {
+        const pool = await sql.connect(config);
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+        try {
+            const request = new sql.Request(transaction);
+            request.input('nodeId', sql.Int, nodeId);
+
+            const nodeResult = await request.query(`
+                SELECT TOP 1 NodeID, ParentID, NodeCode, NodeName
+                FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)
+                WHERE NodeID = @nodeId
+            `);
+            if (!nodeResult.recordset.length) {
+                await transaction.rollback();
+                return res.status(404).json({ error: 'Node not found.' });
+            }
+
+            const childResult = await new sql.Request(transaction)
+                .input('parentId', sql.Int, nodeId)
+                .query(`SELECT TOP 1 NodeID FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK) WHERE ParentID = @parentId`);
+            if (childResult.recordset.length) {
+                await transaction.rollback();
+                return res.status(409).json({ error: 'This Node has child Nodes and cannot be deleted. Delete its child Nodes first.' });
+            }
+
+            const pdfResult = await new sql.Request(transaction)
+                .input('pdfNodeId', sql.Int, nodeId)
+                .query(`SELECT TOP 1 PDFID FROM dbo.DanieliPDF WITH (UPDLOCK, HOLDLOCK) WHERE NodeID = @pdfNodeId`);
+            if (pdfResult.recordset.length) {
+                await transaction.rollback();
+                return res.status(409).json({ error: 'This Node has registered PDF records. Remove or reassign those records first.' });
+            }
+
+            const deleteRequest = new sql.Request(transaction);
+            deleteRequest.input('nodeId', sql.Int, nodeId);
+            await deleteRequest.query(`DELETE FROM dbo.Nodes WHERE NodeID = @nodeId`);
+            await transaction.commit();
+
+            srscStatusCache = null;
+            const deleted = nodeResult.recordset[0];
+            console.log(`Node deleted: ${deleted.NodeID} / ${deleted.NodeCode}`);
+            res.json({ success: true, node: deleted });
+        } catch (err) {
+            try { await transaction.rollback(); } catch (_) {}
+            throw err;
+        }
+    } catch (err) {
+        console.error('Node deletion failed:', err);
+        if (err.number === 547) return res.status(409).json({ error: 'The Node is referenced by another database table and cannot be deleted yet.' });
+        res.status(500).json({ error: err.message });
+    }
+});
+
 async function computeSrscStatus() {
-    // Ignore rows without a configured folder. This can dramatically reduce
-    // filesystem checks on installations where only a small subset is mapped.
     const result = await sql.query(`
         SELECT N.NodeID, N.FolderPath, N.PathID, P.RootPath
         FROM dbo.Nodes N
@@ -242,9 +310,6 @@ async function getSrscStatus(forceRefresh) {
 
 app.get('/api/srsc-status', async (req, res) => {
     try {
-        // Do not make the first page load wait for a potentially large network
-        // filesystem scan. Return cached data immediately and refresh in the
-        // background when no cache exists.
         if (req.query.refresh !== '1' && !srscStatusCache) {
             getSrscStatus(false)
                 .then(ids => console.log(`SRSC status background scan complete: ${ids.length} node(s)`))
@@ -375,6 +440,4 @@ app.get('/api/pdf-file/:pdfId', async (req, res) => {
 app.listen(3000, '0.0.0.0', async () => {
     console.log('Server running on http://0.0.0.0:3000');
     await testDatabaseConnection();
-    // Intentionally no SRSC warm-up here. The first page must not compete with
-    // /api/nodes and /api/pdfs for a SQL connection or filesystem I/O.
 });
