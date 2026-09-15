@@ -1,145 +1,37 @@
-// ======================================================
-// Create New Node UI
-// ======================================================
+const editNodeBtn = document.getElementById('createNewNodeBtn');
+const editModal = document.getElementById('createNodeModal');
+const editForm = document.getElementById('createNodeForm');
+const editNodeId = document.getElementById('editNodeId');
+const editCode = document.getElementById('createNodeCode');
+const editName = document.getElementById('createNodeName');
+const editJet = document.getElementById('editJet');
+const editNorme = document.getElementById('editNorme');
+const editMass = document.getElementById('editMass');
+const editNv = document.getElementById('editNv');
+const editIsActive = document.getElementById('editIsActive');
+const editError = document.getElementById('createNodeError');
+const editCancel = document.getElementById('createNodeCancel');
+const editClose = document.getElementById('createNodeClose');
+const editSubmit = document.getElementById('createNodeSubmit');
+let editMode = false;
 
-const createNodeBtn = document.getElementById('createNewNodeBtn');
-const createNodeModal = document.getElementById('createNodeModal');
-const createNodeForm = document.getElementById('createNodeForm');
-const createNodeParent = document.getElementById('createNodeParent');
-const createNodeCode = document.getElementById('createNodeCode');
-const createNodeName = document.getElementById('createNodeName');
-const createNodeError = document.getElementById('createNodeError');
-const createNodeCancel = document.getElementById('createNodeCancel');
-const createNodeClose = document.getElementById('createNodeClose');
-const createNodeSubmit = document.getElementById('createNodeSubmit');
-const treeContainerForCreate = document.getElementById('treeContainer');
-
-let createNodeMode = false;
-
-function closeCreateNodeModal() {
-    createNodeModal.classList.add('hidden');
-    createNodeError.classList.add('hidden');
-    createNodeForm.reset();
-    delete createNodeForm.dataset.parentId;
+function closeEditNodeModal(){editModal.classList.add('hidden');editError.classList.add('hidden');editForm.reset();editForm.dataset.nodeId='';}
+function openEditNodeModal(node){
+  if(!node){alert('Select a Node first.');return;}
+  editForm.dataset.nodeId=String(node.NodeID);editNodeId.textContent=String(node.NodeID);editCode.value=node.NodeCode||'';editName.value=node.NodeName||'';editJet.value=node.JET_Position??'';editNorme.value=node.Norme??'';editMass.value=node.Mass??'';editNv.value=node.nv??'';editIsActive.checked=node.IsActive===true||Number(node.IsActive)===1;editError.classList.add('hidden');editModal.classList.remove('hidden');setTimeout(()=>editCode.focus(),50);
 }
+function setEditMode(enabled){editMode=enabled;editNodeBtn.classList.toggle('active',enabled);editNodeBtn.textContent=enabled?'Cancel Edit':'Edit Node';document.body.classList.toggle('edit-node-mode',enabled);}
+editNodeBtn.addEventListener('click',()=>{if(editMode){setEditMode(false);closeEditNodeModal();return;}if(!currentSelectedNode){alert('Select a Node from the tree first.');return;}setEditMode(true);openEditNodeModal(currentSelectedNode);});
+editCancel.addEventListener('click',()=>{closeEditNodeModal();setEditMode(false);});editClose.addEventListener('click',()=>{closeEditNodeModal();setEditMode(false);});
+editModal.addEventListener('click',e=>{if(e.target===editModal){closeEditNodeModal();setEditMode(false);}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!editModal.classList.contains('hidden')){closeEditNodeModal();setEditMode(false);}});
 
-function openCreateNodeModal(parentNode) {
-    createNodeParent.textContent = `${parentNode.NodeCode || '-'} — ${parentNode.NodeName || '(Unnamed)'}`;
-    createNodeForm.dataset.parentId = String(parentNode.NodeID);
-    createNodeCode.value = '';
-    createNodeName.value = '';
-    createNodeError.classList.add('hidden');
-    createNodeModal.classList.remove('hidden');
-    setTimeout(() => createNodeCode.focus(), 50);
-}
-
-function setCreateNodeMode(enabled) {
-    createNodeMode = enabled;
-    createNodeBtn.classList.toggle('active', enabled);
-    createNodeBtn.textContent = enabled ? 'Cancel New Node' : 'Create New Node';
-    document.body.classList.toggle('create-node-mode', enabled);
-    refreshCreateNodeButtons();
-}
-
-function attachCreateNodeButton(row, node) {
-    if (row.querySelector(':scope > .node-add-btn')) return;
-
-    const addButton = document.createElement('button');
-    addButton.type = 'button';
-    addButton.className = `node-add-btn${createNodeMode ? '' : ' hidden'}`;
-    addButton.title = `Add a new child node under ${node.NodeCode || node.NodeName || 'this node'}`;
-    addButton.textContent = '+';
-    addButton.addEventListener('click', event => {
-        event.stopPropagation();
-        openCreateNodeModal(node);
-    });
-    row.appendChild(addButton);
-}
-
-function refreshCreateNodeButtons() {
-    if (!treeContainerForCreate || typeof nodeElements === 'undefined') return;
-    nodeElements.forEach(entry => {
-        attachCreateNodeButton(entry.row, entry.node);
-        const button = entry.row.querySelector(':scope > .node-add-btn');
-        if (button) button.classList.toggle('hidden', !createNodeMode);
-    });
-}
-
-// renderTree() creates rows dynamically. The observer adds the + action to
-// every current/future row without changing the existing tree/search code.
-if (treeContainerForCreate) {
-    const observer = new MutationObserver(() => refreshCreateNodeButtons());
-    observer.observe(treeContainerForCreate, { childList: true, subtree: true });
-}
-
-createNodeBtn.addEventListener('click', () => setCreateNodeMode(!createNodeMode));
-createNodeCancel.addEventListener('click', closeCreateNodeModal);
-createNodeClose.addEventListener('click', closeCreateNodeModal);
-createNodeModal.addEventListener('click', event => {
-    if (event.target === createNodeModal) closeCreateNodeModal();
+editForm.addEventListener('submit',async e=>{
+  e.preventDefault();const nodeId=Number(editForm.dataset.nodeId);if(!nodeId)return;
+  const body={NodeCode:editCode.value.trim(),NodeName:editName.value.trim(),JET_Position:editJet.value.trim(),Norme:editNorme.value.trim(),Mass:editMass.value.trim(),nv:editNv.value.trim(),IsActive:editIsActive.checked};
+  if(!body.NodeCode||!body.NodeName){editError.textContent='Node Code and Node Name are required.';editError.classList.remove('hidden');return;}
+  editSubmit.disabled=true;editSubmit.textContent='Saving...';editError.classList.add('hidden');
+  try{const r=await fetch(`${API_URL}/${encodeURIComponent(nodeId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);const updated=d.node||{};nodeCache.set(nodeId,updated);parentById.set(nodeId,normalizeParentId(updated.ParentID));const entry=nodeElements.get(nodeId);if(entry){entry.node=updated;currentSelectedNode=updated;entry.row.querySelector('.code').textContent=updated.NodeCode||'';entry.row.querySelector('.desc').textContent=updated.NodeName||'(Unnamed)';showNodeDetails(updated);}closeEditNodeModal();setEditMode(false);
+  }catch(err){console.error('Edit Node failed:',err);editError.textContent=err.message||'Unable to save the Node.';editError.classList.remove('hidden');}
+  finally{editSubmit.disabled=false;editSubmit.textContent='Save Changes';}
 });
-
-document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && !createNodeModal.classList.contains('hidden')) closeCreateNodeModal();
-});
-
-createNodeForm.addEventListener('submit', async event => {
-    event.preventDefault();
-
-    const parentId = Number(createNodeForm.dataset.parentId);
-    const nodeCode = createNodeCode.value.trim();
-    const nodeName = createNodeName.value.trim();
-
-    if (!parentId || !nodeCode || !nodeName) {
-        createNodeError.textContent = 'Parent Node, Node Code and Node Name are required.';
-        createNodeError.classList.remove('hidden');
-        return;
-    }
-
-    createNodeSubmit.disabled = true;
-    createNodeSubmit.textContent = 'Creating...';
-    createNodeError.classList.add('hidden');
-
-    try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ParentID: parentId, NodeCode: nodeCode, NodeName: nodeName })
-        });
-
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-
-        closeCreateNodeModal();
-        setCreateNodeMode(false);
-        await loadNodes();
-        await loadPdfs();
-        await loadSrscStatus();
-
-        const createdId = normalizeNodeId(data.node?.NodeID);
-        if (createdId !== null) {
-            const entry = nodeElements.get(createdId);
-            if (entry) {
-                let parent = normalizeParentId(data.node?.ParentID);
-                const visited = new Set();
-                while (parent !== null && !visited.has(parent)) {
-                    visited.add(parent);
-                    const parentEntry = nodeElements.get(parent);
-                    if (parentEntry?.hasChildren) parentEntry.setExpanded(true);
-                    parent = parentById.get(parent) ?? null;
-                }
-                entry.row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                selectNode(entry.node, entry.row);
-            }
-        }
-    } catch (error) {
-        console.error('Create Node failed:', error);
-        createNodeError.textContent = error.message || 'Unable to create the Node.';
-        createNodeError.classList.remove('hidden');
-    } finally {
-        createNodeSubmit.disabled = false;
-        createNodeSubmit.textContent = 'Create Node';
-    }
-});
-
-refreshCreateNodeButtons();
