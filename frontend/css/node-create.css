@@ -1,0 +1,189 @@
+/* ======================================================
+   Create New Node UI
+   ====================================================== */
+
+#createNewNodeBtn.active {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(239, 107, 107, .10);
+}
+
+.node-row {
+    position: relative;
+}
+
+.node-add-btn {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    margin-left: 8px;
+    border: 1px solid var(--ok-dim);
+    border-radius: 5px;
+    background: rgba(111, 217, 154, .08);
+    color: var(--ok);
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 20px;
+    transition: background .12s ease, border-color .12s ease, transform .05s ease;
+}
+
+.node-add-btn:hover {
+    background: rgba(111, 217, 154, .18);
+    border-color: var(--ok);
+}
+
+.node-add-btn:active {
+    transform: translateY(1px);
+}
+
+.create-node-mode .node-row {
+    padding-right: 4px;
+}
+
+.create-node-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(3, 10, 18, .72);
+    backdrop-filter: blur(3px);
+}
+
+.create-node-modal.hidden {
+    display: none;
+}
+
+.create-node-dialog {
+    width: min(520px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .45);
+    overflow: hidden;
+}
+
+.create-node-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.create-node-dialog-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.create-node-dialog-header p {
+    margin-top: 4px;
+    color: var(--text-faint);
+    font-size: 11px;
+}
+
+.create-node-close {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 18px;
+}
+
+.create-node-close:hover {
+    color: var(--text);
+    border-color: var(--cyan-dim);
+}
+
+#createNodeForm {
+    padding: 20px;
+}
+
+.create-node-field {
+    margin-bottom: 15px;
+}
+
+.create-node-field label {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.create-node-parent {
+    min-height: 40px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel-2);
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.create-node-field input {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    outline: none;
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 12px;
+}
+
+.create-node-field input:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 3px var(--cyan-dim);
+}
+
+.create-node-error {
+    margin-bottom: 15px;
+    padding: 9px 11px;
+    border: 1px solid rgba(239, 107, 107, .35);
+    border-radius: 7px;
+    background: rgba(239, 107, 107, .08);
+    color: var(--danger);
+    font-size: 11px;
+}
+
+.create-node-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 5px;
+}
+
+.create-node-actions button {
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 7px;
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.create-node-cancel {
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--text-dim);
+}
+
+.create-node-submit {
+    border: 1px solid var(--ok);
+    background: var(--ok);
+    color: #06150c;
+}
+
+.create-node-submit:disabled {
+    opacity: .55;
+    cursor: wait;
+}
