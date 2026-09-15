@@ -472,7 +472,6 @@
       }
 
       roots.forEach(root => el.tree.appendChild(createNodeElement(root, { root: true })));
-      // Intentionally do not expand roots here: this is true lazy loading.
       await Promise.all([prefetchPdfForNodes(roots), loadSrscStatus(false)]);
     } catch (error) {
       console.error('Initial tree load failed:', error);
@@ -482,7 +481,6 @@
   }
 
   function buildSearchTree(nodes, matchIds) {
-    const map = new Map(nodes.map(node => [nodeId(node.NodeID), node]));
     const children = new Map();
     for (const node of nodes) {
       const p = parentId(node.ParentID);
@@ -503,7 +501,6 @@
       if (matches.has(id)) entry.row.classList.add('search-match');
 
       if (visibleChildren.length) {
-        // Search result tree is already fully materialized along matching paths.
         const childContainer = document.createElement('div');
         childContainer.className = 'tree-children';
         visibleChildren.forEach(child => childContainer.appendChild(buildNode(child)));
@@ -512,13 +509,14 @@
         const icon = entry.row.querySelector('.node-icon');
         button.textContent = '−';
         icon.textContent = '▾';
-        entry.row.querySelector('.expand-btn').classList.remove('empty');
-        entry.row.querySelector('.expand-btn').disabled = false;
+        button.classList.remove('empty');
+        button.disabled = false;
       }
       return wrapper;
     }
 
-    const roots = nodes.filter(node => parentId(node.ParentID) === null).sort((a, b) => Number(a.NodeID) - Number(b.NodeID));
+    const roots = nodes.filter(node => parentId(node.ParentID) === null)
+      .sort((a, b) => Number(a.NodeID) - Number(b.NodeID));
     roots.forEach(root => el.tree.appendChild(buildNode(root, true)));
   }
 
@@ -547,14 +545,13 @@
       updateCount();
       el.tree.innerHTML = '';
       buildSearchTree(visible, data.matchIds || []);
-
-      // Load PDFs for every visible node in one request; no need to click nodes first.
       await Promise.all([prefetchPdfForNodes(visible), loadSrscStatus(false)]);
       state.nodeElements.forEach((entry, id) => refreshNodeStatus(id));
 
       const matchCount = (data.matches || []).length;
       el.searchInfo.textContent = `${matchCount.toLocaleString('en-US')} matching node${matchCount === 1 ? '' : 's'} found.`;
-      const firstMatch = [...state.nodeElements.values()].find(entry => (data.matchIds || []).includes(Number(entry.node.NodeID)));
+      const firstMatch = [...state.nodeElements.values()]
+        .find(entry => (data.matchIds || []).includes(Number(entry.node.NodeID)));
       firstMatch?.row.scrollIntoView({ block: 'center', behavior: 'smooth' });
     } catch (error) {
       console.error('Search failed:', error);
@@ -564,11 +561,10 @@
 
   async function expandAll() {
     if (state.searchMode) {
-      state.nodeElements.forEach(entry => entry.setExpanded(true).catch(console.error));
+      for (const entry of state.nodeElements.values()) await entry.setExpanded(true);
       return;
     }
 
-    // Keep expanding newly discovered levels until no loaded expandable node remains.
     let changed = true;
     while (changed) {
       changed = false;
@@ -593,11 +589,12 @@
   el.expandAll?.addEventListener('click', () => expandAll().catch(console.error));
   el.collapseAll?.addEventListener('click', collapseAll);
 
-  // Expose only the functions used by the other small action modules.
   window.DMS = {
+    apiUrl: API_URL,
     state,
     loadRootNodes,
-    openEditNodeModal: typeof window.openEditNodeModal === 'function' ? window.openEditNodeModal : undefined,
+    showNodeDetails,
+    refreshNodeStatus,
   };
 
   loadRootNodes();
