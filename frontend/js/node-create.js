@@ -33,6 +33,14 @@ function openCreateNodeModal(parentNode) {
     setTimeout(() => createNodeCode.focus(), 50);
 }
 
+function setCreateNodeMode(enabled) {
+    createNodeMode = enabled;
+    createNodeBtn.classList.toggle('active', enabled);
+    createNodeBtn.textContent = enabled ? 'Cancel New Node' : 'Create New Node';
+    document.body.classList.toggle('create-node-mode', enabled);
+    refreshCreateNodeButtons();
+}
+
 function attachCreateNodeButton(row, node) {
     if (row.querySelector(':scope > .node-add-btn')) return;
 
@@ -49,7 +57,7 @@ function attachCreateNodeButton(row, node) {
 }
 
 function refreshCreateNodeButtons() {
-    if (!treeContainerForCreate) return;
+    if (!treeContainerForCreate || typeof nodeElements === 'undefined') return;
     nodeElements.forEach(entry => {
         attachCreateNodeButton(entry.row, entry.node);
         const button = entry.row.querySelector(':scope > .node-add-btn');
@@ -57,19 +65,14 @@ function refreshCreateNodeButtons() {
     });
 }
 
-// renderTree() in script.js creates rows dynamically. A MutationObserver lets
-// this feature add the + button to every current/future row without modifying
-// the existing tree/search implementation.
+// renderTree() creates rows dynamically. The observer adds the + action to
+// every current/future row without changing the existing tree/search code.
 if (treeContainerForCreate) {
     const observer = new MutationObserver(() => refreshCreateNodeButtons());
     observer.observe(treeContainerForCreate, { childList: true, subtree: true });
 }
 
-createNodeBtn.addEventListener('click', () => {
-    setCreateNodeMode(!createNodeMode);
-    refreshCreateNodeButtons();
-});
-
+createNodeBtn.addEventListener('click', () => setCreateNodeMode(!createNodeMode));
 createNodeCancel.addEventListener('click', closeCreateNodeModal);
 createNodeClose.addEventListener('click', closeCreateNodeModal);
 createNodeModal.addEventListener('click', event => {
