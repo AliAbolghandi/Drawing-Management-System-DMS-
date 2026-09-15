@@ -16,7 +16,14 @@ const config = {
         'Server=localhost;' +
         'Database=dbDrawingManagment;' +
         'Trusted_Connection=Yes;' +
-        'TrustServerCertificate=Yes;'
+        'TrustServerCertificate=Yes;',
+    connectionTimeout: 15000,
+    requestTimeout: 30000,
+    pool: {
+        max: 30,
+        min: 2,
+        idleTimeoutMillis: 30000
+    }
 };
 
 const ALLOWED_SRSC_FOLDERS = ['SLD', 'DOC', 'PIC', 'Catalog'];
@@ -109,79 +116,82 @@ app.post('/api/nodes', async (req, res) => {
     if (nodeCode.length > 100) return res.status(400).json({ error: 'Node Code must be 100 characters or less.' });
     if (nodeName.length > 255) return res.status(400).json({ error: 'Node Name must be 255 characters or less.' });
 
-    const pool = await sql.connect(config);
-    const transaction = new sql.Transaction(pool);
-
     try {
+        const pool = await sql.connect(config);
+        const transaction = new sql.Transaction(pool);
         await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
 
-        const request = new sql.Request(transaction);
-        request.input('parentId', sql.Int, parentId);
-        request.input('nodeCode', sql.NVarChar(100), nodeCode);
-        request.input('nodeName', sql.NVarChar(255), nodeName);
+        try {
+            const request = new sql.Request(transaction);
+            request.input('parentId', sql.Int, parentId);
+            request.input('nodeCode', sql.NVarChar(100), nodeCode);
+            request.input('nodeName', sql.NVarChar(255), nodeName);
 
-        const parentResult = await request.query(`
-            SELECT TOP 1 NodeID, FolderPath, PathID
-            FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)
-            WHERE NodeID = @parentId
-        `);
-
-        if (!parentResult.recordset.length) {
-            await transaction.rollback();
-            return res.status(404).json({ error: 'Parent Node not found.' });
-        }
-
-        const parent = parentResult.recordset[0];
-        const safeFolderPart = value => String(value).replace(/[\\/:*?"<>|]/g, '-').trim();
-        const parentFolder = parent.FolderPath ? String(parent.FolderPath).trim() : '';
-        const childFolder = `${safeFolderPart(nodeCode)} -${safeFolderPart(nodeName)}`;
-        const folderPath = parentFolder ? `${parentFolder}\\${childFolder}` : childFolder;
-
-        const identityResult = await new sql.Request(transaction).query(`
-            SELECT COLUMNPROPERTY(OBJECT_ID('dbo.Nodes'), 'NodeID', 'IsIdentity') AS IsIdentity
-        `);
-        const isIdentity = Number(identityResult.recordset[0]?.IsIdentity) === 1;
-        let inserted;
-
-        if (isIdentity) {
-            const insertRequest = new sql.Request(transaction);
-            insertRequest.input('parentId', sql.Int, parentId);
-            insertRequest.input('nodeCode', sql.NVarChar(100), nodeCode);
-            insertRequest.input('nodeName', sql.NVarChar(255), nodeName);
-            insertRequest.input('folderPath', sql.NVarChar(sql.MAX), folderPath);
-            insertRequest.input('pathId', sql.Int, parent.PathID ?? null);
-            inserted = await insertRequest.query(`
-                INSERT INTO dbo.Nodes (ParentID, NodeCode, NodeName, IsActive, CreatedAt, UpdatedAt, FolderPath, PathID)
-                OUTPUT INSERTED.*
-                VALUES (@parentId, @nodeCode, @nodeName, 1, SYSUTCDATETIME(), SYSUTCDATETIME(), @folderPath, @pathId)
+            const parentResult = await request.query(`
+                SELECT TOP 1 NodeID, FolderPath, PathID
+                FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)
+                WHERE NodeID = @parentId
             `);
-        } else {
-            const idResult = await new sql.Request(transaction).query(`SELECT ISNULL(MAX(NodeID), 0) + 1 AS NewNodeID FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)`);
-            const newNodeId = Number(idResult.recordset[0].NewNodeID);
-            if (!Number.isSafeInteger(newNodeId) || newNodeId <= 0 || newNodeId > 2147483647) throw new Error('Unable to allocate a valid NodeID.');
 
-            const insertRequest = new sql.Request(transaction);
-            insertRequest.input('nodeId', sql.Int, newNodeId);
-            insertRequest.input('parentId', sql.Int, parentId);
-            insertRequest.input('nodeCode', sql.NVarChar(100), nodeCode);
-            insertRequest.input('nodeName', sql.NVarChar(255), nodeName);
-            insertRequest.input('folderPath', sql.NVarChar(sql.MAX), folderPath);
-            insertRequest.input('pathId', sql.Int, parent.PathID ?? null);
-            inserted = await insertRequest.query(`
-                INSERT INTO dbo.Nodes (NodeID, ParentID, NodeCode, NodeName, IsActive, CreatedAt, UpdatedAt, FolderPath, PathID)
-                OUTPUT INSERTED.*
-                VALUES (@nodeId, @parentId, @nodeCode, @nodeName, 1, SYSUTCDATETIME(), SYSUTCDATETIME(), @folderPath, @pathId)
+            if (!parentResult.recordset.length) {
+                await transaction.rollback();
+                return res.status(404).json({ error: 'Parent Node not found.' });
+            }
+
+            const parent = parentResult.recordset[0];
+            const safeFolderPart = value => String(value).replace(/[\\/:*?"<>|]/g, '-').trim();
+            const parentFolder = parent.FolderPath ? String(parent.FolderPath).trim() : '';
+            const childFolder = `${safeFolderPart(nodeCode)} -${safeFolderPart(nodeName)}`;
+            const folderPath = parentFolder ? `${parentFolder}\\${childFolder}` : childFolder;
+
+            const identityResult = await new sql.Request(transaction).query(`
+                SELECT COLUMNPROPERTY(OBJECT_ID('dbo.Nodes'), 'NodeID', 'IsIdentity') AS IsIdentity
             `);
+            const isIdentity = Number(identityResult.recordset[0]?.IsIdentity) === 1;
+            let inserted;
+
+            if (isIdentity) {
+                const insertRequest = new sql.Request(transaction);
+                insertRequest.input('parentId', sql.Int, parentId);
+                insertRequest.input('nodeCode', sql.NVarChar(100), nodeCode);
+                insertRequest.input('nodeName', sql.NVarChar(255), nodeName);
+                insertRequest.input('folderPath', sql.NVarChar(sql.MAX), folderPath);
+                insertRequest.input('pathId', sql.Int, parent.PathID ?? null);
+                inserted = await insertRequest.query(`
+                    INSERT INTO dbo.Nodes (ParentID, NodeCode, NodeName, IsActive, CreatedAt, UpdatedAt, FolderPath, PathID)
+                    OUTPUT INSERTED.*
+                    VALUES (@parentId, @nodeCode, @nodeName, 1, SYSUTCDATETIME(), SYSUTCDATETIME(), @folderPath, @pathId)
+                `);
+            } else {
+                const idResult = await new sql.Request(transaction).query(`SELECT ISNULL(MAX(NodeID), 0) + 1 AS NewNodeID FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)`);
+                const newNodeId = Number(idResult.recordset[0].NewNodeID);
+                if (!Number.isSafeInteger(newNodeId) || newNodeId <= 0 || newNodeId > 2147483647) throw new Error('Unable to allocate a valid NodeID.');
+
+                const insertRequest = new sql.Request(transaction);
+                insertRequest.input('nodeId', sql.Int, newNodeId);
+                insertRequest.input('parentId', sql.Int, parentId);
+                insertRequest.input('nodeCode', sql.NVarChar(100), nodeCode);
+                insertRequest.input('nodeName', sql.NVarChar(255), nodeName);
+                insertRequest.input('folderPath', sql.NVarChar(sql.MAX), folderPath);
+                insertRequest.input('pathId', sql.Int, parent.PathID ?? null);
+                inserted = await insertRequest.query(`
+                    INSERT INTO dbo.Nodes (NodeID, ParentID, NodeCode, NodeName, IsActive, CreatedAt, UpdatedAt, FolderPath, PathID)
+                    OUTPUT INSERTED.*
+                    VALUES (@nodeId, @parentId, @nodeCode, @nodeName, 1, SYSUTCDATETIME(), SYSUTCDATETIME(), @folderPath, @pathId)
+                `);
+            }
+
+            await transaction.commit();
+            srscStatusCache = null;
+
+            const created = inserted.recordset[0];
+            console.log(`Node created: ${created.NodeID} / ${created.NodeCode}`);
+            res.status(201).json({ success: true, node: created });
+        } catch (err) {
+            try { await transaction.rollback(); } catch (_) {}
+            throw err;
         }
-
-        await transaction.commit();
-        srscStatusCache = null;
-
-        const created = inserted.recordset[0];
-        console.log(`Node created: ${created.NodeID} / ${created.NodeCode}`);
-        res.status(201).json({ success: true, node: created });
     } catch (err) {
-        try { await transaction.rollback(); } catch (_) {}
         console.error('Node creation failed:', err);
         if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'A database primary-key or unique constraint was violated.' });
         res.status(500).json({ error: err.message });
