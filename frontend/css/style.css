@@ -426,6 +426,13 @@ button {
     text-align: left
 }
 
+.node-label .jet {
+    font-family: var(--mono);
+    color: var(--text-faint);
+    font-weight: 500;
+    white-space: nowrap
+}
+
 .node-label .code {
     font-family: var(--mono);
     color: var(--cyan);
@@ -891,6 +898,28 @@ mark {
     padding: 40px;
     color: var(--text-faint);
     font-size: 12px
+}
+
+.dms-spinner {
+    width: 26px;
+    height: 26px;
+    margin: 0 auto 12px;
+    border: 3px solid var(--line-strong, rgba(255, 255, 255, .15));
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: dms-spin .8s linear infinite;
+}
+
+.dms-spinner-inline {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin: 0 6px -2px 0;
+    border-width: 2px;
+}
+
+@keyframes dms-spin {
+    to { transform: rotate(360deg); }
 }
 
 .error {

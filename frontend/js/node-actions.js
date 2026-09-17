@@ -69,14 +69,6 @@
   function attachActionButtons(entry) {
     if (!entry?.row || !entry.node) return;
 
-    if (!entry.row.dataset.editDblBound) {
-      entry.row.addEventListener('dblclick', (event) => {
-        if (event.target.closest('.node-edit-actions')) return;
-        window.DMS.openEditFieldsModal?.(entry.node);
-      });
-      entry.row.dataset.editDblBound = '1';
-    }
-
     if (entry.row.querySelector(':scope > .node-edit-actions')) return;
 
     const wrap = document.createElement('div');

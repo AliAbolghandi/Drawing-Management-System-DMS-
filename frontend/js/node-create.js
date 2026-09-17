@@ -184,10 +184,7 @@
         const entry = state.nodeElements?.get(id);
         if (entry) {
           entry.node = updated;
-          const codeEl = entry.row?.querySelector('.code');
-          const nameEl = entry.row?.querySelector('.desc');
-          if (codeEl) codeEl.textContent = updated.NodeCode || '';
-          if (nameEl) nameEl.textContent = updated.NodeName || '(Unnamed)';
+          window.DMS.refreshNodeLabel?.(entry, updated);
         }
         state.currentSelectedNode = updated;
         closeModal();

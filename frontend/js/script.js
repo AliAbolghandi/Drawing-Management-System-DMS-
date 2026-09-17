@@ -11,8 +11,6 @@
     loadedParents: new Set(),
     pdfsByNodeId: new Map(),
     srscNodeIds: new Set(),
-    srscStatusLoaded: false,
-    srscStatusPromise: null,
     currentSelectedNode: null,
     currentSearchQuery: '',
     searchMode: false,
@@ -108,21 +106,18 @@
     }
   }
 
-  async function loadSrscStatus() {
-    if (state.srscStatusLoaded) return;
-    if (state.srscStatusPromise) return state.srscStatusPromise;
-
-    state.srscStatusPromise = requestJson(`${API}/srsc-status`)
-      .then(data => {
-        if (Array.isArray(data.nodeIds)) state.srscNodeIds = new Set(data.nodeIds.map(toId).filter(Boolean));
-        state.srscStatusLoaded = !data.pending;
-        state.nodeElements.forEach((_, id) => refreshStatus(id));
-        if (data.pending) setTimeout(() => loadSrscStatus().catch(console.error), 1500);
-      })
-      .catch(error => console.error('SRSC status failed:', error))
-      .finally(() => { state.srscStatusPromise = null; });
-
-    return state.srscStatusPromise;
+  async function loadSrscStatus(nodes, { refresh = false } = {}) {
+    const ids = [...new Set((nodes || []).map(n => toId(n.NodeID ?? n)).filter(Boolean))];
+    if (!ids.length) return;
+    try {
+      const url = `${API}/srsc-status?nodeIds=${ids.join(',')}${refresh ? '&refresh=1' : ''}`;
+      const data = await requestJson(url);
+      if (refresh) ids.forEach(id => state.srscNodeIds.delete(id));
+      (data.nodeIds || []).forEach(id => state.srscNodeIds.add(toId(id)));
+      ids.forEach(refreshStatus);
+    } catch (error) {
+      console.error('SRSC status failed:', error);
+    }
   }
 
   function refreshStatus(id) {
@@ -138,11 +133,13 @@
   function createLabel(node) {
     const label = document.createElement('div');
     label.className = 'node-label';
-    label.innerHTML = `<span class="code">${highlight(node.NodeCode)}</span><span class="node-separator">—</span><span class="desc">${highlight(node.NodeName || '(Unnamed)')}</span>`;
+    const jet = node.JET_Position != null && String(node.JET_Position).trim() !== '' ? String(node.JET_Position).trim() : '';
+    const jetHtml = jet ? `<span class="jet">${highlight(jet)}</span>` : '';
+    label.innerHTML = `${jetHtml}<span class="code">${highlight(node.NodeCode)}</span><span class="node-separator">-</span><span class="desc">${highlight(node.NodeName || '(Unnamed)')}</span>`;
     return label;
   }
 
-  function createNode(node, { root = false, searchLeaf = false } = {}) {
+  function createNode(node, { root = false } = {}) {
     const id = toId(node.NodeID);
     if (id === null) throw new Error('Invalid NodeID returned by server.');
 
@@ -167,9 +164,9 @@
     wrapper.appendChild(row);
 
     let childrenBox = null;
-    let childrenLoaded = searchLeaf;
+    let childrenLoaded = false;
     let expanded = false;
-    let hasChildren = !searchLeaf && Number(node.HasChildren) === 1;
+    let hasChildren = Number(node.HasChildren) === 1;
 
     function updateExpand() {
       if (!hasChildren) {
@@ -197,7 +194,7 @@
         childrenBox.className = 'tree-children';
         children.forEach(child => childrenBox.appendChild(createNode(child)));
         wrapper.appendChild(childrenBox);
-        await Promise.all([prefetchPdfs(children), loadSrscStatus()]);
+        await Promise.all([prefetchPdfs(children), loadSrscStatus(children)]);
       } finally {
         updateExpand();
       }
@@ -334,14 +331,14 @@
     state.nodeElements.clear(); state.nodeCache.clear(); state.loadedParents.clear(); state.pdfsByNodeId.clear();
     state.currentSelectedNode = null;
     $('emptyDetails')?.classList.remove('hidden'); $('nodeDetails')?.classList.add('hidden');
-    tree.innerHTML = '<div class="loading">Loading equipment structure...</div>';
+    tree.innerHTML = '<div class="loading"><div class="dms-spinner"></div><div>Loading equipment structure...</div></div>';
     try {
       const roots = await getChildren(null);
       tree.innerHTML = '';
       setConnection(true, 'Connected');
       if (!roots.length) { tree.innerHTML = '<div class="error">No root nodes were found.</div>'; return; }
       roots.forEach(root => tree.appendChild(createNode(root, { root })));
-      await Promise.all([prefetchPdfs(roots), loadSrscStatus()]);
+      await Promise.all([prefetchPdfs(roots), loadSrscStatus(roots)]);
     } catch (error) {
       console.error('Tree load failed:', error);
       setConnection(false, 'Connection Error');
@@ -349,51 +346,70 @@
     }
   }
 
-  function buildSearchTree(nodes, matchIds) {
-    const children = new Map();
-    nodes.forEach(node => {
-      const p = toParentId(node.ParentID);
-      if (p !== null) { if (!children.has(p)) children.set(p, []); children.get(p).push(node); }
+  function clearSearchHighlights() {
+    state.nodeElements.forEach(entry => {
+      if (entry.row.classList.contains('search-match')) {
+        entry.row.classList.remove('search-match');
+        refreshNodeLabel(entry, entry.node);
+      }
     });
+  }
+
+  // Expands the real ancestor chain of each match (fetching each level's actual children,
+  // exactly like a normal manual expand) so the full tree stays intact; only the matches
+  // themselves get flagged, nothing is hidden or pruned.
+  async function revealSearchMatches(visibleNodes, matchIds) {
+    const byId = new Map(visibleNodes.map(n => [toId(n.NodeID), n]));
     const matches = new Set(matchIds.map(Number));
 
-    function build(node, root = false) {
-      const visibleChildren = (children.get(toId(node.NodeID)) || []).sort((a, b) => Number(a.NodeID) - Number(b.NodeID));
-      // Search mode already contains only the matching paths. Children are rendered immediately;
-      // the node is therefore treated as preloaded and does not issue another lazy request.
-      const wrapper = createNode({ ...node, HasChildren: 0 }, { root, searchLeaf: true });
-      const entry = state.nodeElements.get(toId(node.NodeID));
-      if (matches.has(toId(node.NodeID))) entry.row.classList.add('search-match');
-      if (visibleChildren.length) {
-        const box = document.createElement('div');
-        box.className = 'tree-children';
-        visibleChildren.forEach(child => box.appendChild(build(child)));
-        wrapper.appendChild(box);
+    const paths = [...matches].map(id => {
+      const chain = [];
+      let cur = byId.get(id);
+      while (cur) {
+        chain.unshift(toId(cur.NodeID));
+        const pid = toParentId(cur.ParentID);
+        cur = pid !== null ? byId.get(pid) : null;
       }
-      return wrapper;
-    }
+      return chain;
+    });
 
-    nodes.filter(n => toParentId(n.ParentID) === null)
-      .sort((a, b) => Number(a.NodeID) - Number(b.NodeID))
-      .forEach(root => tree.appendChild(build(root, true)));
+    let firstMatchEntry = null;
+    for (const chain of paths) {
+      for (let i = 0; i < chain.length; i++) {
+        const entry = state.nodeElements.get(chain[i]);
+        if (!entry) break;
+        if (i === chain.length - 1) {
+          entry.row.classList.add('search-match');
+          refreshNodeLabel(entry, entry.node);
+          if (!firstMatchEntry) firstMatchEntry = entry;
+        } else if (!entry.expanded) {
+          try { await entry.setExpanded(true); }
+          catch (error) { console.error('Expand failed while revealing search match:', error); break; }
+        }
+      }
+    }
+    return firstMatchEntry;
   }
 
   async function searchTree() {
     const query = searchInput.value.trim();
     state.currentSearchQuery = query;
-    if (!query) { searchInfo.classList.add('hidden'); await loadRoots(); return; }
+    clearSearchHighlights();
 
-    searchInfo.textContent = 'Searching...'; searchInfo.classList.remove('hidden');
+    if (!query) {
+      state.searchMode = false;
+      searchInfo.classList.add('hidden');
+      return;
+    }
+
+    state.searchMode = true;
+    searchInfo.innerHTML = '<div class="dms-spinner dms-spinner-inline"></div>Searching...'; searchInfo.classList.remove('hidden');
     try {
       const data = await requestJson(`${API}/nodes/search?q=${encodeURIComponent(query)}`);
-      state.searchMode = true; state.nodeElements.clear(); state.nodeCache.clear(); state.pdfsByNodeId.clear();
-      (data.visibleNodes || []).forEach(n => state.nodeCache.set(toId(n.NodeID), n));
-      updateCount(); tree.innerHTML = '';
-      buildSearchTree(data.visibleNodes || [], data.matchIds || []);
-      await Promise.all([prefetchPdfs(data.visibleNodes || []), loadSrscStatus()]);
+      const firstMatch = await revealSearchMatches(data.visibleNodes || [], data.matchIds || []);
+      await Promise.all([prefetchPdfs(data.visibleNodes || []), loadSrscStatus(data.visibleNodes || [])]);
       searchInfo.textContent = `${(data.matches || []).length.toLocaleString('en-US')} matching node${(data.matches || []).length === 1 ? '' : 's'} found.`;
-      const first = [...state.nodeElements.values()].find(e => (data.matchIds || []).includes(Number(e.node.NodeID)));
-      first?.row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      firstMatch?.row.scrollIntoView({ block: 'center', behavior: 'smooth' });
     } catch (error) {
       console.error('Search failed:', error);
       searchInfo.textContent = `Search failed: ${error.message}`;
@@ -401,13 +417,37 @@
   }
 
   async function expandAll() {
-    if (state.searchMode) return;
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const entry of [...state.nodeElements.values()]) {
-        if (!entry.expanded && Number(entry.node.HasChildren) === 1) { await entry.setExpanded(true); changed = true; }
+    const btn = $('expandAllBtn');
+    const collectPending = () => [...state.nodeElements.values()].filter(e => !e.expanded && Number(e.node.HasChildren) === 1);
+
+    let pending = collectPending();
+    if (!pending.length) return;
+
+    if (pending.length > 40 && !confirm(`This will expand ${pending.length}+ nodes and may take a while. Continue?`)) return;
+
+    if (btn) btn.disabled = true;
+    let done = 0;
+    let total = pending.length;
+    const updateLabel = () => { if (btn) btn.textContent = `Expanding... (${done}/${total})`; };
+    updateLabel();
+
+    try {
+      while (pending.length) {
+        const batch = pending.slice(0, 6);
+        pending = pending.slice(6);
+        await Promise.all(batch.map(async entry => {
+          try { await entry.setExpanded(true); }
+          catch (error) { console.error('Expand failed:', error); }
+          finally { done += 1; updateLabel(); }
+        }));
+        if (!pending.length) {
+          const more = collectPending();
+          pending = more;
+          total += more.length;
+        }
       }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Expand All'; }
     }
   }
 
@@ -418,12 +458,24 @@
   $('expandAllBtn')?.addEventListener('click', () => expandAll().catch(console.error));
   $('collapseAllBtn')?.addEventListener('click', collapseAll);
 
+  function refreshNodeLabel(entry, node) {
+    if (!entry?.row) return;
+    const content = entry.row.querySelector('.node-content');
+    const oldLabel = content?.querySelector('.node-label');
+    if (!content || !oldLabel) return;
+    content.replaceChild(createLabel(node), oldLabel);
+  }
+
   window.DMS = {
     apiUrl: `${API}/nodes`,
     state,
     loadRootNodes: loadRoots,
     showNodeDetails,
     refreshNodeStatus: refreshStatus,
+    refreshNodeLabel,
+    openSrscFolder: openFolder,
+    reloadSrscRoot: loadSrscFolders,
+    refreshSrscStatus: (id) => loadSrscStatus([{ NodeID: id }], { refresh: true }),
   };
 
   loadRoots();
