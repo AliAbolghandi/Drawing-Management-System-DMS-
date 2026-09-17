@@ -3,8 +3,11 @@ const sql = require('mssql/msnodesqlv8');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const crypto = require('crypto');
 const util = require('util');
 const { exec } = require('child_process');
+const multer = require('multer');
 
 const execAsync = util.promisify(exec);
 const app = express();
@@ -26,11 +29,49 @@ const NODE_COLUMNS = [
   'NodeID','ParentID','NodeCode','NodeName','IsActive','CreatedAt','UpdatedAt',
   'FolderPath','PathID','JET_Position','Norme','Mass',
 ].join(', ');
+const NODE_COLUMNS_N = NODE_COLUMNS.split(', ').map(c => `N.${c}`).join(', ');
 
-let srscStatusCache = null;
-let srscStatusComputing = null;
 let pdfCache = null;
 let pdfCacheComputing = null;
+
+const UPLOAD_TMP_DIR = path.join(os.tmpdir(), 'dms-uploads');
+try { fs.rmSync(UPLOAD_TMP_DIR, { recursive: true, force: true }); } catch (_) {}
+fs.mkdirSync(UPLOAD_TMP_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOAD_TMP_DIR),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${path.basename(file.originalname)}`),
+  }),
+  limits: { fileSize: 1024 * 1024 * 1024, files: 1000 }, // 1GB/file, 1000 files/request — generous for CAD/PDF drawings
+});
+
+function runMulter(req, res) {
+  return new Promise((resolve, reject) => {
+    upload.array('files')(req, res, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+async function moveFile(src, dest) {
+  try {
+    await fs.promises.rename(src, dest);
+  } catch (e) {
+    if (e.code !== 'EXDEV') throw e; // crossing drives (temp dir vs. network share) — copy then remove
+    await fs.promises.copyFile(src, dest);
+    await fs.promises.unlink(src);
+  }
+}
+
+// Splits+validates a relative path (folder upload / manual subfolder), rejecting traversal
+// and reserved/illegal Windows filename characters. Returns the path segments, or null.
+function sanitizeRelativePath(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/\\/g, '/');
+  const parts = normalized.split('/').map(p => p.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  if (parts.some(p => p === '..' || p === '.' || /[<>:"|?*\x00-\x1f]/.test(p))) return null;
+  return parts;
+}
 
 app.use(cors());
 app.use(express.json());
@@ -97,6 +138,12 @@ async function testDatabaseConnection() {
       await pool.request().query(`IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_DanieliPDF_NodeID' AND object_id=OBJECT_ID('dbo.DanieliPDF')) CREATE INDEX IX_DanieliPDF_NodeID ON dbo.DanieliPDF(NodeID, PDFID);`);
       console.log('PDF lookup index verified');
     } catch (e) { console.warn('PDF index check skipped:', e.message); }
+    try {
+      // Every child-listing request and the search CTE filter/join on ParentID against
+      // a 106,000+ row table; without this index those were full table scans.
+      await pool.request().query(`IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Nodes_ParentID' AND object_id=OBJECT_ID('dbo.Nodes')) CREATE INDEX IX_Nodes_ParentID ON dbo.Nodes(ParentID);`);
+      console.log('Nodes ParentID index verified');
+    } catch (e) { console.warn('Nodes ParentID index check skipped:', e.message); }
     warmPdfCache();
   } catch (e) { console.error('SQL Server connection failed'); console.error(e); }
 }
@@ -124,22 +171,41 @@ app.get('/api/nodes/search', async (req, res) => {
   try {
     const request = new sql.Request();
     request.input('q', sql.NVarChar(255), `%${text}%`);
-    const matchesResult = await request.query(`SELECT ${NODE_COLUMNS} FROM dbo.Nodes WHERE NodeCode LIKE @q OR NodeName LIKE @q ORDER BY NodeID;`);
-    const allResult = await sql.query(`SELECT ${NODE_COLUMNS}, CASE WHEN EXISTS (SELECT 1 FROM dbo.Nodes AS C WHERE C.ParentID=dbo.Nodes.NodeID) THEN 1 ELSE 0 END AS HasChildren FROM dbo.Nodes ORDER BY NodeID;`);
-    const all = allResult.recordset;
-    const map = new Map(all.map(n => [Number(n.NodeID), n]));
-    const ancestors = new Set();
-    for (const match of matchesResult.recordset) {
-      let id = Number(match.NodeID); const seen = new Set();
-      while (id && !seen.has(id)) {
-        seen.add(id); const p = map.get(id)?.ParentID;
-        if (p == null) break;
-        ancestors.add(Number(p)); id = Number(p);
-      }
-    }
-    const visibleIds = new Set(matchesResult.recordset.map(n => Number(n.NodeID)));
-    ancestors.forEach(id => visibleIds.add(id));
-    res.json({ matches: matchesResult.recordset, ancestorIds: [...ancestors], matchIds: matchesResult.recordset.map(n => Number(n.NodeID)), visibleNodes: all.filter(n => visibleIds.has(Number(n.NodeID))) });
+    // Walks ancestors entirely in SQL (matches + their parent chain only) instead of
+    // pulling the whole Nodes table into Node.js to compute ancestors in JS.
+    const result = await request.query(`
+      ;WITH MatchSeed AS (
+        SELECT NodeID, ParentID, CAST(1 AS BIT) AS IsMatch
+        FROM dbo.Nodes
+        WHERE NodeCode LIKE @q OR NodeName LIKE @q
+      ),
+      Ancestry AS (
+        SELECT NodeID, ParentID, IsMatch FROM MatchSeed
+        UNION ALL
+        SELECT N.NodeID, N.ParentID, CAST(0 AS BIT)
+        FROM dbo.Nodes N
+        INNER JOIN Ancestry A ON N.NodeID = A.ParentID
+      ),
+      DistinctIds AS (
+        SELECT NodeID, MAX(CAST(IsMatch AS INT)) AS IsMatch
+        FROM Ancestry
+        GROUP BY NodeID
+      )
+      SELECT ${NODE_COLUMNS_N},
+             CASE WHEN EXISTS (SELECT 1 FROM dbo.Nodes C WHERE C.ParentID = N.NodeID) THEN 1 ELSE 0 END AS HasChildren,
+             D.IsMatch
+      FROM dbo.Nodes N
+      INNER JOIN DistinctIds D ON D.NodeID = N.NodeID
+      ORDER BY N.NodeID
+      OPTION (MAXRECURSION 1000);
+    `);
+    const rows = result.recordset;
+    const isMatch = r => r.IsMatch === 1 || r.IsMatch === true;
+    const matches = rows.filter(isMatch);
+    const ancestorIds = rows.filter(r => !isMatch(r)).map(r => Number(r.NodeID));
+    const matchIds = matches.map(r => Number(r.NodeID));
+    const visibleNodes = rows.map(({ IsMatch, ...rest }) => rest);
+    res.json({ matches, ancestorIds, matchIds, visibleNodes });
   } catch (e) { sendServerError(res, 'Node search failed', e); }
 });
 
@@ -172,7 +238,7 @@ app.post('/api/nodes', async (req, res) => {
         const r = new sql.Request(tx); r.input('nodeId',sql.Int,Number(idr.recordset[0].NodeID)); r.input('parentId',sql.Int,parentId); r.input('code',sql.NVarChar(100),code); r.input('name',sql.NVarChar(255),name); r.input('folderPath',sql.NVarChar(sql.MAX),folderPath); r.input('pathId',sql.Int,parent.PathID ?? null); r.input('jet',sql.NVarChar(255),jet); r.input('norme',sql.NVarChar(255),norme); r.input('mass',sql.NVarChar(255),mass); r.input('active',sql.Bit,active);
         result = await r.query(`INSERT INTO dbo.Nodes (NodeID,ParentID,NodeCode,NodeName,IsActive,CreatedAt,UpdatedAt,FolderPath,PathID,JET_Position,Norme,Mass) OUTPUT INSERTED.* VALUES (@nodeId,@parentId,@code,@name,@active,SYSUTCDATETIME(),SYSUTCDATETIME(),@folderPath,@pathId,@jet,@norme,@mass);`);
       }
-      await tx.commit(); srscStatusCache = null; res.status(201).json({ success:true, node:result.recordset[0] });
+      await tx.commit(); res.status(201).json({ success:true, node:result.recordset[0] });
     } catch (e) { try { await tx.rollback(); } catch (_) {} throw e; }
   } catch (e) { sendServerError(res, 'Node creation failed', e); }
 });
@@ -192,7 +258,7 @@ app.put('/api/nodes/:nodeId', async (req, res) => {
     r.input('active',sql.Bit,req.body?.IsActive === true || Number(req.body?.IsActive) === 1 ? 1 : 0);
     const result = await r.query(`UPDATE dbo.Nodes SET NodeCode=@code,NodeName=@name,JET_Position=@jet,Norme=@norme,Mass=@mass,IsActive=@active,UpdatedAt=SYSUTCDATETIME() OUTPUT INSERTED.* WHERE NodeID=@id;`);
     if (!result.recordset.length) return res.status(404).json({ error: 'Node not found.' });
-    srscStatusCache = null; res.json({ success:true, node:result.recordset[0] });
+    res.json({ success:true, node:result.recordset[0] });
   } catch (e) { sendServerError(res, 'Node update failed', e); }
 });
 
@@ -203,7 +269,7 @@ app.delete('/api/nodes/:nodeId', async (req,res) => {
     if(!(await r.query('SELECT TOP 1 NodeID FROM dbo.Nodes WHERE NodeID=@id;')).recordset.length) return res.status(404).json({error:'Node not found.'});
     if((await r.query('SELECT TOP 1 NodeID FROM dbo.Nodes WHERE ParentID=@id;')).recordset.length) return res.status(409).json({error:'This Node has child Nodes. Delete or move the child Nodes first.'});
     if((await r.query('SELECT TOP 1 PDFID FROM dbo.DanieliPDF WHERE NodeID=@id;')).recordset.length) return res.status(409).json({error:'This Node has registered PDF files. Remove the PDF records first.'});
-    await r.query('DELETE FROM dbo.Nodes WHERE NodeID=@id;'); srscStatusCache=null; res.json({success:true,deleted:true,nodeId:id});
+    await r.query('DELETE FROM dbo.Nodes WHERE NodeID=@id;'); srscCache.delete(id); res.json({success:true,deleted:true,nodeId:id});
   } catch(e) { if(e.number===547) return res.status(409).json({error:'This Node is referenced by another database record and cannot be deleted.'}); sendServerError(res,'Node deletion failed',e); }
 });
 
@@ -221,13 +287,62 @@ async function getPdfRecord(id){ const r=new sql.Request(); r.input('id',sql.Int
 app.get('/api/pdf-open/:pdfId',async(req,res)=>{const id=Number(req.params.pdfId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid PDF ID'});try{const row=await getPdfRecord(id);if(!row)return res.status(404).json({error:'PDF record not found'});const full=isSafeChildPath(row.RootPath,row.PDFName);if(!full||!fs.existsSync(full))return res.status(404).json({error:'PDF file not found on disk'});await execAsync(`start "" "${full.replace(/"/g,'')}"`,{windowsHide:true});res.json({success:true});}catch(e){sendServerError(res,'PDF open failed',e);}});
 app.get('/api/pdf-file/:pdfId',async(req,res)=>{const id=Number(req.params.pdfId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid PDF ID'});try{const row=await getPdfRecord(id);if(!row)return res.status(404).json({error:'PDF record not found'});const full=isSafeChildPath(row.RootPath,row.PDFName);if(!full||!fs.existsSync(full))return res.status(404).json({error:'PDF file not found on disk'});res.sendFile(full);}catch(e){sendServerError(res,'PDF file request failed',e);}});
 
-async function computeSrscStatus(){
-  const q=await sql.query(`SELECT N.NodeID,N.FolderPath,N.PathID,P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.FolderPath IS NOT NULL AND LTRIM(RTRIM(N.FolderPath))<>'';`); const ids=[];
-  for(const row of q.recordset){const root=getSafeNodeRoot(row.RootPath,row.FolderPath);if(!root)continue;try{if(!fs.existsSync(root)||!fs.statSync(root).isDirectory())continue;if(ALLOWED_SRSC_FOLDERS.some(f=>{try{const p=path.join(root,f);return fs.existsSync(p)&&fs.statSync(p).isDirectory();}catch(_){return false;}}))ids.push(Number(row.NodeID));}catch(_){} }
-  return ids;
+async function pathIsDir(p) {
+  try { const s = await fs.promises.stat(p); return s.isDirectory(); } catch (_) { return false; }
 }
-async function getSrscStatus(force=false){if(!force&&srscStatusCache)return srscStatusCache;if(srscStatusComputing)return srscStatusComputing;srscStatusComputing=computeSrscStatus().then(ids=>{srscStatusCache=ids;srscStatusComputing=null;return ids;}).catch(e=>{srscStatusComputing=null;throw e;});return srscStatusComputing;}
-app.get('/api/srsc-status',async(req,res)=>{try{const force=req.query.refresh==='1';if(!force&&!srscStatusCache){getSrscStatus(false).catch(e=>console.error('SRSC background scan failed:',e.message));return res.json({nodeIds:[],count:0,pending:true});}const ids=await getSrscStatus(force);res.json({nodeIds:ids,count:ids.length,pending:false});}catch(e){sendServerError(res,'SRSC status failed',e);}});
+
+// nodeId -> boolean. Filled lazily as nodes are actually looked up, never a full upfront scan.
+const srscCache = new Map();
+
+async function checkNodeSrsc(nodeId, rootPath, folderPath) {
+  if (srscCache.has(nodeId)) return srscCache.get(nodeId);
+  const root = getSafeNodeRoot(rootPath, folderPath);
+  let found = false;
+  if (root && await pathIsDir(root)) {
+    for (const f of ALLOWED_SRSC_FOLDERS) {
+      if (await pathIsDir(path.join(root, f))) { found = true; break; }
+    }
+  }
+  srscCache.set(nodeId, found);
+  return found;
+}
+
+// Runs async work with a bounded number of requests in flight at once, instead of either
+// doing everything sequentially (slow) or all at once (floods a network drive / SQL Server).
+async function mapWithConcurrency(items, limit, worker) {
+  let i = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      await worker(items[idx], idx);
+    }
+  });
+  await Promise.all(runners);
+}
+
+// Only checks the specific Nodes the client currently has on screen (via ?nodeIds=1,2,3),
+// with disk checks done asynchronously and in parallel (bounded), and cached per Node
+// afterwards. Nothing here scans the whole table or blocks the event loop.
+app.get('/api/srsc-status', async (req, res) => {
+  try {
+    if (req.query.nodeIds === undefined) return res.json({ nodeIds: [], count: 0 });
+    const ids = String(req.query.nodeIds).split(',').map(Number).filter(n => Number.isInteger(n) && n > 0);
+    if (!ids.length) return res.json({ nodeIds: [], count: 0 });
+
+    if (req.query.refresh === '1') ids.forEach(id => srscCache.delete(id));
+
+    const toLookup = ids.filter(id => !srscCache.has(id));
+    if (toLookup.length) {
+      const r = new sql.Request();
+      const placeholders = toLookup.map((id, i) => { r.input(`id${i}`, sql.Int, id); return `@id${i}`; }).join(',');
+      const q = await r.query(`SELECT N.NodeID, N.FolderPath, N.PathID, P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.NodeID IN (${placeholders});`);
+      await mapWithConcurrency(q.recordset, 12, row => checkNodeSrsc(Number(row.NodeID), row.RootPath, row.FolderPath));
+    }
+
+    const found = ids.filter(id => srscCache.get(id));
+    res.json({ nodeIds: found, count: found.length });
+  } catch (e) { sendServerError(res, 'SRSC status failed', e); }
+});
 
 async function getNodeStorage(id){const r=new sql.Request();r.input('id',sql.Int,id);const q=await r.query(`SELECT TOP 1 N.NodeID,N.NodeCode,N.FolderPath,N.PathID,P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.NodeID=@id;`);return q.recordset[0]||null;}
 app.get('/api/node-folders/:nodeId',async(req,res)=>{const id=Number(req.params.nodeId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);if(!root)return res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:false,folders:[]});if(!fs.existsSync(root)||!fs.statSync(root).isDirectory())return res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:true,folderExists:false,folders:[]});const folders=ALLOWED_SRSC_FOLDERS.map(name=>{const p=path.join(root,name);try{return{name,exists:fs.existsSync(p)&&fs.statSync(p).isDirectory()};}catch(_){return{name,exists:false};}}).filter(x=>x.exists);res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:true,folderExists:true,folders});}catch(e){sendServerError(res,'Node folders request failed',e);}});
@@ -235,5 +350,77 @@ app.get('/api/node-folders/:nodeId',async(req,res)=>{const id=Number(req.params.
 app.get('/api/node-folder-files/:nodeId/:folderName',async(req,res)=>{const id=Number(req.params.nodeId);const folder=getCanonicalAllowedFolder(req.params.folderName);const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder)return res.status(400).json({error:'Folder is not allowed'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const target=root?path.join(root,folder):null;if(!root||!target||!isPathInside(root,target)||!fs.existsSync(target)||!fs.statSync(target).isDirectory())return res.status(404).json({error:'SRSC folder not found'});let browse=target;if(subPath){const safe=isSafeChildPath(target,subPath);if(!safe||!fs.existsSync(safe)||!fs.statSync(safe).isDirectory())return res.status(404).json({error:'Subfolder not found'});browse=safe;}const items=[];for(const entry of fs.readdirSync(browse,{withFileTypes:true})){if(entry.name.startsWith('~$'))continue;const p=path.join(browse,entry.name);try{const stat=fs.statSync(p);if(entry.isDirectory())items.push({name:entry.name,type:'folder',kind:'folder'});else if(entry.isFile())items.push({name:entry.name,type:'file',kind:getFileKind(entry.name),extension:path.extname(entry.name).toLowerCase(),size:stat.size,modifiedAt:stat.mtime.toISOString()});}catch(_){}}items.sort((a,b)=>a.type!==b.type?(a.type==='folder'?-1:1):a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));res.json({nodeId:id,nodeCode:node.NodeCode,folder,subPath,items});}catch(e){sendServerError(res,'SRSC folder files request failed',e);}});
 
 app.get('/api/node-file',async(req,res)=>{const id=Number(req.query.nodeId);const folder=getCanonicalAllowedFolder(req.query.folder);const file=req.query.file;const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder||!file||typeof file!=='string')return res.status(400).json({error:'Invalid folder or file'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const base=root?path.join(root,folder):null;const sub=base&&subPath?isSafeChildPath(base,subPath):base;const full=sub?isSafeChildPath(sub,file):null;if(!full||!fs.existsSync(full)||!fs.statSync(full).isFile())return res.status(404).json({error:'File not found'});const ext=path.extname(full).toLowerCase();res.setHeader('Content-Disposition',`${INLINE_EXTENSIONS.has(ext)?'inline':'attachment'}; filename="${path.basename(full).replace(/"/g,'')}"`);res.sendFile(full);}catch(e){sendServerError(res,'Node file request failed',e);}});
+
+// Uploads files (optionally a whole dragged/browsed folder, via parallel relativePaths[])
+// into one of the SLD/DOC/PIC/Catalog folders for a Node. The Node's own storage folder
+// (RootPath + FolderPath) is created on disk automatically if it doesn't exist yet — e.g.
+// for a brand-new Node — and any subfolder structure is allowed underneath the chosen
+// root folder.
+app.post('/api/node-file-upload/:nodeId', async (req, res) => {
+  const id = Number(req.params.nodeId);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
+
+  try {
+    await runMulter(req, res);
+  } catch (e) {
+    return res.status(400).json({ error: e.message || 'Upload failed.' });
+  }
+
+  const tempFiles = req.files || [];
+  const cleanup = () => Promise.all(tempFiles.map(f => fs.promises.unlink(f.path).catch(() => {})));
+
+  try {
+    const folder = getCanonicalAllowedFolder(req.body?.folder);
+    if (!folder) { await cleanup(); return res.status(400).json({ error: `Files can only be uploaded into one of: ${ALLOWED_SRSC_FOLDERS.join(', ')}` }); }
+
+    const subPathRaw = typeof req.body?.subPath === 'string' ? req.body.subPath.trim() : '';
+    const subPathParts = subPathRaw ? sanitizeRelativePath(subPathRaw) : [];
+    if (subPathRaw && !subPathParts) { await cleanup(); return res.status(400).json({ error: 'Invalid subfolder path.' }); }
+
+    if (!tempFiles.length) return res.status(400).json({ error: 'No files were uploaded.' });
+
+    let relativePaths = req.body?.relativePaths;
+    if (relativePaths === undefined) relativePaths = [];
+    else if (!Array.isArray(relativePaths)) relativePaths = [relativePaths];
+
+    const node = await getNodeStorage(id);
+    if (!node) { await cleanup(); return res.status(404).json({ error: 'Node not found.' }); }
+    if (!node.RootPath) { await cleanup(); return res.status(400).json({ error: 'This Node has no storage root path configured (missing tblPath.RootPath).' }); }
+    if (!node.FolderPath) { await cleanup(); return res.status(400).json({ error: 'This Node has no FolderPath configured in the database.' }); }
+
+    const nodeRoot = getSafeNodeRoot(node.RootPath, node.FolderPath);
+    if (!nodeRoot) { await cleanup(); return res.status(400).json({ error: 'Could not resolve a safe storage path for this Node.' }); }
+
+    // Creates the Node's own folder on disk if it's missing — e.g. a brand-new Node,
+    // or one whose folder was never created — before anything is uploaded into it.
+    await fs.promises.mkdir(nodeRoot, { recursive: true });
+
+    const targetBase = path.join(nodeRoot, folder, ...(subPathParts || []));
+    if (!isPathInside(nodeRoot, targetBase)) { await cleanup(); return res.status(400).json({ error: 'Invalid subfolder path.' }); }
+    await fs.promises.mkdir(targetBase, { recursive: true });
+
+    const results = [];
+    for (let i = 0; i < tempFiles.length; i++) {
+      const file = tempFiles[i];
+      const relParts = sanitizeRelativePath(relativePaths[i]);
+      const finalParts = relParts && relParts.length ? relParts : [path.basename(file.originalname)];
+      const destPath = path.join(targetBase, ...finalParts);
+      if (!isPathInside(targetBase, destPath)) {
+        await fs.promises.unlink(file.path).catch(() => {});
+        results.push({ name: finalParts.join('/'), error: 'Invalid path, skipped.' });
+        continue;
+      }
+      await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+      await moveFile(file.path, destPath);
+      results.push({ name: finalParts.join('/'), size: file.size });
+    }
+
+    srscCache.delete(id);
+    res.json({ success: true, uploaded: results.filter(r => !r.error).length, files: results, folder, subPath: (subPathParts || []).join('/') });
+  } catch (e) {
+    await cleanup();
+    sendServerError(res, 'File upload failed', e);
+  }
+});
 
 app.listen(PORT,'0.0.0.0',async()=>{console.log(`Server running on http://0.0.0.0:${PORT}`);await testDatabaseConnection();});
