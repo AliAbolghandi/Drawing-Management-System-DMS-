@@ -505,6 +505,7 @@
     openSrscFolder: openFolder,
     reloadSrscRoot: loadSrscFolders,
     refreshSrscStatus: (id) => loadSrscStatus([{ NodeID: id }], { refresh: true }),
+    getCurrentSrscView: () => currentSrscView ? { ...currentSrscView } : null,
   };
 
   loadRoots();
