@@ -69,8 +69,7 @@
           <h2>Equipment Structure</h2><span id="nodeCount">Loading nodes...</span>
         </div>
         <div class="tree-actions"><button id="createNewNodeBtn" type="button">Edit Node</button><button
-            id="expandAllBtn" type="button">Expand All</button><button id="collapseAllBtn" type="button">Collapse
-            All</button></div>
+            id="collapseAllBtn" type="button">Collapse All</button></div>
       </div>
       <div class="search-box"><input type="search" id="searchInput" placeholder="Search by node code or name..."
           autocomplete="off" aria-label="Search nodes"><button id="searchBtn" type="button">Search</button></div>
@@ -103,7 +102,11 @@
             <div>
               <h3 class="section-title">SRSC Company Files</h3><span class="section-subtitle">Company drawings and
                 documents stored for this node</span>
-            </div><button type="button" id="uploadFilesBtn" class="upload-files-btn">Upload Files</button>
+            </div>
+            <div class="srsc-heading-actions">
+              <button type="button" id="uploadFilesBtn" class="upload-files-btn">Upload Files</button>
+              <button type="button" id="DeleteFilesBtn" class="Delete-files-btn">Delete Files</button>
+            </div>
           </div>
           <div id="srscContent" class="srsc-content">
             <div class="pdf-empty">Loading company files...</div>
