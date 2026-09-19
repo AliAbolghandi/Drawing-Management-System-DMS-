@@ -29,9 +29,33 @@
 
   let selectedFolder = null;
   let files = []; // { file, relativePath }
+  let stripOuterFolder = false;
 
   function getState() { return window.DMS && window.DMS.state ? window.DMS.state : null; }
   function apiBase() { return (window.DMS?.apiUrl || '').replace(/\/nodes$/, ''); }
+
+  // When every selected file shares the same first path segment (a single dropped/browsed
+  // folder), returns that segment's name; otherwise null.
+  function commonTopSegment() {
+    if (!files.length) return null;
+    const first = files[0].relativePath.split('/')[0];
+    if (!first) return null;
+    return files.every(f => f.relativePath.split('/')[0] === first) ? first : null;
+  }
+
+  // Auto-suggests stripping the outer folder when its name matches the chosen target
+  // (e.g. dragging/browsing the "SLD" folder itself while "SLD" is the target — the
+  // bug this avoids is ending up with SLD/SLD/...). The user can still override it.
+  function autoDetectStrip() {
+    const top = commonTopSegment();
+    stripOuterFolder = Boolean(top && selectedFolder && top.toLowerCase() === selectedFolder.toLowerCase());
+  }
+
+  function effectiveRelativePath(entry) {
+    if (!stripOuterFolder) return entry.relativePath;
+    const parts = entry.relativePath.split('/');
+    return parts.length > 1 ? parts.slice(1).join('/') : parts[0];
+  }
 
   function escapeHtmlLocal(value) {
     return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -55,7 +79,9 @@
     folderChoices.querySelectorAll('.upload-folder-pill').forEach(btn => {
       btn.addEventListener('click', () => {
         selectedFolder = btn.dataset.folder;
+        autoDetectStrip();
         renderFolderChoices();
+        renderFileList();
         updateSubmitState();
       });
     });
@@ -66,15 +92,22 @@
     fileListBox.classList.remove('hidden');
     const totalSize = files.reduce((sum, f) => sum + (f.file.size || 0), 0);
     const shown = files.slice(0, 200);
+    const topSegment = commonTopSegment();
+    const stripRow = topSegment
+      ? `<label class="upload-strip-row"><input type="checkbox" id="uploadStripOuter"${stripOuterFolder ? ' checked' : ''}> These files are inside an outer "${escapeHtmlLocal(topSegment)}" folder — upload its contents directly, without nesting</label>`
+      : '';
     fileListBox.innerHTML =
       `<div class="upload-file-summary">${files.length} file${files.length === 1 ? '' : 's'} selected · ${formatSize(totalSize)} <button type="button" id="uploadClearBtn" class="upload-clear-btn">Clear</button></div>` +
+      stripRow +
       `<div class="upload-file-rows">${shown.map((f, i) =>
         `<div class="upload-file-row"><span class="upload-file-name">${escapeHtmlLocal(f.relativePath)}</span><span class="upload-file-size">${formatSize(f.file.size)}</span><button type="button" class="upload-file-remove" data-index="${i}" aria-label="Remove">×</button></div>`
       ).join('')}${files.length > shown.length ? `<div class="upload-file-more">+ ${files.length - shown.length} more</div>` : ''}</div>`;
     $('uploadClearBtn')?.addEventListener('click', () => { files = []; renderFileList(); updateSubmitState(); });
+    $('uploadStripOuter')?.addEventListener('change', (event) => { stripOuterFolder = event.target.checked; });
     fileListBox.querySelectorAll('.upload-file-remove').forEach(btn => {
       btn.addEventListener('click', () => {
         files.splice(Number(btn.dataset.index), 1);
+        autoDetectStrip();
         renderFileList();
         updateSubmitState();
       });
@@ -88,6 +121,13 @@
   function addFiles(newFiles) {
     if (!newFiles || !newFiles.length) return;
     files = files.concat(newFiles);
+    if (!selectedFolder) {
+      const top = commonTopSegment();
+      const match = top && SRSC_FOLDERS.find(name => name.toLowerCase() === top.toLowerCase());
+      if (match) selectedFolder = match;
+    }
+    autoDetectStrip();
+    renderFolderChoices();
     renderFileList();
     updateSubmitState();
   }
@@ -141,6 +181,7 @@
   function resetModal() {
     selectedFolder = null;
     files = [];
+    stripOuterFolder = false;
     subPathInput.value = '';
     clearError();
     progressWrap.classList.add('hidden');
@@ -219,7 +260,7 @@
     const formData = new FormData();
     formData.append('folder', selectedFolder);
     formData.append('subPath', subPathInput.value.trim());
-    files.forEach(f => formData.append('relativePaths', f.relativePath));
+    files.forEach(f => formData.append('relativePaths', effectiveRelativePath(f)));
     files.forEach(f => formData.append('files', f.file, f.file.name));
 
     const nodeId = Number(node.NodeID);

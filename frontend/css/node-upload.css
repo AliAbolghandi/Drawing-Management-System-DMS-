@@ -15,11 +15,58 @@
     letter-spacing: .02em;
     cursor: pointer;
     transition: background .12s ease, border-color .12s ease;
+    }
+
+    .Delete-files-btn {
+    margin-left: auto;
+    flex: 0 0 auto;
+    padding: 7px 14px;
+    border: 1px solid var(--danger);
+    border-radius: 7px;
+    background: rgba(111, 227, 255, .08);
+    color: var(--danger);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
+}
+
+.srsc-heading-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
 }
 
 .upload-files-btn:hover {
     background: rgba(111, 227, 255, .18);
     border-color: var(--cyan);
+}
+
+/* .manage-files-btn.active {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(239, 107, 107, .10);
+} */
+
+.srsc-new-folder-btn {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border: 1px solid var(--ok-dim);
+    border-radius: 7px;
+    background: rgba(111, 217, 154, .08);
+    color: var(--ok);
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
+}
+
+.srsc-new-folder-btn:hover {
+    background: rgba(111, 217, 154, .18);
+    border-color: var(--ok);
 }
 
 .upload-modal {
@@ -155,6 +202,24 @@
     font-size: 11px;
     color: var(--text-faint);
     border-bottom: 1px solid var(--line);
+}
+
+.upload-strip-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(232, 163, 61, .08);
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.upload-strip-row input {
+    margin-top: 2px;
+    flex: 0 0 auto;
 }
 
 .upload-clear-btn {

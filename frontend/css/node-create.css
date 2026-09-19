@@ -197,5 +197,5 @@
 
 .create-node-submit:disabled {
     opacity: .55;
-    cursor: wait;
+    cursor: not-allowed;
 }

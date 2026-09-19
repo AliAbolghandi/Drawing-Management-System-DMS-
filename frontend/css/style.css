@@ -764,7 +764,8 @@ mark {
     display: flex;
     align-items: center;
     gap: 7px;
-    min-width: 0
+    min-width: 0;
+    flex: 1
 }
 
 .srsc-current-folder strong {
@@ -847,6 +848,26 @@ mark {
     font-size: 10.5px;
     font-weight: 600;
     white-space: nowrap
+}
+
+.srsc-delete-btn {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    margin-left: 4px;
+    border: 1px solid rgba(239, 107, 107, .35);
+    border-radius: 6px;
+    background: rgba(239, 107, 107, .08);
+    color: var(--danger);
+    font-size: 15px;
+    line-height: 18px;
+    transition: background .12s ease, border-color .12s ease;
+}
+
+.srsc-delete-btn:hover {
+    background: rgba(239, 107, 107, .18);
+    border-color: var(--danger);
 }
 
 .srsc-loading {

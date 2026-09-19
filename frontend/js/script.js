@@ -14,6 +14,7 @@
     currentSelectedNode: null,
     currentSearchQuery: '',
     searchMode: false,
+    srscEditMode: false,
   };
 
   const $ = id => document.getElementById(id);
@@ -262,9 +263,20 @@
     catch (error) { alert(`Unable to open PDF: ${error.message}`); }
   }
 
+  let currentSrscNodeId = null;
+  let currentSrscView = null; // { type: 'grid' } | { type: 'folder', folder, subPath }
+
+  function rerenderSrscView() {
+    if (!currentSrscNodeId || !currentSrscView) return;
+    if (currentSrscView.type === 'folder') openFolder(currentSrscNodeId, currentSrscView.folder, currentSrscView.subPath);
+    else loadSrscFolders(currentSrscNodeId);
+  }
+
   async function loadSrscFolders(id) {
     const box = $('srscContent');
     if (!box || !id) return;
+    currentSrscNodeId = id;
+    currentSrscView = { type: 'grid' };
     box.innerHTML = '<div class="srsc-loading">Loading company files...</div>';
     try {
       const data = await requestJson(`${API}/node-folders/${encodeURIComponent(id)}`);
@@ -281,6 +293,8 @@
 
   async function openFolder(id, folder, subPath = '') {
     const box = $('srscContent');
+    currentSrscNodeId = id;
+    currentSrscView = { type: 'folder', folder, subPath };
     box.innerHTML = '<div class="srsc-loading">Loading folder...</div>';
     try {
       let url = `${API}/node-folder-files/${encodeURIComponent(id)}/${encodeURIComponent(folder)}`;
@@ -295,22 +309,65 @@
 
   function renderFolder(id, folder, subPath, items) {
     const box = $('srscContent');
+    const editMode = state.srscEditMode;
     const crumb = [folder, ...(subPath ? subPath.split('/') : [])].join(' / ');
-    const header = `<div class="srsc-browser-header"><button type="button" class="srsc-back-button" id="srscBackButton">← Back</button><div class="srsc-current-folder"><span>📁</span><strong>${escapeHtml(crumb)}</strong><small>${items.length} item${items.length === 1 ? '' : 's'}</small></div></div>`;
-    if (!items.length) { box.innerHTML = `${header}<div class="srsc-empty"><strong>This folder is empty</strong></div>`; $('srscBackButton')?.addEventListener('click', () => backFolder(id, folder, subPath)); return; }
+    const newFolderBtn = editMode ? `<button type="button" class="srsc-new-folder-btn" id="srscNewFolderBtn">+ New Folder</button>` : '';
+    const header = `<div class="srsc-browser-header"><button type="button" class="srsc-back-button" id="srscBackButton">← Back</button><div class="srsc-current-folder"><span>📁</span><strong>${escapeHtml(crumb)}</strong><small>${items.length} item${items.length === 1 ? '' : 's'}</small></div>${newFolderBtn}</div>`;
+    if (!items.length) {
+      box.innerHTML = `${header}<div class="srsc-empty"><strong>This folder is empty</strong></div>`;
+      $('srscBackButton')?.addEventListener('click', () => backFolder(id, folder, subPath));
+      $('srscNewFolderBtn')?.addEventListener('click', () => createSrscFolder(id, folder, subPath));
+      return;
+    }
 
     const icon = item => item.type === 'folder' ? '📁' : item.kind === 'pdf' ? '📄' : item.kind === 'image' ? '🖼️' : item.kind === 'cad' ? '📐' : item.kind === 'document' ? '📝' : '📎';
     const action = item => item.type === 'folder' ? 'Open' : (item.kind === 'pdf' || item.kind === 'image' ? 'Open' : 'Download');
     const size = bytes => { const n = Number(bytes); if (!Number.isFinite(n)) return ''; if (n < 1024) return `${n} B`; if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`; if (n < 1073741824) return `${(n / 1048576).toFixed(1)} MB`; return `${(n / 1073741824).toFixed(1)} GB`; };
+    const deleteBtn = item => editMode ? `<button type="button" class="srsc-delete-btn" data-name="${escapeHtml(item.name)}" data-type="${item.type}" title="Delete" aria-label="Delete">×</button>` : '';
 
     box.innerHTML = `${header}<div class="srsc-file-list">${items.map(item => item.type === 'folder'
-      ? `<div class="srsc-file-row srsc-subfolder" data-subfolder="${escapeHtml(item.name)}"><span class="srsc-file-icon">${icon(item)}</span><span class="srsc-file-main"><strong>${escapeHtml(item.name)}</strong><small>Folder</small></span><span class="srsc-file-action">Open ›</span></div>`
-      : `<div class="srsc-file-row srsc-file" data-file="${escapeHtml(item.name)}" data-kind="${escapeHtml(item.kind || 'file')}"><span class="srsc-file-icon">${icon(item)}</span><span class="srsc-file-main"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.extension || '').replace('.', '').toUpperCase() || 'FILE'}${item.size !== undefined ? ` · ${size(item.size)}` : ''}</small></span><span class="srsc-file-action">${action(item)}</span></div>`
+      ? `<div class="srsc-file-row srsc-subfolder" data-subfolder="${escapeHtml(item.name)}"><span class="srsc-file-icon">${icon(item)}</span><span class="srsc-file-main"><strong>${escapeHtml(item.name)}</strong><small>Folder</small></span><span class="srsc-file-action">Open ›</span>${deleteBtn(item)}</div>`
+      : `<div class="srsc-file-row srsc-file" data-file="${escapeHtml(item.name)}" data-kind="${escapeHtml(item.kind || 'file')}"><span class="srsc-file-icon">${icon(item)}</span><span class="srsc-file-main"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.extension || '').replace('.', '').toUpperCase() || 'FILE'}${item.size !== undefined ? ` · ${size(item.size)}` : ''}</small></span><span class="srsc-file-action">${action(item)}</span>${deleteBtn(item)}</div>`
     ).join('')}</div>`;
 
     $('srscBackButton')?.addEventListener('click', () => backFolder(id, folder, subPath));
+    $('srscNewFolderBtn')?.addEventListener('click', () => createSrscFolder(id, folder, subPath));
     box.querySelectorAll('.srsc-subfolder').forEach(row => row.addEventListener('click', () => openFolder(id, folder, subPath ? `${subPath}/${row.dataset.subfolder}` : row.dataset.subfolder)));
     box.querySelectorAll('.srsc-file').forEach(row => row.addEventListener('click', () => openFile(id, folder, subPath, row.dataset.file, row.dataset.kind)));
+    box.querySelectorAll('.srsc-delete-btn').forEach(btn => btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteSrscItem(id, folder, subPath, btn.dataset.name, btn.dataset.type === 'folder');
+    }));
+  }
+
+  async function createSrscFolder(id, folder, subPath) {
+    const name = prompt('New folder name:');
+    if (!name || !name.trim()) return;
+    try {
+      await requestJson(`${API}/node-folder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeId: id, folder, subPath, name: name.trim() }),
+      });
+      openFolder(id, folder, subPath);
+    } catch (error) {
+      alert(`Unable to create folder: ${error.message}`);
+    }
+  }
+
+  async function deleteSrscItem(id, folder, subPath, name, isFolder) {
+    const warning = isFolder
+      ? `Delete the folder "${name}" and everything inside it? This cannot be undone.`
+      : `Delete the file "${name}"? This cannot be undone.`;
+    if (!confirm(warning)) return;
+    try {
+      const url = `${API}/node-file?nodeId=${encodeURIComponent(id)}&folder=${encodeURIComponent(folder)}${subPath ? `&subPath=${encodeURIComponent(subPath)}` : ''}&name=${encodeURIComponent(name)}`;
+      await requestJson(url, { method: 'DELETE' });
+      openFolder(id, folder, subPath);
+    } catch (error) {
+      alert(`Unable to delete: ${error.message}`);
+    }
   }
 
   function backFolder(id, folder, subPath) {
@@ -416,47 +473,19 @@
     }
   }
 
-  async function expandAll() {
-    const btn = $('expandAllBtn');
-    const collectPending = () => [...state.nodeElements.values()].filter(e => !e.expanded && Number(e.node.HasChildren) === 1);
-
-    let pending = collectPending();
-    if (!pending.length) return;
-
-    if (pending.length > 40 && !confirm(`This will expand ${pending.length}+ nodes and may take a while. Continue?`)) return;
-
-    if (btn) btn.disabled = true;
-    let done = 0;
-    let total = pending.length;
-    const updateLabel = () => { if (btn) btn.textContent = `Expanding... (${done}/${total})`; };
-    updateLabel();
-
-    try {
-      while (pending.length) {
-        const batch = pending.slice(0, 6);
-        pending = pending.slice(6);
-        await Promise.all(batch.map(async entry => {
-          try { await entry.setExpanded(true); }
-          catch (error) { console.error('Expand failed:', error); }
-          finally { done += 1; updateLabel(); }
-        }));
-        if (!pending.length) {
-          const more = collectPending();
-          pending = more;
-          total += more.length;
-        }
-      }
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Expand All'; }
-    }
-  }
-
   function collapseAll() { state.nodeElements.forEach(e => e.setExpanded(false).catch(console.error)); }
 
   searchButton?.addEventListener('click', () => searchTree().catch(console.error));
   searchInput?.addEventListener('keydown', event => { if (event.key === 'Enter') searchTree().catch(console.error); });
-  $('expandAllBtn')?.addEventListener('click', () => expandAll().catch(console.error));
   $('collapseAllBtn')?.addEventListener('click', collapseAll);
+
+  $('DeleteFilesBtn')?.addEventListener('click', () => {
+    state.srscEditMode = !state.srscEditMode;
+    const btn = $('DeleteFilesBtn');
+    btn?.classList.toggle('active', state.srscEditMode);
+    if (btn) btn.textContent = state.srscEditMode ? 'Done' : 'Delete Files';
+    rerenderSrscView();
+  });
 
   function refreshNodeLabel(entry, node) {
     if (!entry?.row) return;
