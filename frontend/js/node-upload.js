@@ -196,7 +196,28 @@
   function openModal() {
     const node = getState()?.currentSelectedNode;
     if (!node) { alert('Select a Node from the tree first.'); return; }
+
+    // If the user is currently browsing an SRSC folder, use that exact location
+    // as the default upload destination.
+    const currentView = window.DMS?.getCurrentSrscView?.();
+    const currentFolder = currentView?.type === 'folder' ? currentView.folder : null;
+    const currentSubPath = currentView?.type === 'folder' ? (currentView.subPath || '') : '';
+
     resetModal();
+
+    if (currentFolder) {
+      const match = SRSC_FOLDERS.find(
+        name => name.toLowerCase() === String(currentFolder).toLowerCase()
+      );
+      if (match) {
+        selectedFolder = match;
+        subPathInput.value = currentSubPath;
+        renderFolderChoices();
+        renderFileList();
+        updateSubmitState();
+      }
+    }
+
     modal.classList.remove('hidden');
   }
 
