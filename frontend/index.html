@@ -6,44 +6,183 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Drawing Management System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/tree-fix.css">
   <link rel="stylesheet" href="css/node-create.css">
   <link rel="stylesheet" href="css/node-actions.css">
   <link rel="stylesheet" href="css/node-upload.css">
   <style>
-    .node-row.has-pdf,.node-row.has-srsc,.node-row.has-pdf.has-srsc{background:transparent!important;border:0!important}
-    .node-row.has-pdf .node-label .code,.node-row.has-pdf .node-label .desc{color:var(--amber)!important}
-    .node-row.has-srsc .node-label .code,.node-row.has-srsc .node-label .desc,.node-row.has-pdf.has-srsc .node-label .code,.node-row.has-pdf.has-srsc .node-label .desc{color:var(--ok)!important}
-    .node-row.selected{background:rgba(111,227,255,.1)!important}
-    .node-row.selected.has-pdf .node-label .code,.node-row.selected.has-pdf .node-label .desc{color:var(--amber)!important}
-    .node-row.selected.has-srsc .node-label .code,.node-row.selected.has-srsc .node-label .desc,.node-row.selected.has-pdf.has-srsc .node-label .code,.node-row.selected.has-pdf.has-srsc .node-label .desc{color:var(--ok)!important}
+    .node-row.has-pdf,
+    .node-row.has-srsc,
+    .node-row.has-pdf.has-srsc {
+      background: transparent !important;
+      border: 0 !important
+    }
+
+    .node-row.has-pdf .node-label .code,
+    .node-row.has-pdf .node-label .desc {
+      color: var(--amber) !important
+    }
+
+    .node-row.has-srsc .node-label .code,
+    .node-row.has-srsc .node-label .desc,
+    .node-row.has-pdf.has-srsc .node-label .code,
+    .node-row.has-pdf.has-srsc .node-label .desc {
+      color: var(--ok) !important
+    }
+
+    .node-row.selected {
+      background: rgba(111, 227, 255, .1) !important
+    }
+
+    .node-row.selected.has-pdf .node-label .code,
+    .node-row.selected.has-pdf .node-label .desc {
+      color: var(--amber) !important
+    }
+
+    .node-row.selected.has-srsc .node-label .code,
+    .node-row.selected.has-srsc .node-label .desc,
+    .node-row.selected.has-pdf.has-srsc .node-label .code,
+    .node-row.selected.has-pdf.has-srsc .node-label .desc {
+      color: var(--ok) !important
+    }
   </style>
 </head>
+
 <body>
-  <header class="top-header"><div class="header-title"><div class="brand-mark"></div><div class="brand-text"><h1>Drawing Management System</h1><span>Equipment structure and drawing management</span></div></div><div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span></div></header>
+  <header class="top-header">
+    <div class="header-title">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <h1>Drawing Management System</h1><span>Equipment structure and drawing management</span>
+      </div>
+    </div>
+    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span></div>
+  </header>
   <main class="main-container">
-    <section class="tree-panel"><div class="panel-header"><div><h2>Equipment Structure</h2><span id="nodeCount">Loading nodes...</span></div><div class="tree-actions"><button id="createNewNodeBtn" type="button">Edit Node</button><button id="collapseAllBtn" type="button">Collapse All</button></div></div>
-      <div class="search-box"><input type="search" id="searchInput" placeholder="Search by node code or name..." autocomplete="off" aria-label="Search nodes"><button id="searchBtn" type="button">Search</button></div><div id="searchInfo" class="search-info hidden"></div><div id="treeContainer" class="tree-container"><div class="loading">Loading equipment structure...</div></div>
+    <section class="tree-panel">
+      <div class="panel-header">
+        <div>
+          <h2>Equipment Structure</h2><span id="nodeCount">Loading nodes...</span>
+        </div>
+        <div class="tree-actions"><button id="createNewNodeBtn" type="button">Edit Node</button><button
+            id="collapseAllBtn" type="button">Collapse All</button></div>
+      </div>
+      <div class="search-box"><input type="search" id="searchInput" placeholder="Search by node code or name..."
+          autocomplete="off" aria-label="Search nodes"><button id="searchBtn" type="button">Search</button></div>
+      <div id="searchInfo" class="search-info hidden"></div>
+      <div id="treeContainer" class="tree-container">
+        <div class="loading">Loading equipment structure...</div>
+      </div>
     </section>
-    <section class="details-panel"><div id="emptyDetails" class="empty-details"><div class="empty-icon">◈</div><h2>Select a Node</h2><p>Select an item from the tree to view its information.</p></div>
-      <div id="nodeDetails" class="node-details hidden"><div class="details-header"><div><span class="details-label">NODE</span><h2 id="detailName">-</h2></div><span id="detailStatus" class="node-status">Active</span></div>
-        <div class="details-grid"><div class="detail-item"><span>Node Code</span><strong id="detailCode">-</strong></div><div class="detail-item"><span>Node Name</span><strong id="detailNodeName">-</strong></div><div class="detail-item"><span>JET Position</span><strong id="detailJet">-</strong></div><div class="detail-item"><span>Norme</span><strong id="detailNorme">-</strong></div><div class="detail-item"><span>Mass</span><strong id="detailMass">-</strong></div></div>
-        <div class="details-section srsc-section"><div class="section-heading-row"><div><h3 class="section-title">SRSC Company Files</h3><span class="section-subtitle">Company drawings and documents stored for this node</span></div><div class="srsc-heading-actions"><button type="button" id="uploadFilesBtn" class="upload-files-btn">Upload Files</button><button type="button" id="DeleteFilesBtn" class="Delete-files-btn">Delete Files</button></div></div><div id="srscContent" class="srsc-content"><div class="pdf-empty">Loading company files...</div></div></div>
-        <div class="details-section"><h3 class="section-title">PDF Files</h3><div id="pdfList" class="pdf-list"></div></div>
+    <section class="details-panel">
+      <div id="emptyDetails" class="empty-details">
+        <div class="empty-icon">◈</div>
+        <h2>Select a Node</h2>
+        <p>Select an item from the tree to view its information.</p>
+      </div>
+      <div id="nodeDetails" class="node-details hidden">
+        <div class="details-header">
+          <div><span class="details-label">NODE</span>
+            <h2 id="detailName">-</h2>
+          </div><span id="detailStatus" class="node-status">Active</span>
+        </div>
+        <div class="details-grid">
+          <div class="detail-item"><span>Node Code</span><strong id="detailCode">-</strong></div>
+          <div class="detail-item"><span>Node Name</span><strong id="detailNodeName">-</strong></div>
+          <div class="detail-item"><span>JET Position</span><strong id="detailJet">-</strong></div>
+          <div class="detail-item"><span>Norme</span><strong id="detailNorme">-</strong></div>
+          <div class="detail-item"><span>Mass</span><strong id="detailMass">-</strong></div>
+        </div>
+        <div class="details-section srsc-section">
+          <div class="section-heading-row">
+            <div>
+              <h3 class="section-title">SRSC Files</h3>
+              <!-- <span class="section-subtitle">Company drawings and documents stored for this node</span> -->
+            </div>
+            <div class="srsc-heading-actions"><button type="button" id="uploadFilesBtn" class="upload-files-btn">Upload
+                Files</button><button type="button" id="DeleteFilesBtn" class="Delete-files-btn">Delete Files</button>
+            </div>
+          </div>
+          <div id="srscContent" class="srsc-content">
+            <div class="pdf-empty">Loading company files...</div>
+          </div>
+        </div>
+        <div class="details-section">
+          <h3 class="section-title">Danieli PDF Drawing</h3>
+          <div id="pdfList" class="pdf-list"></div>
+        </div>
       </div>
     </section>
   </main>
-  <div id="createNodeModal" class="create-node-modal hidden" role="dialog" aria-modal="true" aria-labelledby="createNodeTitle"><div class="create-node-dialog"><div class="create-node-dialog-header"><div><h2 id="createNodeTitle">Edit Node</h2><p id="createNodeDesc">Edit the selected Node information.</p></div><button id="createNodeClose" class="create-node-close" type="button" aria-label="Close">×</button></div>
-    <form id="createNodeForm"><div id="createNodeParentField" class="create-node-field hidden"><label>Parent Node</label><div id="createNodeParent" class="create-node-parent"></div></div><div class="create-node-field"><label for="createNodeCode">Node Code *</label><input id="createNodeCode" name="NodeCode" maxlength="100" required autocomplete="off"></div><div class="create-node-field"><label for="createNodeName">Node Name *</label><input id="createNodeName" name="NodeName" maxlength="255" required autocomplete="off"></div><div class="create-node-field"><label for="editJet">JET Position</label><input id="editJet" maxlength="255"></div><div class="create-node-field"><label for="editNorme">Norme</label><input id="editNorme" maxlength="255"></div><div class="create-node-field"><label for="editMass">Mass</label><input id="editMass" maxlength="255"></div><div class="create-node-field"><label><input id="editIsActive" type="checkbox" checked> Active</label></div><div id="createNodeError" class="create-node-error hidden" role="alert"></div><div class="create-node-actions"><button id="createNodeCancel" class="create-node-cancel" type="button">Cancel</button><button id="createNodeSubmit" class="create-node-submit" type="submit">Save Changes</button></div></form>
-  </div></div>
-  <div id="uploadModal" class="upload-modal hidden" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle"><div class="upload-dialog"><div class="create-node-dialog-header"><div><h2 id="uploadModalTitle">Upload Files</h2><p id="uploadModalDesc">Choose a company folder, then add files or drag a folder in.</p></div><button id="uploadModalClose" class="create-node-close" type="button" aria-label="Close">×</button></div>
-    <div class="upload-body"><div class="create-node-field"><label>Target Folder *</label><div id="uploadFolderChoices" class="upload-folder-choices"></div></div><div class="create-node-field"><label for="uploadSubPath">Subfolder (optional)</label><input id="uploadSubPath" placeholder="e.g. Revision-A/Scans" autocomplete="off"></div>
-      <div id="uploadDropZone" class="upload-drop-zone"><div class="upload-drop-icon">⬆</div><div class="upload-drop-text">Drag files or a folder here</div><div class="upload-drop-actions"><button type="button" id="uploadBrowseFilesBtn" class="upload-browse-btn">Browse Files</button><button type="button" id="uploadBrowseFolderBtn" class="upload-browse-btn">Browse Folder</button></div><input type="file" id="uploadFileInput" multiple hidden><input type="file" id="uploadFolderInput" webkitdirectory directory multiple hidden></div>
-      <div id="uploadFileList" class="upload-file-list hidden"></div><div id="uploadError" class="create-node-error hidden" role="alert"></div><div id="uploadProgressWrap" class="upload-progress-wrap hidden"><div class="upload-progress-bar"><div id="uploadProgressFill" class="upload-progress-fill"></div></div><div id="uploadProgressText" class="upload-progress-text">0%</div></div>
-    </div><div class="create-node-actions"><button id="uploadCancelBtn" class="create-node-cancel" type="button">Cancel</button><button id="uploadSubmitBtn" class="create-node-submit" type="button" disabled>Upload</button></div>
-  </div></div>
+  <div id="createNodeModal" class="create-node-modal hidden" role="dialog" aria-modal="true"
+    aria-labelledby="createNodeTitle">
+    <div class="create-node-dialog">
+      <div class="create-node-dialog-header">
+        <div>
+          <h2 id="createNodeTitle">Edit Node</h2>
+          <p id="createNodeDesc">Edit the selected Node information.</p>
+        </div><button id="createNodeClose" class="create-node-close" type="button" aria-label="Close">×</button>
+      </div>
+      <form id="createNodeForm">
+        <div id="createNodeParentField" class="create-node-field hidden"><label>Parent Node</label>
+          <div id="createNodeParent" class="create-node-parent"></div>
+        </div>
+        <div class="create-node-field"><label for="createNodeCode">Node Code *</label><input id="createNodeCode"
+            name="NodeCode" maxlength="100" required autocomplete="off"></div>
+        <div class="create-node-field"><label for="createNodeName">Node Name *</label><input id="createNodeName"
+            name="NodeName" maxlength="255" required autocomplete="off"></div>
+        <div class="create-node-field"><label for="editJet">JET Position</label><input id="editJet" maxlength="255">
+        </div>
+        <div class="create-node-field"><label for="editNorme">Norme</label><input id="editNorme" maxlength="255"></div>
+        <div class="create-node-field"><label for="editMass">Mass</label><input id="editMass" maxlength="255"></div>
+        <div class="create-node-field"><label><input id="editIsActive" type="checkbox" checked> Active</label></div>
+        <div id="createNodeError" class="create-node-error hidden" role="alert"></div>
+        <div class="create-node-actions"><button id="createNodeCancel" class="create-node-cancel"
+            type="button">Cancel</button><button id="createNodeSubmit" class="create-node-submit" type="submit">Save
+            Changes</button></div>
+      </form>
+    </div>
+  </div>
+  <div id="uploadModal" class="upload-modal hidden" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
+    <div class="upload-dialog">
+      <div class="create-node-dialog-header">
+        <div>
+          <h2 id="uploadModalTitle">Upload Files</h2>
+          <p id="uploadModalDesc">Choose a company folder, then add files or drag a folder in.</p>
+        </div><button id="uploadModalClose" class="create-node-close" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="upload-body">
+        <div class="create-node-field"><label>Target Folder *</label>
+          <div id="uploadFolderChoices" class="upload-folder-choices"></div>
+        </div>
+        <div class="create-node-field"><label for="uploadSubPath">Subfolder (optional)</label><input id="uploadSubPath"
+            placeholder="e.g. Revision-A/Scans" autocomplete="off"></div>
+        <div id="uploadDropZone" class="upload-drop-zone">
+          <div class="upload-drop-icon">⬆</div>
+          <div class="upload-drop-text">Drag files or a folder here</div>
+          <div class="upload-drop-actions"><button type="button" id="uploadBrowseFilesBtn"
+              class="upload-browse-btn">Browse Files</button><button type="button" id="uploadBrowseFolderBtn"
+              class="upload-browse-btn">Browse Folder</button></div><input type="file" id="uploadFileInput" multiple
+            hidden><input type="file" id="uploadFolderInput" webkitdirectory directory multiple hidden>
+        </div>
+        <div id="uploadFileList" class="upload-file-list hidden"></div>
+        <div id="uploadError" class="create-node-error hidden" role="alert"></div>
+        <div id="uploadProgressWrap" class="upload-progress-wrap hidden">
+          <div class="upload-progress-bar">
+            <div id="uploadProgressFill" class="upload-progress-fill"></div>
+          </div>
+          <div id="uploadProgressText" class="upload-progress-text">0%</div>
+        </div>
+      </div>
+      <div class="create-node-actions"><button id="uploadCancelBtn" class="create-node-cancel"
+          type="button">Cancel</button><button id="uploadSubmitBtn" class="create-node-submit" type="button"
+          disabled>Upload</button></div>
+    </div>
+  </div>
   <script>
     // Prevent Chrome/Edge from opening a dragged file in the page when the pointer
     // briefly leaves the drop zone. Actual file processing remains in node-upload.js.
@@ -55,13 +194,17 @@
       }, true);
       document.addEventListener('drop', (event) => {
         if (hasFiles(event) && document.getElementById('uploadModal') &&
-            !document.getElementById('uploadModal').classList.contains('hidden')) {
+          !document.getElementById('uploadModal').classList.contains('hidden')) {
           // Keep the browser from navigating; node-upload.js handles drops on its zone.
           event.preventDefault();
         }
       }, true);
     })();
   </script>
-  <script src="js/script.js"></script><script src="js/node-actions.js"></script><script src="js/node-create.js"></script><script src="js/node-upload.js"></script>
+  <script src="js/script.js"></script>
+  <script src="js/node-actions.js"></script>
+  <script src="js/node-create.js"></script>
+  <script src="js/node-upload.js"></script>
 </body>
+
 </html>
