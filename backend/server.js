@@ -8,9 +8,14 @@ const crypto = require('crypto');
 const util = require('util');
 const { exec } = require('child_process');
 const multer = require('multer');
+const { createAuth } = require('./auth');
 
 const execAsync = util.promisify(exec);
 const app = express();
+
+const FRONTEND_ORIGINS = new Set(String(process.env.DMS_FRONTEND_ORIGINS || 'http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000').split(',').map(x => x.trim()).filter(Boolean));
+app.set('trust proxy', process.env.DMS_TRUST_PROXY === '1');
+const auth = createAuth(FRONTEND_ORIGINS);
 const PORT = 3000;
 
 const config = {
@@ -73,8 +78,21 @@ function sanitizeRelativePath(value) {
   return parts;
 }
 
-app.use(cors());
-app.use(express.json());
+app.use(auth.securityHeaders);
+app.use(cors({
+  origin: (origin, callback) => callback(null, !origin || FRONTEND_ORIGINS.has(origin)),
+  credentials: true,
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type']
+}));
+app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+app.use('/api/auth', auth.router);
+app.use('/api', auth.apiSecurity, auth.authenticate);
 
 function normalizeRelativePath(value) {
   if (value == null) return null;
@@ -148,7 +166,7 @@ async function testDatabaseConnection() {
   } catch (e) { console.error('SQL Server connection failed'); console.error(e); }
 }
 
-app.get('/api/nodes', async (req, res) => {
+app.get('/api/nodes', auth.requirePermission('NODE_VIEW'), async (req, res) => {
   try {
     const hasParent = req.query.parentId !== undefined;
     const raw = req.query.parentId;
@@ -165,7 +183,7 @@ app.get('/api/nodes', async (req, res) => {
   } catch (e) { sendServerError(res, 'Nodes query failed', e); }
 });
 
-app.get('/api/nodes/search', async (req, res) => {
+app.get('/api/nodes/search', auth.requirePermission('NODE_VIEW'), async (req, res) => {
   const text = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (!text) return res.json({ matches: [], ancestorIds: [], matchIds: [], visibleNodes: [] });
   try {
@@ -209,7 +227,7 @@ app.get('/api/nodes/search', async (req, res) => {
   } catch (e) { sendServerError(res, 'Node search failed', e); }
 });
 
-app.post('/api/nodes', async (req, res) => {
+app.post('/api/nodes', auth.requirePermission('NODE_CREATE'), async (req, res) => {
   const code = typeof req.body?.NodeCode === 'string' ? req.body.NodeCode.trim() : '';
   const name = typeof req.body?.NodeName === 'string' ? req.body.NodeName.trim() : '';
   const parentId = Number(req.body?.ParentID);
@@ -243,7 +261,7 @@ app.post('/api/nodes', async (req, res) => {
   } catch (e) { sendServerError(res, 'Node creation failed', e); }
 });
 
-app.put('/api/nodes/:nodeId', async (req, res) => {
+app.put('/api/nodes/:nodeId', auth.requirePermission('NODE_EDIT'), async (req, res) => {
   const id = Number(req.params.nodeId);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID.' });
   const code = typeof req.body?.NodeCode === 'string' ? req.body.NodeCode.trim() : '';
@@ -262,7 +280,7 @@ app.put('/api/nodes/:nodeId', async (req, res) => {
   } catch (e) { sendServerError(res, 'Node update failed', e); }
 });
 
-app.delete('/api/nodes/:nodeId', async (req,res) => {
+app.delete('/api/nodes/:nodeId', auth.requirePermission('NODE_DELETE'), async (req,res) => {
   const id=Number(req.params.nodeId); if(!Number.isInteger(id)||id<=0) return res.status(400).json({error:'Invalid Node ID.'});
   try {
     const r= new sql.Request(); r.input('id',sql.Int,id);
@@ -273,7 +291,7 @@ app.delete('/api/nodes/:nodeId', async (req,res) => {
   } catch(e) { if(e.number===547) return res.status(409).json({error:'This Node is referenced by another database record and cannot be deleted.'}); sendServerError(res,'Node deletion failed',e); }
 });
 
-app.get('/api/pdfs', async (req,res)=>{
+app.get('/api/pdfs', auth.requirePermission('PDF_VIEW'), async (req,res)=>{
   try {
     let ids=null;
     if(req.query.nodeIds!==undefined) ids=String(req.query.nodeIds).split(',').map(Number).filter(Number.isInteger);
@@ -284,8 +302,8 @@ app.get('/api/pdfs', async (req,res)=>{
 });
 
 async function getPdfRecord(id){ const r=new sql.Request(); r.input('id',sql.Int,id); const q=await r.query('SELECT d.PDFName,p.RootPath FROM dbo.DanieliPDF d JOIN dbo.tblPath p ON d.PathID=p.PathID WHERE d.PDFID=@id;'); return q.recordset[0]||null; }
-app.get('/api/pdf-open/:pdfId',async(req,res)=>{const id=Number(req.params.pdfId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid PDF ID'});try{const row=await getPdfRecord(id);if(!row)return res.status(404).json({error:'PDF record not found'});const full=isSafeChildPath(row.RootPath,row.PDFName);if(!full||!fs.existsSync(full))return res.status(404).json({error:'PDF file not found on disk'});await execAsync(`start "" "${full.replace(/"/g,'')}"`,{windowsHide:true});res.json({success:true});}catch(e){sendServerError(res,'PDF open failed',e);}});
-app.get('/api/pdf-file/:pdfId',async(req,res)=>{const id=Number(req.params.pdfId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid PDF ID'});try{const row=await getPdfRecord(id);if(!row)return res.status(404).json({error:'PDF record not found'});const full=isSafeChildPath(row.RootPath,row.PDFName);if(!full||!fs.existsSync(full))return res.status(404).json({error:'PDF file not found on disk'});res.sendFile(full);}catch(e){sendServerError(res,'PDF file request failed',e);}});
+app.get('/api/pdf-open/:pdfId', auth.requirePermission('PDF_VIEW'),async(req,res)=>{const id=Number(req.params.pdfId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid PDF ID'});try{const row=await getPdfRecord(id);if(!row)return res.status(404).json({error:'PDF record not found'});const full=isSafeChildPath(row.RootPath,row.PDFName);if(!full||!fs.existsSync(full))return res.status(404).json({error:'PDF file not found on disk'});await execAsync(`start "" "${full.replace(/"/g,'')}"`,{windowsHide:true});res.json({success:true});}catch(e){sendServerError(res,'PDF open failed',e);}});
+app.get('/api/pdf-file/:pdfId', auth.requirePermission('PDF_VIEW'),async(req,res)=>{const id=Number(req.params.pdfId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid PDF ID'});try{const row=await getPdfRecord(id);if(!row)return res.status(404).json({error:'PDF record not found'});const full=isSafeChildPath(row.RootPath,row.PDFName);if(!full||!fs.existsSync(full))return res.status(404).json({error:'PDF file not found on disk'});res.sendFile(full);}catch(e){sendServerError(res,'PDF file request failed',e);}});
 
 async function pathIsDir(p) {
   try { const s = await fs.promises.stat(p); return s.isDirectory(); } catch (_) { return false; }
@@ -323,7 +341,7 @@ async function mapWithConcurrency(items, limit, worker) {
 // Only checks the specific Nodes the client currently has on screen (via ?nodeIds=1,2,3),
 // with disk checks done asynchronously and in parallel (bounded), and cached per Node
 // afterwards. Nothing here scans the whole table or blocks the event loop.
-app.get('/api/srsc-status', async (req, res) => {
+app.get('/api/srsc-status', auth.requirePermission('FILE_VIEW'), async (req, res) => {
   try {
     if (req.query.nodeIds === undefined) return res.json({ nodeIds: [], count: 0 });
     const ids = String(req.query.nodeIds).split(',').map(Number).filter(n => Number.isInteger(n) && n > 0);
@@ -345,16 +363,16 @@ app.get('/api/srsc-status', async (req, res) => {
 });
 
 async function getNodeStorage(id){const r=new sql.Request();r.input('id',sql.Int,id);const q=await r.query(`SELECT TOP 1 N.NodeID,N.NodeCode,N.FolderPath,N.PathID,P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.NodeID=@id;`);return q.recordset[0]||null;}
-app.get('/api/node-folders/:nodeId',async(req,res)=>{const id=Number(req.params.nodeId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);if(!root)return res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:false,folders:[]});if(!fs.existsSync(root)||!fs.statSync(root).isDirectory())return res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:true,folderExists:false,folders:[]});const folders=ALLOWED_SRSC_FOLDERS.map(name=>{const p=path.join(root,name);try{return{name,exists:fs.existsSync(p)&&fs.statSync(p).isDirectory()};}catch(_){return{name,exists:false};}}).filter(x=>x.exists);res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:true,folderExists:true,folders});}catch(e){sendServerError(res,'Node folders request failed',e);}});
+app.get('/api/node-folders/:nodeId', auth.requirePermission('FILE_VIEW'),async(req,res)=>{const id=Number(req.params.nodeId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);if(!root)return res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:false,folders:[]});if(!fs.existsSync(root)||!fs.statSync(root).isDirectory())return res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:true,folderExists:false,folders:[]});const folders=ALLOWED_SRSC_FOLDERS.map(name=>{const p=path.join(root,name);try{return{name,exists:fs.existsSync(p)&&fs.statSync(p).isDirectory()};}catch(_){return{name,exists:false};}}).filter(x=>x.exists);res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:true,folderExists:true,folders});}catch(e){sendServerError(res,'Node folders request failed',e);}});
 
-app.get('/api/node-folder-files/:nodeId/:folderName',async(req,res)=>{const id=Number(req.params.nodeId);const folder=getCanonicalAllowedFolder(req.params.folderName);const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder)return res.status(400).json({error:'Folder is not allowed'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const target=root?path.join(root,folder):null;if(!root||!target||!isPathInside(root,target)||!fs.existsSync(target)||!fs.statSync(target).isDirectory())return res.status(404).json({error:'SRSC folder not found'});let browse=target;if(subPath){const safe=isSafeChildPath(target,subPath);if(!safe||!fs.existsSync(safe)||!fs.statSync(safe).isDirectory())return res.status(404).json({error:'Subfolder not found'});browse=safe;}const items=[];for(const entry of fs.readdirSync(browse,{withFileTypes:true})){if(entry.name.startsWith('~$'))continue;const p=path.join(browse,entry.name);try{const stat=fs.statSync(p);if(entry.isDirectory())items.push({name:entry.name,type:'folder',kind:'folder'});else if(entry.isFile())items.push({name:entry.name,type:'file',kind:getFileKind(entry.name),extension:path.extname(entry.name).toLowerCase(),size:stat.size,modifiedAt:stat.mtime.toISOString()});}catch(_){}}items.sort((a,b)=>a.type!==b.type?(a.type==='folder'?-1:1):a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));res.json({nodeId:id,nodeCode:node.NodeCode,folder,subPath,items});}catch(e){sendServerError(res,'SRSC folder files request failed',e);}});
+app.get('/api/node-folder-files/:nodeId/:folderName', auth.requirePermission('FILE_VIEW'),async(req,res)=>{const id=Number(req.params.nodeId);const folder=getCanonicalAllowedFolder(req.params.folderName);const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder)return res.status(400).json({error:'Folder is not allowed'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const target=root?path.join(root,folder):null;if(!root||!target||!isPathInside(root,target)||!fs.existsSync(target)||!fs.statSync(target).isDirectory())return res.status(404).json({error:'SRSC folder not found'});let browse=target;if(subPath){const safe=isSafeChildPath(target,subPath);if(!safe||!fs.existsSync(safe)||!fs.statSync(safe).isDirectory())return res.status(404).json({error:'Subfolder not found'});browse=safe;}const items=[];for(const entry of fs.readdirSync(browse,{withFileTypes:true})){if(entry.name.startsWith('~$'))continue;const p=path.join(browse,entry.name);try{const stat=fs.statSync(p);if(entry.isDirectory())items.push({name:entry.name,type:'folder',kind:'folder'});else if(entry.isFile())items.push({name:entry.name,type:'file',kind:getFileKind(entry.name),extension:path.extname(entry.name).toLowerCase(),size:stat.size,modifiedAt:stat.mtime.toISOString()});}catch(_){}}items.sort((a,b)=>a.type!==b.type?(a.type==='folder'?-1:1):a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));res.json({nodeId:id,nodeCode:node.NodeCode,folder,subPath,items});}catch(e){sendServerError(res,'SRSC folder files request failed',e);}});
 
-app.get('/api/node-file',async(req,res)=>{const id=Number(req.query.nodeId);const folder=getCanonicalAllowedFolder(req.query.folder);const file=req.query.file;const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder||!file||typeof file!=='string')return res.status(400).json({error:'Invalid folder or file'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const base=root?path.join(root,folder):null;const sub=base&&subPath?isSafeChildPath(base,subPath):base;const full=sub?isSafeChildPath(sub,file):null;if(!full||!fs.existsSync(full)||!fs.statSync(full).isFile())return res.status(404).json({error:'File not found'});const ext=path.extname(full).toLowerCase();res.setHeader('Content-Disposition',`${INLINE_EXTENSIONS.has(ext)?'inline':'attachment'}; filename="${path.basename(full).replace(/"/g,'')}"`);res.sendFile(full);}catch(e){sendServerError(res,'Node file request failed',e);}});
+app.get('/api/node-file', auth.requirePermission('FILE_VIEW'),async(req,res)=>{const id=Number(req.query.nodeId);const folder=getCanonicalAllowedFolder(req.query.folder);const file=req.query.file;const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder||!file||typeof file!=='string')return res.status(400).json({error:'Invalid folder or file'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const base=root?path.join(root,folder):null;const sub=base&&subPath?isSafeChildPath(base,subPath):base;const full=sub?isSafeChildPath(sub,file):null;if(!full||!fs.existsSync(full)||!fs.statSync(full).isFile())return res.status(404).json({error:'File not found'});const ext=path.extname(full).toLowerCase();res.setHeader('Content-Disposition',`${INLINE_EXTENSIONS.has(ext)?'inline':'attachment'}; filename="${path.basename(full).replace(/"/g,'')}"`);res.sendFile(full);}catch(e){sendServerError(res,'Node file request failed',e);}});
 
 // Deletes a file, or a subfolder (recursively, with everything inside it), from one of a
 // Node's SLD/DOC/PIC/Catalog folders. Never allows deleting the SLD/DOC/PIC/Catalog folder
 // itself — only files/folders inside it.
-app.delete('/api/node-file', async (req, res) => {
+app.delete('/api/node-file', auth.requirePermission('FILE_Edit'), async (req, res) => {
   const id = Number(req.query.nodeId);
   const folder = getCanonicalAllowedFolder(req.query.folder);
   const name = typeof req.query.name === 'string' ? req.query.name : '';
@@ -387,7 +405,7 @@ app.delete('/api/node-file', async (req, res) => {
 // root folder.
 // Creates an empty folder inside one of a Node's SLD/DOC/PIC/Catalog folders (or a
 // subfolder of one). Used by the "Manage Files" New Folder action.
-app.post('/api/node-folder', async (req, res) => {
+app.post('/api/node-folder', auth.requirePermission('FILE_Edit'), async (req, res) => {
   const id = Number(req.body?.nodeId);
   const folder = getCanonicalAllowedFolder(req.body?.folder);
   const subPath = typeof req.body?.subPath === 'string' ? req.body.subPath : '';
@@ -418,7 +436,7 @@ app.post('/api/node-folder', async (req, res) => {
   } catch (e) { sendServerError(res, 'Folder creation failed', e); }
 });
 
-app.post('/api/node-file-upload/:nodeId', async (req, res) => {
+app.post('/api/node-file-upload/:nodeId', auth.requirePermission('FILE_Edit'), async (req, res) => {
   const id = Number(req.params.nodeId);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
 
@@ -484,5 +502,13 @@ app.post('/api/node-file-upload/:nodeId', async (req, res) => {
     sendServerError(res, 'File upload failed', e);
   }
 });
+
+setInterval(() => auth.cleanup(), 10 * 60 * 1000);
+
+const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
+app.get('/', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'login.html')));
+app.get('/login.html', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'login.html')));
+app.get('/index.html', auth.authenticatePage, (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'index.html')));
+app.use(express.static(FRONTEND_DIR, { index: false }));
 
 app.listen(PORT,'0.0.0.0',async()=>{console.log(`Server running on http://0.0.0.0:${PORT}`);await testDatabaseConnection();});
