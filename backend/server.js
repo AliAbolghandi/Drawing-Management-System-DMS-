@@ -20,8 +20,10 @@ const FRONTEND_ORIGINS = new Set(
     .split(',').map(x => x.trim()).filter(Boolean)
 );
 
+app.set('trust proxy', process.env.DMS_TRUST_PROXY === '1');
+
 function getClientIp(req) {
-  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  return String(req.ip || req.socket.remoteAddress || '').trim();
 }
 
 function applySecurityHeaders(res) {
@@ -238,7 +240,43 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ authenticated: true, user: { userId:u.userId, username:u.username, name:u.name, family:u.family, isAdmin:u.isAdmin }, permissions:[...u.permissions] });
 });
 
-app.use('/api', authenticate);
+const API_WINDOW_MS = 60 * 1000;
+const API_MAX_REQUESTS = 240;
+const apiRateLimits = new Map();
+
+function apiRateLimit(req, res, next) {
+  const key = getClientIp(req);
+  const now = Date.now();
+  let state = apiRateLimits.get(key);
+  if (!state || now - state.startedAt >= API_WINDOW_MS) {
+    state = { startedAt: now, count: 0 };
+    apiRateLimits.set(key, state);
+  }
+  state.count += 1;
+  if (state.count > API_MAX_REQUESTS) {
+    res.setHeader('Retry-After', String(Math.ceil((API_WINDOW_MS - (now - state.startedAt)) / 1000)));
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+  }
+  next();
+}
+
+function csrfGuard(req, res, next) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+  if (origin && !FRONTEND_ORIGINS.has(origin)) return res.status(403).json({ error: 'Forbidden origin.' });
+  if (!origin && referer) {
+    try {
+      const refererOrigin = new URL(referer).origin;
+      if (!FRONTEND_ORIGINS.has(refererOrigin)) return res.status(403).json({ error: 'Forbidden origin.' });
+    } catch (_) {
+      return res.status(403).json({ error: 'Forbidden origin.' });
+    }
+  }
+  next();
+}
+
+app.use('/api', apiRateLimit, csrfGuard, authenticate);
 
 function normalizeRelativePath(value) {
   if (value == null) return null;
@@ -652,6 +690,12 @@ app.post('/api/node-file-upload/:nodeId', requirePermission('FILE_Edit'), async 
 setInterval(() => {
   const now = Date.now();
   for (const [token, session] of sessions) if (session.expiresAt <= now) sessions.delete(token);
+  for (const [ip, state] of loginAttempts) {
+    if (state.blockedUntil <= now && now - state.firstAt > LOGIN_WINDOW_MS) loginAttempts.delete(ip);
+  }
+  for (const [ip, state] of apiRateLimits) {
+    if (now - state.startedAt > API_WINDOW_MS) apiRateLimits.delete(ip);
+  }
 }, 10 * 60 * 1000);
 
 function authenticatePage(req, res, next) {
@@ -997,203 +1041,3 @@ app.get('/api/pdfs', async (req, res) => {
 async function getPdfRecord(id) { const r = new sql.Request(); r.input('id', sql.Int, id); const q = await r.query('SELECT d.PDFName,p.RootPath FROM dbo.DanieliPDF d JOIN dbo.tblPath p ON d.PathID=p.PathID WHERE d.PDFID=@id;'); return q.recordset[0] || null; }
 app.get('/api/pdf-open/:pdfId', async (req, res) => { const id = Number(req.params.pdfId); if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid PDF ID' }); try { const row = await getPdfRecord(id); if (!row) return res.status(404).json({ error: 'PDF record not found' }); const full = isSafeChildPath(row.RootPath, row.PDFName); if (!full || !fs.existsSync(full)) return res.status(404).json({ error: 'PDF file not found on disk' }); await execAsync(`start "" "${full.replace(/"/g, '')}"`, { windowsHide: true }); res.json({ success: true }); } catch (e) { sendServerError(res, 'PDF open failed', e); } });
 app.get('/api/pdf-file/:pdfId', async (req, res) => { const id = Number(req.params.pdfId); if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid PDF ID' }); try { const row = await getPdfRecord(id); if (!row) return res.status(404).json({ error: 'PDF record not found' }); const full = isSafeChildPath(row.RootPath, row.PDFName); if (!full || !fs.existsSync(full)) return res.status(404).json({ error: 'PDF file not found on disk' }); res.sendFile(full); } catch (e) { sendServerError(res, 'PDF file request failed', e); } });
-
-async function pathIsDir(p) {
-  try { const s = await fs.promises.stat(p); return s.isDirectory(); } catch (_) { return false; }
-}
-
-// nodeId -> boolean. Filled lazily as nodes are actually looked up, never a full upfront scan.
-const srscCache = new Map();
-
-async function checkNodeSrsc(nodeId, rootPath, folderPath) {
-  if (srscCache.has(nodeId)) return srscCache.get(nodeId);
-  const root = getSafeNodeRoot(rootPath, folderPath);
-  let found = false;
-  if (root && await pathIsDir(root)) {
-    for (const f of ALLOWED_SRSC_FOLDERS) {
-      if (await pathIsDir(path.join(root, f))) { found = true; break; }
-    }
-  }
-  srscCache.set(nodeId, found);
-  return found;
-}
-
-// Runs async work with a bounded number of requests in flight at once, instead of either
-// doing everything sequentially (slow) or all at once (floods a network drive / SQL Server).
-async function mapWithConcurrency(items, limit, worker) {
-  let i = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (i < items.length) {
-      const idx = i++;
-      await worker(items[idx], idx);
-    }
-  });
-  await Promise.all(runners);
-}
-
-// Only checks the specific Nodes the client currently has on screen (via ?nodeIds=1,2,3),
-// with disk checks done asynchronously and in parallel (bounded), and cached per Node
-// afterwards. Nothing here scans the whole table or blocks the event loop.
-app.get('/api/srsc-status', async (req, res) => {
-  try {
-    if (req.query.nodeIds === undefined) return res.json({ nodeIds: [], count: 0 });
-    const ids = String(req.query.nodeIds).split(',').map(Number).filter(n => Number.isInteger(n) && n > 0);
-    if (!ids.length) return res.json({ nodeIds: [], count: 0 });
-
-    if (req.query.refresh === '1') ids.forEach(id => srscCache.delete(id));
-
-    const toLookup = ids.filter(id => !srscCache.has(id));
-    if (toLookup.length) {
-      const r = new sql.Request();
-      const placeholders = toLookup.map((id, i) => { r.input(`id${i}`, sql.Int, id); return `@id${i}`; }).join(',');
-      const q = await r.query(`SELECT N.NodeID, N.FolderPath, N.PathID, P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.NodeID IN (${placeholders});`);
-      await mapWithConcurrency(q.recordset, 12, row => checkNodeSrsc(Number(row.NodeID), row.RootPath, row.FolderPath));
-    }
-
-    const found = ids.filter(id => srscCache.get(id));
-    res.json({ nodeIds: found, count: found.length });
-  } catch (e) { sendServerError(res, 'SRSC status failed', e); }
-});
-
-async function getNodeStorage(id) { const r = new sql.Request(); r.input('id', sql.Int, id); const q = await r.query(`SELECT TOP 1 N.NodeID,N.NodeCode,N.FolderPath,N.PathID,P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.NodeID=@id;`); return q.recordset[0] || null; }
-app.get('/api/node-folders/:nodeId', async (req, res) => { const id = Number(req.params.nodeId); if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' }); try { const node = await getNodeStorage(id); if (!node) return res.status(404).json({ error: 'Node not found' }); const root = getSafeNodeRoot(node.RootPath, node.FolderPath); if (!root) return res.json({ nodeId: id, nodeCode: node.NodeCode, hasFolderPath: false, folders: [] }); if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) return res.json({ nodeId: id, nodeCode: node.NodeCode, hasFolderPath: true, folderExists: false, folders: [] }); const folders = ALLOWED_SRSC_FOLDERS.map(name => { const p = path.join(root, name); try { return { name, exists: fs.existsSync(p) && fs.statSync(p).isDirectory() }; } catch (_) { return { name, exists: false }; } }).filter(x => x.exists); res.json({ nodeId: id, nodeCode: node.NodeCode, hasFolderPath: true, folderExists: true, folders }); } catch (e) { sendServerError(res, 'Node folders request failed', e); } });
-
-app.get('/api/node-folder-files/:nodeId/:folderName', async (req, res) => { const id = Number(req.params.nodeId); const folder = getCanonicalAllowedFolder(req.params.folderName); const subPath = typeof req.query.subPath === 'string' ? req.query.subPath : ''; if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' }); if (!folder) return res.status(400).json({ error: 'Folder is not allowed' }); try { const node = await getNodeStorage(id); if (!node) return res.status(404).json({ error: 'Node not found' }); const root = getSafeNodeRoot(node.RootPath, node.FolderPath); const target = root ? path.join(root, folder) : null; if (!root || !target || !isPathInside(root, target) || !fs.existsSync(target) || !fs.statSync(target).isDirectory()) return res.status(404).json({ error: 'SRSC folder not found' }); let browse = target; if (subPath) { const safe = isSafeChildPath(target, subPath); if (!safe || !fs.existsSync(safe) || !fs.statSync(safe).isDirectory()) return res.status(404).json({ error: 'Subfolder not found' }); browse = safe; } const items = []; for (const entry of fs.readdirSync(browse, { withFileTypes: true })) { if (entry.name.startsWith('~$')) continue; const p = path.join(browse, entry.name); try { const stat = fs.statSync(p); if (entry.isDirectory()) items.push({ name: entry.name, type: 'folder', kind: 'folder' }); else if (entry.isFile()) items.push({ name: entry.name, type: 'file', kind: getFileKind(entry.name), extension: path.extname(entry.name).toLowerCase(), size: stat.size, modifiedAt: stat.mtime.toISOString() }); } catch (_) { } } items.sort((a, b) => a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })); res.json({ nodeId: id, nodeCode: node.NodeCode, folder, subPath, items }); } catch (e) { sendServerError(res, 'SRSC folder files request failed', e); } });
-
-app.get('/api/node-file', async (req, res) => { const id = Number(req.query.nodeId); const folder = getCanonicalAllowedFolder(req.query.folder); const file = req.query.file; const subPath = typeof req.query.subPath === 'string' ? req.query.subPath : ''; if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' }); if (!folder || !file || typeof file !== 'string') return res.status(400).json({ error: 'Invalid folder or file' }); try { const node = await getNodeStorage(id); if (!node) return res.status(404).json({ error: 'Node not found' }); const root = getSafeNodeRoot(node.RootPath, node.FolderPath); const base = root ? path.join(root, folder) : null; const sub = base && subPath ? isSafeChildPath(base, subPath) : base; const full = sub ? isSafeChildPath(sub, file) : null; if (!full || !fs.existsSync(full) || !fs.statSync(full).isFile()) return res.status(404).json({ error: 'File not found' }); const ext = path.extname(full).toLowerCase(); res.setHeader('Content-Disposition', `${INLINE_EXTENSIONS.has(ext) ? 'inline' : 'attachment'}; filename="${path.basename(full).replace(/"/g, '')}"`); res.sendFile(full); } catch (e) { sendServerError(res, 'Node file request failed', e); } });
-
-// Deletes a file, or a subfolder (recursively, with everything inside it), from one of a
-// Node's SLD/DOC/PIC/Catalog folders. Never allows deleting the SLD/DOC/PIC/Catalog folder
-// itself — only files/folders inside it.
-app.delete('/api/node-file', async (req, res) => {
-  const id = Number(req.query.nodeId);
-  const folder = getCanonicalAllowedFolder(req.query.folder);
-  const name = typeof req.query.name === 'string' ? req.query.name : '';
-  const subPath = typeof req.query.subPath === 'string' ? req.query.subPath : '';
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
-  if (!folder) return res.status(400).json({ error: 'Folder is not allowed' });
-  if (!name) return res.status(400).json({ error: 'Missing item name' });
-  try {
-    const node = await getNodeStorage(id);
-    if (!node) return res.status(404).json({ error: 'Node not found' });
-    const root = getSafeNodeRoot(node.RootPath, node.FolderPath);
-    const base = root ? path.join(root, folder) : null;
-    const parent = base && subPath ? isSafeChildPath(base, subPath) : base;
-    const target = parent ? isSafeChildPath(parent, name) : null;
-    if (!root || !base || !parent || !target) return res.status(400).json({ error: 'Invalid path' });
-    if (path.resolve(target) === path.resolve(base)) return res.status(400).json({ error: 'Cannot delete a top-level company folder (SLD/DOC/PIC/Catalog).' });
-    if (!fs.existsSync(target)) return res.status(404).json({ error: 'Item not found' });
-    const stat = fs.statSync(target);
-    if (stat.isDirectory()) await fs.promises.rm(target, { recursive: true, force: true });
-    else await fs.promises.unlink(target);
-    srscCache.delete(id);
-    res.json({ success: true, deleted: name, type: stat.isDirectory() ? 'folder' : 'file' });
-  } catch (e) { sendServerError(res, 'Delete failed', e); }
-});
-
-// Uploads files (optionally a whole dragged/browsed folder, via parallel relativePaths[])
-// into one of the SLD/DOC/PIC/Catalog folders for a Node. The Node's own storage folder
-// (RootPath + FolderPath) is created on disk automatically if it doesn't exist yet — e.g.
-// for a brand-new Node — and any subfolder structure is allowed underneath the chosen
-// root folder.
-// Creates an empty folder inside one of a Node's SLD/DOC/PIC/Catalog folders (or a
-// subfolder of one). Used by the "Manage Files" New Folder action.
-app.post('/api/node-folder', async (req, res) => {
-  const id = Number(req.body?.nodeId);
-  const folder = getCanonicalAllowedFolder(req.body?.folder);
-  const subPath = typeof req.body?.subPath === 'string' ? req.body.subPath : '';
-  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
-  if (!folder) return res.status(400).json({ error: `Folders can only be created inside one of: ${ALLOWED_SRSC_FOLDERS.join(', ')}` });
-  const nameParts = sanitizeRelativePath(name);
-  if (!nameParts) return res.status(400).json({ error: 'Invalid folder name.' });
-  try {
-    const node = await getNodeStorage(id);
-    if (!node) return res.status(404).json({ error: 'Node not found.' });
-    if (!node.RootPath) return res.status(400).json({ error: 'This Node has no storage root path configured (missing tblPath.RootPath).' });
-    if (!node.FolderPath) return res.status(400).json({ error: 'This Node has no FolderPath configured in the database.' });
-    const nodeRoot = getSafeNodeRoot(node.RootPath, node.FolderPath);
-    if (!nodeRoot) return res.status(400).json({ error: 'Could not resolve a safe storage path for this Node.' });
-    await fs.promises.mkdir(nodeRoot, { recursive: true });
-
-    const subParts = subPath ? sanitizeRelativePath(subPath) : [];
-    if (subPath && !subParts) return res.status(400).json({ error: 'Invalid subfolder path.' });
-    const targetBase = path.join(nodeRoot, folder, ...(subParts || []));
-    if (!isPathInside(nodeRoot, targetBase)) return res.status(400).json({ error: 'Invalid subfolder path.' });
-
-    const newFolder = path.join(targetBase, ...nameParts);
-    if (!isPathInside(targetBase, newFolder)) return res.status(400).json({ error: 'Invalid folder name.' });
-    await fs.promises.mkdir(newFolder, { recursive: true });
-    srscCache.delete(id);
-    res.json({ success: true, name: nameParts.join('/') });
-  } catch (e) { sendServerError(res, 'Folder creation failed', e); }
-});
-
-app.post('/api/node-file-upload/:nodeId', async (req, res) => {
-  const id = Number(req.params.nodeId);
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
-
-  try {
-    await runMulter(req, res);
-  } catch (e) {
-    return res.status(400).json({ error: e.message || 'Upload failed.' });
-  }
-
-  const tempFiles = req.files || [];
-  const cleanup = () => Promise.all(tempFiles.map(f => fs.promises.unlink(f.path).catch(() => { })));
-
-  try {
-    const folder = getCanonicalAllowedFolder(req.body?.folder);
-    if (!folder) { await cleanup(); return res.status(400).json({ error: `Files can only be uploaded into one of: ${ALLOWED_SRSC_FOLDERS.join(', ')}` }); }
-
-    const subPathRaw = typeof req.body?.subPath === 'string' ? req.body.subPath.trim() : '';
-    const subPathParts = subPathRaw ? sanitizeRelativePath(subPathRaw) : [];
-    if (subPathRaw && !subPathParts) { await cleanup(); return res.status(400).json({ error: 'Invalid subfolder path.' }); }
-
-    if (!tempFiles.length) return res.status(400).json({ error: 'No files were uploaded.' });
-
-    let relativePaths = req.body?.relativePaths;
-    if (relativePaths === undefined) relativePaths = [];
-    else if (!Array.isArray(relativePaths)) relativePaths = [relativePaths];
-
-    const node = await getNodeStorage(id);
-    if (!node) { await cleanup(); return res.status(404).json({ error: 'Node not found.' }); }
-    if (!node.RootPath) { await cleanup(); return res.status(400).json({ error: 'This Node has no storage root path configured (missing tblPath.RootPath).' }); }
-    if (!node.FolderPath) { await cleanup(); return res.status(400).json({ error: 'This Node has no FolderPath configured in the database.' }); }
-
-    const nodeRoot = getSafeNodeRoot(node.RootPath, node.FolderPath);
-    if (!nodeRoot) { await cleanup(); return res.status(400).json({ error: 'Could not resolve a safe storage path for this Node.' }); }
-
-    // Creates the Node's own folder on disk if it's missing — e.g. a brand-new Node,
-    // or one whose folder was never created — before anything is uploaded into it.
-    await fs.promises.mkdir(nodeRoot, { recursive: true });
-
-    const targetBase = path.join(nodeRoot, folder, ...(subPathParts || []));
-    if (!isPathInside(nodeRoot, targetBase)) { await cleanup(); return res.status(400).json({ error: 'Invalid subfolder path.' }); }
-    await fs.promises.mkdir(targetBase, { recursive: true });
-
-    const results = [];
-    for (let i = 0; i < tempFiles.length; i++) {
-      const file = tempFiles[i];
-      const relParts = sanitizeRelativePath(relativePaths[i]);
-      const finalParts = relParts && relParts.length ? relParts : [path.basename(file.originalname)];
-      const destPath = path.join(targetBase, ...finalParts);
-      if (!isPathInside(targetBase, destPath)) {
-        await fs.promises.unlink(file.path).catch(() => { });
-        results.push({ name: finalParts.join('/'), error: 'Invalid path, skipped.' });
-        continue;
-      }
-      await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-      await moveFile(file.path, destPath);
-      results.push({ name: finalParts.join('/'), size: file.size });
-    }
-
-    srscCache.delete(id);
-    res.json({ success: true, uploaded: results.filter(r => !r.error).length, files: results, folder, subPath: (subPathParts || []).join('/') });
-  } catch (e) {
-    await cleanup();
-    sendServerError(res, 'File upload failed', e);
-  }
-});
-
-app.listen(PORT, '0.0.0.0', async () => { console.log(`Server running on http://0.0.0.0:${PORT}`); await testDatabaseConnection(); });
