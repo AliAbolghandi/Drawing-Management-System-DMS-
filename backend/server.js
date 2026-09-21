@@ -654,6 +654,23 @@ setInterval(() => {
   for (const [token, session] of sessions) if (session.expiresAt <= now) sessions.delete(token);
 }, 10 * 60 * 1000);
 
+function authenticatePage(req, res, next) {
+  const token = parseCookies(req).dms_session;
+  const session = token ? sessions.get(token) : null;
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) sessions.delete(token);
+    return res.redirect('/login.html');
+  }
+  session.expiresAt = Date.now() + SESSION_TTL_MS;
+  next();
+}
+
+const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
+app.get('/', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'login.html')));
+app.get('/login.html', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'login.html')));
+app.get('/index.html', authenticatePage, (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'index.html')));
+app.use(express.static(FRONTEND_DIR, { index: false }));
+
 app.listen(PORT, '0.0.0.0', async () => { console.log(`Server running on http://0.0.0.0:${PORT}`); await testDatabaseConnection(); });
 );
       if (parts.length !== 6 || parts[0] !== 'scrypt') return resolve(false);
@@ -676,7 +693,7 @@ async function writeAudit(userId, userName, action, ip) {
     r.input('userName', sql.NVarChar(100), userName);
     r.input('action', sql.NVarChar(100), action);
     r.input('ip', sql.NVarChar(64), ip);
-    await r.query("INSERT INTO dbo.Logs (LogID,UserID,UserName,Action,IPAddress,CreatedAt) SELECT ISNULL(MAX(LogID),0)+1,@userId,@userName,@action,@ip,SYSUTCDATETIME() FROM dbo.Logs WITH (TABLOCKX);");
+    await r.query("INSERT INTO dbo.Logs (UserID,UserName,Action,IPAddress,CreatedAt) VALUES (@userId,@userName,@action,@ip,SYSUTCDATETIME());");
   } catch (e) { console.warn('Audit log failed:', e.message); }
 }
 
