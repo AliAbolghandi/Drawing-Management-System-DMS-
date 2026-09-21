@@ -1,4 +1,11 @@
 (() => {
+  const host = window.location.hostname || 'localhost';
+  const API = `http://${host}:3000/api`;
+  fetch(API + '/auth/me', { credentials: 'include' })
+    .then(response => { if (!response.ok) window.location.replace('login.html'); })
+    .catch(() => window.location.replace('login.html'));
+})();
+(() => {
   'use strict';
 
   const host = window.location.hostname || 'localhost';
@@ -61,7 +68,7 @@
   }
 
   async function requestJson(url, options) {
-    const response = await fetch(url, options);
+    const response = await fetch(url, { credentials: 'include', ...(options || {}) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
     return data;
