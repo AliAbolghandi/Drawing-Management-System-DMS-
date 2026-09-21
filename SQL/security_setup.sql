@@ -247,7 +247,7 @@ WHERE NOT EXISTS (
 -- Role 1 Admin: all 14 permissions.
 -- Role 2 DrawingSupervisor: permissions 1-11.
 -- Role 3 DrawingExpert: permissions 1-10.
--- Role 4 VIEWER: permissions 1-10, matching the corrected four-role workbook.
+-- Role 4 VIEWER: read-only permissions only: NODE_VIEW, PDF_VIEW, PDF_Danieli_Download.
 DECLARE @RolePermissionSeed TABLE (RoleCode NVARCHAR(100), PermissionCode NVARCHAR(100));
 INSERT @RolePermissionSeed
 SELECT N'Admin', PermissionCode FROM dbo.Permissions
@@ -260,7 +260,7 @@ SELECT N'DrawingExpert', PermissionCode FROM dbo.Permissions
 WHERE PermissionCode IN (N'NODE_VIEW',N'NODE_CREATE',N'NODE_EDIT',N'NODE_DELETE',N'PDF_VIEW',N'PDF_Danieli_Download',N'PDF_SRSC_Download',N'FILE_VIEW',N'FILE_Edit',N'USER_VIEW')
 UNION ALL
 SELECT N'VIEWER', PermissionCode FROM dbo.Permissions
-WHERE PermissionCode IN (N'NODE_VIEW',N'NODE_CREATE',N'NODE_EDIT',N'NODE_DELETE',N'PDF_VIEW',N'PDF_Danieli_Download',N'PDF_SRSC_Download',N'FILE_VIEW',N'FILE_Edit',N'USER_VIEW');
+WHERE PermissionCode IN (N'NODE_VIEW',N'PDF_VIEW',N'PDF_Danieli_Download');
 
 INSERT dbo.RolePermissions (RoleID, PermissionID)
 SELECT r.RoleID, p.PermissionID
