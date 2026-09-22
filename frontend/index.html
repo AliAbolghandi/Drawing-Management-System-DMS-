@@ -253,6 +253,62 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 });
 </script>
+
+<script>
+/*
+ * RBAC UI visibility:
+ * VIEWER (RoleID 4) has only read permissions, so editing/upload/delete
+ * controls must not be visible. Authorization is still enforced server-side.
+ */
+(() => {
+  const host = window.location.hostname || 'localhost';
+  const API = `http://${host}:3000/api`;
+
+  function applyPermissions(permissions) {
+    const set = new Set(Array.isArray(permissions) ? permissions : []);
+    const canNodeEdit =
+      set.has('NODE_EDIT') ||
+      set.has('NODE_CREATE') ||
+      set.has('NODE_DELETE');
+    const canFileEdit = set.has('FILE_Edit');
+
+    document.getElementById('createNewNodeBtn')?.classList.toggle('hidden', !canNodeEdit);
+    document.getElementById('uploadFilesBtn')?.classList.toggle('hidden', !canFileEdit);
+    document.getElementById('DeleteFilesBtn')?.classList.toggle('hidden', !canFileEdit);
+
+    // The per-node + / Edit / Delete controls are created dynamically.
+    document.querySelectorAll('.node-edit-actions').forEach(el => {
+      el.classList.toggle('hidden', !canNodeEdit);
+    });
+
+    window.DMS = window.DMS || {};
+    window.DMS.permissions = set;
+    window.DMS.canNodeEdit = canNodeEdit;
+    window.DMS.canFileEdit = canFileEdit;
+  }
+
+  fetch(`${API}/auth/me`, { credentials: 'include', cache: 'no-store' })
+    .then(async response => {
+      if (!response.ok) return;
+      const data = await response.json().catch(() => ({}));
+      applyPermissions(data.permissions || []);
+    })
+    .catch(() => {});
+
+  // node-actions.js uses a MutationObserver, so re-apply visibility whenever
+  // new node action buttons are added to the tree.
+  const observer = new MutationObserver(() => {
+    const permissions = window.DMS?.permissions;
+    if (permissions instanceof Set) applyPermissions([...permissions]);
+  });
+
+  observer.observe(document.getElementById('treeContainer'), {
+    childList: true,
+    subtree: true
+  });
+})();
+</script>
+
 </body>
 
 </html>
