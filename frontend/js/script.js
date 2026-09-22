@@ -257,12 +257,33 @@
     loadSrscFolders(toId(node.NodeID));
   }
 
-  function renderPdfs(id) {
+  async function renderPdfs(id) {
     const box = $('pdfList');
     const pdfs = state.pdfsByNodeId.get(id) || [];
-    if (!pdfs.length) { box.innerHTML = '<div class="pdf-empty">No PDF files registered.</div>'; return; }
-    box.innerHTML = pdfs.map(pdf => `<div class="pdf-item" data-pdf-id="${escapeHtml(pdf.PDFID)}"><span class="pdf-icon">📄</span><span class="pdf-name">${escapeHtml(pdf.PDFName || '(Unnamed)')}</span></div>`).join('');
+    box.innerHTML = pdfs.length
+      ? pdfs.map(pdf => `<div class="pdf-item" data-pdf-id="${escapeHtml(pdf.PDFID)}"><span class="pdf-icon">📄</span><span class="pdf-name">${escapeHtml(pdf.PDFName || '(Unnamed)')}</span></div>`).join('')
+      : '<div class="pdf-empty">No PDF files registered.</div>';
     box.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => openPdf(item.dataset.pdfId)));
+
+    const srscBox = $('srscPdfList');
+    if (!srscBox) return;
+    srscBox.innerHTML = '<div class="pdf-empty">Loading SRSC PDF files...</div>';
+    try {
+      const data = await requestJson(`${API}/srsc-pdfs/${encodeURIComponent(id)}`);
+      const files = data.files || [];
+      srscBox.innerHTML = files.length
+        ? files.map(file => `<div class="pdf-item" data-srsc-name="${escapeHtml(file.name)}"><span class="pdf-icon">📄</span><span class="pdf-name">${escapeHtml(file.name)}</span></div>`).join('')
+        : '<div class="pdf-empty">No SRSC PDF files in SLD root.</div>';
+      srscBox.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => openSrscPdf(id, item.dataset.srscName)));
+    } catch (error) {
+      srscBox.innerHTML = `<div class="pdf-empty">Unable to load SRSC PDF files.</div>`;
+      console.error('SRSC PDF load failed:', error);
+    }
+  }
+
+  async function openSrscPdf(nodeId, fileName) {
+    const url = `${API}/node-file?nodeId=${encodeURIComponent(nodeId)}&folder=SLD&subPath=${encodeURIComponent(fileName)}`;
+    window.open(url, '_blank', 'noopener');
   }
 
   async function openPdf(id) {
