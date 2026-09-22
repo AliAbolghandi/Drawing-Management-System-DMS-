@@ -251,6 +251,7 @@
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url);
+      xhr.withCredentials = true;
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) onProgress(event.loaded / event.total);
       });
