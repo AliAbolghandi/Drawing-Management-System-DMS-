@@ -185,6 +185,17 @@ Expected color matrix remains:
 - Neither -> default
 
 
+## Recent UI/RBAC Change — Viewer controls
+- VIEWER (RoleID 4 / RoleCode VIEWER) must not see node/file editing controls.
+- Updated frontend/index.html to load /api/auth/me permissions and hide:
+  - Edit Node button (#createNewNodeBtn) unless NODE_EDIT/NODE_CREATE/NODE_DELETE is granted.
+  - Upload Files button (#uploadFilesBtn) unless FILE_Edit is granted.
+  - Delete Files button (#DeleteFilesBtn) unless FILE_Edit is granted.
+  - Dynamic per-node + / Edit / Delete controls (.node-edit-actions) for users without node edit permissions.
+- Visibility is permission-based rather than hardcoded to RoleID 4, so it follows the existing RBAC model and also protects other read-only roles.
+- Backend authorization remains authoritative; UI hiding does not replace requirePermission checks.
+- Commit: bb5cd53478227a4fbce4f0b9e3711bf23923061a
+
 ## Recent Commit History
 - a2eaed9dd52995f90386ad77fbc6496aacd8ea37 — Fix SRSC node color status permission (use PDF_VIEW for /api/srsc-status)
 - 251711a115cf8c0eedd6c16e4900f0f086ce299f — Enforce PDF_VIEW for SRSC PDF viewing
@@ -220,7 +231,7 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 
 # NEXT ACTION
 
-1. Restart backend/server.js so the new route authorization is loaded.
-2. Test with a user having PDF_VIEW but not FILE_VIEW: a Node with both Danieli PDF and SRSC PDF must render green.
-3. Verify Danieli-only remains yellow, SRSC-only remains green, and Nodes with neither remain default.
-4. If any color mismatch remains, inspect the frontend /api/srsc-status response and the Node's actual SLD PDF presence.
+1. Restart backend/server.js if it is currently running, then log in with a VIEWER (RoleID 4) account.
+2. Verify the Viewer UI does not show Edit Node, Upload Files, or Delete Files, and does not show the per-node + / Edit / Delete controls.
+3. Verify a DrawingExpert/DrawingSupervisor/Admin account still sees the controls allowed by its permissions.
+4. If Viewer still sees a control, inspect /api/auth/me -> permissions and confirm the corresponding permission is not granted to RoleCode VIEWER.
