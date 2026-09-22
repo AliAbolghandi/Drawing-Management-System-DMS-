@@ -351,10 +351,17 @@ button {
     border: 1px solid var(--ok-dim)
 }
 
-/* Node has both a Danieli PDF and an SRSC folder */
+/* Node has both a Danieli PDF and an SRSC PDF: make the whole Node text green */
 .node-row.has-pdf.has-srsc {
     background: linear-gradient(90deg, rgba(232, 163, 61, .16) 50%, rgba(111, 217, 154, .16) 50%);
     border: 1px solid rgba(200, 190, 130, .4)
+}
+
+.node-row.has-pdf.has-srsc .node-label .jet,
+.node-row.has-pdf.has-srsc .node-label .code,
+.node-row.has-pdf.has-srsc .node-label .node-separator,
+.node-row.has-pdf.has-srsc .node-label .desc {
+    color: var(--ok);
 }
 
 .node-row.search-match {
