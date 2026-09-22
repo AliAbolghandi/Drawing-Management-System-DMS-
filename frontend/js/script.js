@@ -282,7 +282,7 @@
   }
 
   async function openSrscPdf(nodeId, fileName) {
-    const url = `${API}/node-file?nodeId=${encodeURIComponent(nodeId)}&folder=SLD&subPath=${encodeURIComponent(fileName)}`;
+    const url = `${API}/node-file?nodeId=${encodeURIComponent(nodeId)}&folder=SLD&file=${encodeURIComponent(fileName)}`;
     window.open(url, '_blank', 'noopener');
   }
 
