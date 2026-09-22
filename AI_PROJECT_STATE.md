@@ -161,6 +161,11 @@ XMLHttpRequest uploads now send the authentication cookie using withCredentials=
 Relevant commit:
 a8ecbf16e14fd4df20dd9093a9751987d8c2b3d2
 
+## Recent UI Change
+- Nodes that have both `has-pdf` (Danieli PDF) and `has-srsc` (SRSC status) now render the complete node text (`JET`, `NodeCode`, separator, and `NodeName`) in the green `--ok` color.
+- CSS change committed in `frontend/css/style.css`.
+- Commit: 6fa91fba7f025b811033e07b550e345109118439
+
 ## Current Known Issue
 The user currently suspects a database/RBAC permission problem:
 PermissionID=5 / PDF_VIEW is intended to allow users to see the PDFs in both:
@@ -228,9 +233,9 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 
 # NEXT ACTION
 
-1. Continue diagnosing the PDF_VIEW permission issue.
-2. Inspect the affected user's UserRoles and RolePermissions records using the diagnostic SQL above.
-3. Confirm that the user's effective permissions contain PDF_VIEW.
-4. If PDF_VIEW is present, inspect authentication/session permission loading in backend/auth.js.
-5. If PDF_VIEW is absent, correct the database role-permission assignment according to the user's intended RBAC configuration.
-6. Test both SRSC PDF Drawing and Danieli PDF Drawing access.
+1. Verify in the UI that a Node with both a Danieli PDF and an SRSC PDF displays all Node text in green.
+2. Confirm that Nodes with only Danieli PDF or only SRSC content keep their existing colors.
+3. Continue diagnosing the PDF_VIEW permission issue if it is still present.
+4. Inspect the affected user's UserRoles and RolePermissions records using the diagnostic SQL above.
+5. If PDF_VIEW is present, inspect authentication/session permission loading in backend/auth.js.
+6. If PDF_VIEW is absent, correct the database role-permission assignment according to the user's intended RBAC configuration.
