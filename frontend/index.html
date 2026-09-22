@@ -226,9 +226,9 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const btn=document.getElementById('userMenuButton'), panel=document.getElementById('userMenuPanel');
   const logout=document.getElementById('logoutButton');
+  const host=location.hostname;
+  const apiBase='http://'+host+':3000/api';
   try {
-    const host=location.hostname;
-    const apiBase='http://'+host+':3000/api';
     const r=await fetch(apiBase+'/auth/me',{credentials:'include'});
     if(!r.ok) return;
     const d=await r.json(), u=d.user||{};
@@ -239,7 +239,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch(e) {}
   btn.addEventListener('click',()=>{const open=panel.hidden;panel.hidden=!open;btn.setAttribute('aria-expanded',String(open));});
   document.addEventListener('click',(e)=>{if(!e.target.closest('#userMenu')){panel.hidden=true;btn.setAttribute('aria-expanded','false');}});
-  logout.addEventListener('click',async()=>{try{await fetch(apiBase+'/auth/logout',{method:'POST',credentials:'include'});}catch(e){} location.href='login.html';});
+  logout.addEventListener('click',async()=>{
+    logout.disabled=true;
+    logout.textContent='Logging out...';
+    try {
+      await fetch(apiBase+'/auth/logout',{
+        method:'POST',
+        credentials:'include',
+        cache:'no-store'
+      });
+    } catch(e) {}
+    window.location.replace('login.html');
+  });
 });
 </script>
 </body>
