@@ -341,6 +341,30 @@ async function mapWithConcurrency(items, limit, worker) {
 // Only checks the specific Nodes the client currently has on screen (via ?nodeIds=1,2,3),
 // with disk checks done asynchronously and in parallel (bounded), and cached per Node
 // afterwards. Nothing here scans the whole table or blocks the event loop.
+app.get('/api/srsc-pdfs/:nodeId', auth.requirePermission('FILE_VIEW'), async (req, res) => {
+  const id = Number(req.params.nodeId);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
+  try {
+    const node = await getNodeStorage(id);
+    if (!node) return res.status(404).json({ error: 'Node not found' });
+    const root = getSafeNodeRoot(node.RootPath, node.FolderPath);
+    if (!root) return res.json({ nodeId:id, files:[] });
+    const sld = path.join(root, 'SLD');
+    if (!isPathInside(root, sld) || !fs.existsSync(sld) || !fs.statSync(sld).isDirectory()) {
+      return res.json({ nodeId:id, files:[] });
+    }
+    const files = [];
+    for (const entry of fs.readdirSync(sld, { withFileTypes:true })) {
+      if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.pdf' || entry.name.startsWith('~$')) continue;
+      const full = path.join(sld, entry.name);
+      const stat = fs.statSync(full);
+      files.push({ name:entry.name, size:stat.size, modifiedAt:stat.mtime.toISOString() });
+    }
+    files.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+    res.json({ nodeId:id, files });
+  } catch(e) { sendServerError(res,'SRSC PDF request failed',e); }
+});
+
 app.get('/api/srsc-status', auth.requirePermission('FILE_VIEW'), async (req, res) => {
   try {
     if (req.query.nodeIds === undefined) return res.json({ nodeIds: [], count: 0 });
