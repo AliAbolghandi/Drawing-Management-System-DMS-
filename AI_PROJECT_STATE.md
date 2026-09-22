@@ -166,40 +166,27 @@ a8ecbf16e14fd4df20dd9093a9751987d8c2b3d2
 - CSS change committed in `frontend/css/style.css`.
 - Commit: 6fa91fba7f025b811033e07b550e345109118439
 
-## Current Known Issue
-The user currently suspects a database/RBAC permission problem:
-PermissionID=5 / PDF_VIEW is intended to allow users to see the PDFs in both:
-- SRSC PDF Drawing
-- Danieli PDF Drawing
+## Current Known Issue / Resolution
+The Node color issue was caused by an authorization mismatch in the SRSC status endpoint.
 
-Backend route protection has already been corrected to use PDF_VIEW for SRSC PDF listing and PDF access.
+Observed behavior:
+- A user with FILE_VIEW could call /api/srsc-status, so a Node containing an SRSC PDF was detected and a Node containing both Danieli + SRSC PDFs became green.
+- A user with only PDF_VIEW could open SRSC PDFs through /api/srsc-pdfs/:nodeId, but /api/srsc-status returned 403 because it incorrectly required FILE_VIEW. The frontend therefore treated SRSC as absent and a Node containing both PDFs appeared yellow (Danieli-only state).
 
-The next diagnostic step is to inspect the actual User -> Role -> RolePermissions -> Permissions rows for the affected username.
+Resolution:
+- Changed backend/server.js route /api/srsc-status authorization from FILE_VIEW to PDF_VIEW.
+- This matches the actual SRSC PDF access rule and preserves FILE_VIEW for non-PDF file/folder browsing.
+- Commit: a2eaed9dd52995f90386ad77fbc6496aacd8ea37
 
-Diagnostic SQL:
-SELECT
-    u.UserID,
-    u.Username,
-    u.IsActive,
-    r.RoleID,
-    r.RoleCode,
-    p.PermissionID,
-    p.PermissionCode,
-    p.PermissionName,
-    p.IsActive AS PermissionIsActive
-FROM dbo.Users u
-LEFT JOIN dbo.UserRoles ur
-    ON ur.UserID = u.UserID
-LEFT JOIN dbo.Roles r
-    ON r.RoleID = ur.RoleID
-LEFT JOIN dbo.RolePermissions rp
-    ON rp.RoleID = r.RoleID
-LEFT JOIN dbo.Permissions p
-    ON p.PermissionID = rp.PermissionID
-WHERE u.Username = N'USERNAME_HERE'
-ORDER BY r.RoleID, p.PermissionID;
+Expected color matrix remains:
+- Danieli only -> yellow
+- SRSC only -> green
+- Danieli + SRSC -> green
+- Neither -> default
+
 
 ## Recent Commit History
+- a2eaed9dd52995f90386ad77fbc6496aacd8ea37 — Fix SRSC node color status permission (use PDF_VIEW for /api/srsc-status)
 - 251711a115cf8c0eedd6c16e4900f0f086ce299f — Enforce PDF_VIEW for SRSC PDF viewing
 - 07a26b6ef9202893b848bea3d707f5dc436dd0fe — Fix logout API scope and redirect after session invalidation
 - b6a28c4b352b483f7ad3cdf7b6387b26ceb93f07 — Fix SRSC PDF open path
@@ -233,9 +220,7 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 
 # NEXT ACTION
 
-1. Verify in the UI that a Node with both a Danieli PDF and an SRSC PDF displays all Node text in green.
-2. Confirm that Nodes with only Danieli PDF or only SRSC content keep their existing colors.
-3. Continue diagnosing the PDF_VIEW permission issue if it is still present.
-4. Inspect the affected user's UserRoles and RolePermissions records using the diagnostic SQL above.
-5. If PDF_VIEW is present, inspect authentication/session permission loading in backend/auth.js.
-6. If PDF_VIEW is absent, correct the database role-permission assignment according to the user's intended RBAC configuration.
+1. Restart backend/server.js so the new route authorization is loaded.
+2. Test with a user having PDF_VIEW but not FILE_VIEW: a Node with both Danieli PDF and SRSC PDF must render green.
+3. Verify Danieli-only remains yellow, SRSC-only remains green, and Nodes with neither remain default.
+4. If any color mismatch remains, inspect the frontend /api/srsc-status response and the Node's actual SLD PDF presence.
