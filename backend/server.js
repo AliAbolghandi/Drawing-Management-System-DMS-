@@ -365,7 +365,7 @@ app.get('/api/srsc-pdfs/:nodeId', auth.requirePermission('PDF_VIEW'), async (req
   } catch(e) { sendServerError(res,'SRSC PDF request failed',e); }
 });
 
-app.get('/api/srsc-status', auth.requirePermission('FILE_VIEW'), async (req, res) => {
+app.get('/api/srsc-status', auth.requirePermission('PDF_VIEW'), async (req, res) => {
   try {
     if (req.query.nodeIds === undefined) return res.json({ nodeIds: [], count: 0 });
     const ids = String(req.query.nodeIds).split(',').map(Number).filter(n => Number.isInteger(n) && n > 0);
