@@ -267,12 +267,21 @@ After every significant change:
 
 Before the AI session approaches its usage/context limit, the AI must warn the user in Persian and update this file before stopping.
 
+## Root Node Creation UI — 2026-09-27
+- Replaced the previous root-level `+ Add Child Node` row with a single square `+` control placed after the last main root in the tree while `Edit Node` mode is active.
+- The square `+` opens `Add Root Node`; it creates a new top-level Node rather than a child of MIDA/REBAR.
+- `frontend/js/node-actions.js` now manages the single root-add control and calls `openCreateRootModal()`.
+- `frontend/js/node-create.js` now supports `root` creation mode and sends `ParentID: null` to the existing Node creation API.
+- `backend/server.js` now accepts `ParentID = NULL` for root creation while continuing to validate non-null parent IDs. Root `FolderPath` is generated from the new root's code/name. No database schema was changed.
+- Removed the previous `root-add-row` / `+ Add Child Node` UI.
+- Code commits: `2a25e6300da77d47aea53786c687608b58955d85`, `2c1518ae6b358834fb00df01af895e0b0cb1343c`, `1d8ef9c287b291b90f985c341150648a48fbf245`, `1adf31a96636bffa9f641f11d1f844c763d2d2e1`, `630fe95ab96eec3f682b1388d703bad40efe45de`, `fb3837950b9e841a03519d75f19391fe760d83f4`.
+- Verification: the changed files were fetched again from `main` and the root creation flow was inspected. Runtime SQL Server/UI testing and `node --check` have not yet been performed.
+
 # NEXT ACTION
 
-1. Restart `backend/server.js` so the current server.js is loaded.
-2. Login, click `Edit Node`, and verify MIDA and REBAR show `+ Add Child Node` directly below each root.
-3. Create a child under each root and verify the saved `ParentID` points to the selected root.
-4. Edit a Node, clear `JET_Position`, `Norme`, and `Mass`, save, and verify SQL values are `NULL`.
-5. Verify Node create/edit no longer returns HTTP 401 and confirm the request carries the authenticated session cookie in browser Network headers.
-6. Verify Active toggle and both Active/Inactive saves.
-7. Run `node --check backend/server.js`, `node --check frontend/js/node-create.js`, and `node --check frontend/js/node-actions.js` in the pilot environment, then perform the real SQL Server/UI regression test.
+1. Restart `backend/server.js` so the current root-creation code is loaded.
+2. Login and click `Edit Node`.
+3. Verify a single square `+` appears immediately after the last root Node (currently REBAR) and no `+ Add Child Node` text appears under MIDA/REBAR.
+4. Click the square `+`, create a third root, and verify the new row appears at the root level with `ParentID = NULL`.
+5. Verify child creation under the new root still works through the normal per-node `+` control.
+6. Run `node --check backend/server.js`, `node --check frontend/js/node-create.js`, and `node --check frontend/js/node-actions.js` in the pilot environment, then perform the real SQL Server/UI regression test.
