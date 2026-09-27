@@ -214,6 +214,16 @@ Expected color matrix remains:
 - Backend authorization remains authoritative; UI hiding does not replace requirePermission checks.
 - Commit: bb5cd53478227a4fbce4f0b9e3711bf23923061a
 
+## Recent Node Create/Edit Fix
+- Fixed Node creation/edit authentication failure caused by direct fetch() calls in frontend/js/node-create.js not sending the DMS session cookie. Node POST and PUT requests now use credentials: 'include'.
+- Node deletion in frontend/js/node-actions.js now also sends the authenticated session cookie explicitly.
+- In Edit Node mode, root Nodes such as MIDA and REBAR now show an explicit + Add Child Node action directly below the root row. This allows the first child to be added even when the normal tree expand control is disabled because the root currently has no children.
+- Optional Node fields JET_Position, Norme, and Mass are normalized so an empty value is stored as SQL NULL rather than a generated/default value. NodeCode and NodeName remain required.
+- The Node Active checkbox was redesigned as a themed toggle using the existing DMS color variables.
+- Files changed: backend/server.js, frontend/js/node-create.js, frontend/js/node-actions.js, frontend/index.html, frontend/css/node-create.css, frontend/css/node-actions.css.
+- Code commit: 726b157afa5ecebb810fab69d41a8a218ea9c24b — Fix Node creation auth, root child add, and blank fields.
+- No database schema was changed.
+
 ## Recent Commit History
 - a2eaed9dd52995f90386ad77fbc6496aacd8ea37 — Fix SRSC node color status permission (use PDF_VIEW for /api/srsc-status)
 - 251711a115cf8c0eedd6c16e4900f0f086ce299f — Enforce PDF_VIEW for SRSC PDF viewing
@@ -249,8 +259,10 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 
 # NEXT ACTION
 
-1. Restart `backend/server.js`.
-2. Select a Node such as `GP 0BV0010111` and verify Node Detail shows Main Root, First Child, and Second Child as `Code - Name`.
-3. Test a Node with fewer than three hierarchy levels; missing levels should remain `-`.
-4. Test selecting Nodes quickly in succession; a late hierarchy response must not overwrite the currently selected Node.
-5. Run `node --check backend/server.js` and `node --check frontend/js/script.js` in the pilot environment, then verify the UI against the real SQL Server.
+1. Restart backend/server.js.
+2. Log in with a user having NODE_CREATE and NODE_EDIT, click Edit Node, and verify MIDA and REBAR each show + Add Child Node directly below the root row.
+3. Add a first child under MIDA and REBAR and verify the new Node is saved with the correct ParentID.
+4. Edit an existing Node and clear JET Position, Norme, and Mass; verify the corresponding database values become SQL NULL and no replacement/default value is written.
+5. Verify the Active toggle visually and test both Active and Inactive saves.
+6. Verify Node creation no longer returns HTTP 401 and that the authenticated session is preserved on POST/PUT/DELETE.
+7. Run node --check backend/server.js and node --check frontend/js/node-create.js / node --check frontend/js/node-actions.js in the pilot environment, then verify the UI against the real SQL Server.
