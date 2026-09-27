@@ -153,8 +153,15 @@
     refreshRootCreateButton();
   }
 
-  const observer = new MutationObserver(() => {
-    refreshActionButtons();
+  const observer = new MutationObserver((mutations) => {
+    const treeChanged = mutations.some((mutation) => {
+      const nodes = [...mutation.addedNodes, ...mutation.removedNodes];
+      return nodes.some((node) => (
+        node.nodeType === Node.ELEMENT_NODE &&
+        (node.matches('.tree-node') || node.querySelector('.tree-node'))
+      ));
+    });
+    if (treeChanged) refreshActionButtons();
   });
 
   observer.observe(tree, {
