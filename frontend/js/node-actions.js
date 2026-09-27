@@ -20,6 +20,7 @@
     tree.classList.toggle('create-node-mode', editMode);
     toggleButton?.classList.toggle('active', editMode);
     if (toggleButton) toggleButton.textContent = editMode ? 'Done Editing' : 'Edit Node';
+    refreshRootCreateButton();
   }
 
   toggleButton?.addEventListener('click', () => setEditMode(!editMode));
@@ -113,23 +114,33 @@
     wrap.append(addButton, editButton, deleteButton);
     entry.row.appendChild(wrap);
 
-    // Root nodes (MIDA / REBAR) need a visible add action below the root row.
-    if (entry.wrapper?.classList.contains('root') && !entry.wrapper.querySelector('.root-add-row')) {
-      const rootAddRow = document.createElement('div');
-      rootAddRow.className = 'root-add-row';
-      const rootAddButton = document.createElement('button');
-      rootAddButton.type = 'button';
-      rootAddButton.className = 'root-add-btn';
-      rootAddButton.textContent = '+ Add Child Node';
-      rootAddButton.title = 'Add Child Node under this root';
-      rootAddButton.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        window.DMS.openCreateChildModal?.(entry.node);
-      });
-      rootAddRow.appendChild(rootAddButton);
-      entry.wrapper.appendChild(rootAddRow);
-    }
+
+  }
+
+  function refreshRootCreateButton() {
+    tree.querySelectorAll('.root-create-row').forEach(row => row.remove());
+    if (!editMode) return;
+
+    const roots = [...tree.querySelectorAll(':scope > .tree-node.root')];
+    if (!roots.length) return;
+
+    const row = document.createElement('div');
+    row.className = 'root-create-row';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'root-create-btn';
+    button.textContent = '+';
+    button.title = 'Add Root Node';
+    button.setAttribute('aria-label', 'Add Root Node');
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      window.DMS.openCreateRootModal?.();
+    });
+
+    row.appendChild(button);
+    roots[roots.length - 1].after(row);
   }
 
   function refreshActionButtons() {
@@ -139,6 +150,7 @@
     state.nodeElements.forEach((entry) => {
       attachActionButtons(entry);
     });
+    refreshRootCreateButton();
   }
 
   const observer = new MutationObserver(() => {
