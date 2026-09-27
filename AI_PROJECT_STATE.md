@@ -185,6 +185,14 @@ Expected color matrix remains:
 - Neither -> default
 
 
+## Recent Node Detail Hierarchy
+- Node Detail now displays the first three levels of the selected Node's real `ParentID` chain: Main Root, First Child, and Second Child.
+- Display format is `NodeCode - NodeName`, for example `MIDA`, `GP0BV001 - Melt Shop`, and `GP 0BV0010111 - SCRAP BUCKET ASSEMBLY`.
+- Backend endpoint added: `GET /api/node-hierarchy/:nodeId`, protected by `FILE_VIEW` permission. It walks `dbo.Nodes.ParentID` upward and returns the root-to-level-2 chain without adding or changing database columns.
+- Frontend files changed: `frontend/index.html`, `frontend/js/script.js`.
+- Backend file changed: `backend/server.js`.
+- Code commits: `828b7b0144414c38f15ea2b96e008afb13ff7d44`, `470c939a127b0f640e6dd4493279fb12521d0039`, `adc1679986b155afac8f2c620a26fd57852a4f3f`.
+
 ## Recent SRSC Empty-Folder Cleanup / Node Color Fix
 - SRSC status is now based on the presence of at least one real file anywhere under the four allowed top-level company folders: SLD, DOC, PIC, Catalog.
 - Empty top-level SRSC folders are automatically removed when their entire subtree contains no files.
@@ -241,8 +249,8 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 
 # NEXT ACTION
 
-1. Restart backend/server.js.
-2. Test a Node with an empty SLD/DOC/PIC/Catalog folder: the empty top-level folder should be removed and the Node should no longer be green unless another allowed folder contains a file.
-3. Test a Node with a file in a nested subfolder of one of the four folders: the top-level folder must remain and the Node must remain green.
-4. Test deleting the last file from an SRSC folder through DMS: the top-level folder should be removed and the Node color should recalculate to the previous Danieli/default rules.
-5. Run a local Node.js syntax check (node --check backend/server.js) and perform the above tests against the real factory storage path; this environment could not execute that local check because outbound network/DNS access is unavailable.
+1. Restart `backend/server.js`.
+2. Select a Node such as `GP 0BV0010111` and verify Node Detail shows Main Root, First Child, and Second Child as `Code - Name`.
+3. Test a Node with fewer than three hierarchy levels; missing levels should remain `-`.
+4. Test selecting Nodes quickly in succession; a late hierarchy response must not overwrite the currently selected Node.
+5. Run `node --check backend/server.js` and `node --check frontend/js/script.js` in the pilot environment, then verify the UI against the real SQL Server.
