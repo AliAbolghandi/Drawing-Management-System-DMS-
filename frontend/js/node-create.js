@@ -144,7 +144,7 @@
 
     if (submitButton) {
       submitButton.disabled = true;
-      submitButton.textContent = mode === 'create' ? 'Adding...' : 'Saving...';
+      submitButton.textContent = mode === 'create' ? 'Adding...' : mode === 'root' ? 'Adding Root...' : 'Saving...';
     }
     clearError();
 
