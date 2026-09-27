@@ -144,6 +144,7 @@
 
         const response = await fetch(apiUrl, {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
@@ -172,6 +173,7 @@
 
         const response = await fetch(`${apiUrl}/${encodeURIComponent(id)}`, {
           method: 'PUT',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
