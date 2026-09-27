@@ -461,7 +461,7 @@ async function getNodeHierarchy(id) {
     const result = await request.query(
       `SELECT TOP 1 NodeID, ParentID, NodeCode, NodeName
        FROM dbo.Nodes
-       WHERE NodeID = @id AND IsActive = 1;`
+       WHERE NodeID = @id;`
     );
     const node = result.recordset[0];
     if (!node) break;
