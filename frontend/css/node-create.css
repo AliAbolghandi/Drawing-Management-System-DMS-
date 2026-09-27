@@ -200,3 +200,14 @@
     opacity: .55;
     cursor: not-allowed;
 }
+
+
+/* Themed Active toggle */
+.active-toggle { display:inline-flex !important; align-items:center; gap:10px; margin:0 !important; cursor:pointer; user-select:none; }
+.active-toggle input { position:absolute; width:1px !important; height:1px !important; opacity:0; pointer-events:none; }
+.active-toggle-track { position:relative; width:42px; height:24px; flex:0 0 42px; border:1px solid var(--line-strong); border-radius:999px; background:var(--panel-2); transition:.16s ease; }
+.active-toggle-thumb { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:var(--text-faint); box-shadow:0 2px 5px rgba(0,0,0,.35); transition:.16s ease; }
+.active-toggle input:checked + .active-toggle-track { border-color:var(--ok); background:rgba(111,217,154,.18); box-shadow:0 0 0 3px rgba(111,217,154,.07); }
+.active-toggle input:checked + .active-toggle-track .active-toggle-thumb { transform:translateX(18px); background:var(--ok); }
+.active-toggle input:focus-visible + .active-toggle-track { border-color:var(--cyan); box-shadow:0 0 0 3px var(--cyan-dim); }
+.active-toggle-label { margin:0 !important; color:var(--text-dim) !important; font-family:var(--mono); font-size:11px; font-weight:600; }
