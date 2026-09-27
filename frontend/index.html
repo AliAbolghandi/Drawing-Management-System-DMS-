@@ -159,7 +159,11 @@
         </div>
         <div class="create-node-field"><label for="editNorme">Norme</label><input id="editNorme" maxlength="255"></div>
         <div class="create-node-field"><label for="editMass">Mass</label><input id="editMass" maxlength="255"></div>
-        <div class="create-node-field"><label><input id="editIsActive" type="checkbox" checked> Active</label></div>
+        <div class="create-node-field"><label class="active-toggle" for="editIsActive">
+          <input id="editIsActive" type="checkbox" checked>
+          <span class="active-toggle-track" aria-hidden="true"><span class="active-toggle-thumb"></span></span>
+          <span class="active-toggle-label">Active</span>
+        </label></div>
         <div id="createNodeError" class="create-node-error hidden" role="alert"></div>
         <div class="create-node-actions"><button id="createNodeCancel" class="create-node-cancel"
             type="button">Cancel</button><button id="createNodeSubmit" class="create-node-submit" type="submit">Save
