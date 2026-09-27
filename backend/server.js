@@ -230,7 +230,8 @@ app.get('/api/nodes/search', auth.requirePermission('NODE_VIEW'), async (req, re
 app.post('/api/nodes', auth.requirePermission('NODE_CREATE'), async (req, res) => {
   const code = typeof req.body?.NodeCode === 'string' ? req.body.NodeCode.trim() : '';
   const name = typeof req.body?.NodeName === 'string' ? req.body.NodeName.trim() : '';
-  const parentId = Number(req.body?.ParentID);
+  const parentRaw = req.body?.ParentID;
+  const parentId = parentRaw === null || parentRaw === undefined || parentRaw === '' ? null : Number(parentRaw);
   const jetValue = req.body?.JET_Position == null ? '' : String(req.body.JET_Position).trim();
   const normeValue = req.body?.Norme == null ? '' : String(req.body.Norme).trim();
   const massValue = req.body?.Mass == null ? '' : String(req.body.Mass).trim();
@@ -239,20 +240,23 @@ app.post('/api/nodes', auth.requirePermission('NODE_CREATE'), async (req, res) =
   const mass = massValue === '' ? null : massValue;
   const active = req.body?.IsActive === false || Number(req.body?.IsActive) === 0 ? 0 : 1;
   if (!code || !name) return res.status(400).json({ error: 'Node Code and Node Name are required.' });
-  if (!Number.isInteger(parentId) || parentId <= 0) return res.status(400).json({ error: 'A valid parent Node is required.' });
+  if (parentId !== null && (!Number.isInteger(parentId) || parentId <= 0)) return res.status(400).json({ error: 'Invalid parent Node.' });
   try {
     const pool = await sql.connect(config); const tx = new sql.Transaction(pool); await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
     try {
-      const pr = new sql.Request(tx); pr.input('parentId', sql.Int, parentId);
-      const parentResult = await pr.query('SELECT TOP 1 NodeID, FolderPath, PathID FROM dbo.Nodes WITH (UPDLOCK,HOLDLOCK) WHERE NodeID=@parentId;');
-      if (!parentResult.recordset.length) { await tx.rollback(); return res.status(404).json({ error: 'Parent Node not found.' }); }
-      const parent = parentResult.recordset[0];
-      const parentFolder = parent.FolderPath ? String(parent.FolderPath).trim() : '';
+      let parent = null;
+      if (parentId !== null) {
+        const pr = new sql.Request(tx); pr.input('parentId', sql.Int, parentId);
+        const parentResult = await pr.query('SELECT TOP 1 NodeID, FolderPath, PathID FROM dbo.Nodes WITH (UPDLOCK,HOLDLOCK) WHERE NodeID=@parentId;');
+        if (!parentResult.recordset.length) { await tx.rollback(); return res.status(404).json({ error: 'Parent Node not found.' }); }
+        parent = parentResult.recordset[0];
+      }
+      const parentFolder = parent?.FolderPath ? String(parent.FolderPath).trim() : '';
       const folderPath = parentFolder ? `${parentFolder}\\${safePart(code)} -${safePart(name)}` : `${safePart(code)} -${safePart(name)}`;
       const identity = await new sql.Request(tx).query(`SELECT COLUMNPROPERTY(OBJECT_ID('dbo.Nodes'),'NodeID','IsIdentity') AS IsIdentity;`);
       let result;
       if (Number(identity.recordset[0]?.IsIdentity) === 1) {
-        const r = new sql.Request(tx); r.input('parentId',sql.Int,parentId); r.input('code',sql.NVarChar(100),code); r.input('name',sql.NVarChar(255),name); r.input('folderPath',sql.NVarChar(sql.MAX),folderPath); r.input('pathId',sql.Int,parent.PathID ?? null); r.input('jet',sql.NVarChar(255),jet); r.input('norme',sql.NVarChar(255),norme); r.input('mass',sql.NVarChar(255),mass); r.input('active',sql.Bit,active);
+        const r = new sql.Request(tx); r.input('parentId',sql.Int,parentId); r.input('code',sql.NVarChar(100),code); r.input('name',sql.NVarChar(255),name); r.input('folderPath',sql.NVarChar(sql.MAX),folderPath); r.input('pathId',sql.Int,parent?.PathID ?? null); r.input('jet',sql.NVarChar(255),jet); r.input('norme',sql.NVarChar(255),norme); r.input('mass',sql.NVarChar(255),mass); r.input('active',sql.Bit,active);
         result = await r.query(`INSERT INTO dbo.Nodes (ParentID,NodeCode,NodeName,IsActive,CreatedAt,UpdatedAt,FolderPath,PathID,JET_Position,Norme,Mass) OUTPUT INSERTED.* VALUES (@parentId,@code,@name,@active,SYSUTCDATETIME(),SYSUTCDATETIME(),@folderPath,@pathId,@jet,@norme,@mass);`);
       } else {
         const idr = await new sql.Request(tx).query('SELECT ISNULL(MAX(NodeID),0)+1 AS NodeID FROM dbo.Nodes WITH (UPDLOCK,HOLDLOCK);');
