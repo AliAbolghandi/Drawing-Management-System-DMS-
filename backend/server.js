@@ -231,9 +231,12 @@ app.post('/api/nodes', auth.requirePermission('NODE_CREATE'), async (req, res) =
   const code = typeof req.body?.NodeCode === 'string' ? req.body.NodeCode.trim() : '';
   const name = typeof req.body?.NodeName === 'string' ? req.body.NodeName.trim() : '';
   const parentId = Number(req.body?.ParentID);
-  const jet = req.body?.JET_Position == null ? null : String(req.body.JET_Position).trim();
-  const norme = req.body?.Norme == null ? null : String(req.body.Norme).trim();
-  const mass = req.body?.Mass == null || req.body.Mass === '' ? null : String(req.body.Mass).trim();
+  const jetValue = req.body?.JET_Position == null ? '' : String(req.body.JET_Position).trim();
+  const normeValue = req.body?.Norme == null ? '' : String(req.body.Norme).trim();
+  const massValue = req.body?.Mass == null ? '' : String(req.body.Mass).trim();
+  const jet = jetValue === '' ? null : jetValue;
+  const norme = normeValue === '' ? null : normeValue;
+  const mass = massValue === '' ? null : massValue;
   const active = req.body?.IsActive === false || Number(req.body?.IsActive) === 0 ? 0 : 1;
   if (!code || !name) return res.status(400).json({ error: 'Node Code and Node Name are required.' });
   if (!Number.isInteger(parentId) || parentId <= 0) return res.status(400).json({ error: 'A valid parent Node is required.' });
@@ -270,9 +273,12 @@ app.put('/api/nodes/:nodeId', auth.requirePermission('NODE_EDIT'), async (req, r
   try {
     const r = new sql.Request();
     r.input('id',sql.Int,id); r.input('code',sql.NVarChar(100),code); r.input('name',sql.NVarChar(255),name);
-    r.input('jet',sql.NVarChar(255),req.body?.JET_Position == null ? null : String(req.body.JET_Position).trim());
-    r.input('norme',sql.NVarChar(255),req.body?.Norme == null ? null : String(req.body.Norme).trim());
-    r.input('mass',sql.NVarChar(255),req.body?.Mass == null || req.body.Mass === '' ? null : String(req.body.Mass).trim());
+    const jetValue = req.body?.JET_Position == null ? '' : String(req.body.JET_Position).trim();
+    const normeValue = req.body?.Norme == null ? '' : String(req.body.Norme).trim();
+    const massValue = req.body?.Mass == null ? '' : String(req.body.Mass).trim();
+    r.input('jet',sql.NVarChar(255),jetValue === '' ? null : jetValue);
+    r.input('norme',sql.NVarChar(255),normeValue === '' ? null : normeValue);
+    r.input('mass',sql.NVarChar(255),massValue === '' ? null : massValue);
     r.input('active',sql.Bit,req.body?.IsActive === true || Number(req.body?.IsActive) === 1 ? 1 : 0);
     const result = await r.query(`UPDATE dbo.Nodes SET NodeCode=@code,NodeName=@name,JET_Position=@jet,Norme=@norme,Mass=@mass,IsActive=@active,UpdatedAt=SYSUTCDATETIME() OUTPUT INSERTED.* WHERE NodeID=@id;`);
     if (!result.recordset.length) return res.status(404).json({ error: 'Node not found.' });
