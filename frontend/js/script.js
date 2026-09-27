@@ -241,6 +241,32 @@
     return wrapper;
   }
 
+  function formatHierarchyNode(node) {
+    if (!node) return '-';
+    const code = String(node.nodeCode || '').trim();
+    const name = String(node.nodeName || '').trim();
+    if (code && name) return `${code} - ${name}`;
+    return code || name || '-';
+  }
+
+  async function loadNodeHierarchy(nodeId) {
+    const fields = [$('detailRootNode'), $('detailFirstChild'), $('detailSecondChild')];
+    fields.forEach(field => { if (field) field.textContent = '-'; });
+
+    try {
+      const data = await requestJson(`${API}/node-hierarchy/${encodeURIComponent(nodeId)}`);
+      // Ignore a late response if the user has already selected another Node.
+      if (Number(state.currentSelectedNode?.NodeID) !== Number(nodeId)) return;
+
+      const hierarchy = Array.isArray(data.hierarchy) ? data.hierarchy : [];
+      if (fields[0]) fields[0].textContent = formatHierarchyNode(hierarchy[0]);
+      if (fields[1]) fields[1].textContent = formatHierarchyNode(hierarchy[1]);
+      if (fields[2]) fields[2].textContent = formatHierarchyNode(hierarchy[2]);
+    } catch (error) {
+      console.error('Node hierarchy load failed:', error);
+    }
+  }
+
   function showNodeDetails(node) {
     $('emptyDetails')?.classList.add('hidden');
     $('nodeDetails')?.classList.remove('hidden');
@@ -253,6 +279,8 @@
     const active = node.IsActive === true || Number(node.IsActive) === 1;
     $('detailStatus').textContent = active ? 'Active' : 'Inactive';
     $('detailStatus').className = active ? 'node-status' : 'node-status inactive';
+
+    loadNodeHierarchy(toId(node.NodeID));
     renderPdfs(toId(node.NodeID));
     loadSrscFolders(toId(node.NodeID));
   }
