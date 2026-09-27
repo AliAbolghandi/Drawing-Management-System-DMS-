@@ -24,7 +24,7 @@
     return;
   }
 
-  let mode = 'edit'; // 'edit' updates the fields of an existing Node, 'create' adds a child Node.
+  let mode = 'edit'; // 'edit' updates an existing Node, 'create' adds a child Node, 'root' adds a new root Node.
   let parentNode = null;
 
   function getState() {
@@ -97,6 +97,26 @@
     setTimeout(() => codeInput?.focus(), 50);
   }
 
+  function openCreateRootModal() {
+    mode = 'root';
+    parentNode = null;
+    delete form.dataset.nodeId;
+    if (titleEl) titleEl.textContent = 'Add Root Node';
+    if (descEl) descEl.textContent = 'Create a new main root Node.';
+    parentField?.classList.add('hidden');
+    if (codeInput) codeInput.value = '';
+    if (nameInput) nameInput.value = '';
+    if (jetInput) jetInput.value = '';
+    if (normeInput) normeInput.value = '';
+    if (massInput) massInput.value = '';
+    if (activeInput) activeInput.checked = true;
+    if (submitButton) submitButton.textContent = 'Add Root Node';
+
+    clearError();
+    modal.classList.remove('hidden');
+    setTimeout(() => codeInput?.focus(), 50);
+  }
+
   cancelButton?.addEventListener('click', closeModal);
   closeButton?.addEventListener('click', closeModal);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
@@ -129,13 +149,13 @@
     clearError();
 
     try {
-      if (mode === 'create') {
-        if (!parentNode) throw new Error('No parent Node was selected.');
+      if (mode === 'create' || mode === 'root') {
+        if (mode === 'create' && !parentNode) throw new Error('No parent Node was selected.');
 
         const body = {
           NodeCode: code,
           NodeName: name,
-          ParentID: Number(parentNode.NodeID),
+          ParentID: mode === 'create' ? Number(parentNode.NodeID) : null,
           JET_Position: jetInput?.value.trim() || '',
           Norme: normeInput?.value.trim() || '',
           Mass: massInput?.value.trim() || '',
@@ -201,7 +221,7 @@
     } finally {
       if (submitButton) {
         submitButton.disabled = false;
-        submitButton.textContent = mode === 'create' ? 'Add Node' : 'Save Changes';
+        submitButton.textContent = mode === 'create' ? 'Add Node' : mode === 'root' ? 'Add Root Node' : 'Save Changes';
       }
     }
   });
@@ -209,4 +229,5 @@
   window.DMS = window.DMS || {};
   window.DMS.openEditFieldsModal = openEditModal;
   window.DMS.openCreateChildModal = openCreateModal;
+  window.DMS.openCreateRootModal = openCreateRootModal;
 })();
