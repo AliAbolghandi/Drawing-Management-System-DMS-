@@ -312,14 +312,77 @@ async function pathIsDir(p) {
 // nodeId -> boolean. Filled lazily as nodes are actually looked up, never a full upfront scan.
 const srscCache = new Map();
 
+// Checks whether a folder contains at least one real file anywhere below it.
+// Directories alone (including nested empty directories) do not count as SRSC content.
+// Unknown entry types such as symbolic links are treated conservatively as content so
+// an unexpected filesystem object is never removed by the empty-folder cleanup.
+async function folderContainsFile(folderPath) {
+  const entries = await fs.promises.readdir(folderPath, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isFile()) return true;
+    if (entry.isDirectory()) {
+      if (await folderContainsFile(path.join(folderPath, entry.name))) return true;
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+// The four SRSC top-level folders are disposable containers. If a container contains
+// no files anywhere below it, remove the whole container. A filesystem inspection error
+// is handled conservatively: the folder is kept and the status is considered populated
+// so an access/IO problem can never cause data deletion.
+async function cleanupEmptySrscFolders(root) {
+  const removedFolders = [];
+  let hasFiles = false;
+
+  for (const folderName of ALLOWED_SRSC_FOLDERS) {
+    const folderPath = path.join(root, folderName);
+    if (!isPathInside(root, folderPath)) continue;
+
+    let exists = false;
+    try {
+      exists = await pathIsDir(folderPath);
+    } catch (_) {
+      exists = false;
+    }
+    if (!exists) continue;
+
+    let containsFile;
+    try {
+      containsFile = await folderContainsFile(folderPath);
+    } catch (error) {
+      console.warn(`SRSC folder inspection failed for ${folderPath}; keeping folder: ${error.message}`);
+      hasFiles = true;
+      continue;
+    }
+
+    if (containsFile) {
+      hasFiles = true;
+      continue;
+    }
+
+    try {
+      await fs.promises.rm(folderPath, { recursive: true, force: true });
+      removedFolders.push(folderName);
+    } catch (error) {
+      // Do not report the folder as empty/absent when deletion failed.
+      console.warn(`Empty SRSC folder cleanup failed for ${folderPath}: ${error.message}`);
+      hasFiles = true;
+    }
+  }
+
+  return { hasFiles, removedFolders };
+}
+
 async function checkNodeSrsc(nodeId, rootPath, folderPath) {
   if (srscCache.has(nodeId)) return srscCache.get(nodeId);
   const root = getSafeNodeRoot(rootPath, folderPath);
   let found = false;
   if (root && await pathIsDir(root)) {
-    for (const f of ALLOWED_SRSC_FOLDERS) {
-      if (await pathIsDir(path.join(root, f))) { found = true; break; }
-    }
+    const result = await cleanupEmptySrscFolders(root);
+    found = result.hasFiles;
   }
   srscCache.set(nodeId, found);
   return found;
@@ -417,8 +480,19 @@ app.delete('/api/node-file', auth.requirePermission('FILE_Edit'), async (req, re
     const stat = fs.statSync(target);
     if (stat.isDirectory()) await fs.promises.rm(target, { recursive: true, force: true });
     else await fs.promises.unlink(target);
-    srscCache.delete(id);
-    res.json({ success: true, deleted: name, type: stat.isDirectory() ? 'folder' : 'file' });
+
+    // Re-evaluate the four SRSC containers immediately after deletion. If the last
+    // file was removed from a top-level container, that container is removed as well.
+    const cleanupResult = await cleanupEmptySrscFolders(root);
+    srscCache.set(id, cleanupResult.hasFiles);
+
+    res.json({
+      success: true,
+      deleted: name,
+      type: stat.isDirectory() ? 'folder' : 'file',
+      removedEmptyFolders: cleanupResult.removedFolders,
+      hasSrscFiles: cleanupResult.hasFiles,
+    });
   } catch (e) { sendServerError(res, 'Delete failed', e); }
 });
 
