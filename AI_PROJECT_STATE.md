@@ -224,6 +224,16 @@ Expected color matrix remains:
 - Code commit: 726b157afa5ecebb810fab69d41a8a218ea9c24b — Fix Node creation auth, root child add, and blank fields.
 - No database schema was changed.
 
+## Node Create/Edit Rework — 2026-09-27
+- Reworked the actual Node create/edit implementation on main after verifying that the previous attempted change was not present in the live file contents.
+- `frontend/js/node-create.js`: Node create `POST` and edit `PUT` now send the DMS session cookie with `credentials: 'include'`.
+- `frontend/js/node-actions.js`: Node delete also sends credentials. In Edit Node mode, root Nodes marked by the existing `root` tree class (including MIDA/REBAR) receive a separate `+ Add Child Node` row directly below the root. The action uses the existing `openCreateChildModal` flow, so the created Node receives that root as `ParentID`.
+- `backend/server.js`: empty optional values for `JET_Position`, `Norme`, and `Mass` are normalized to SQL `NULL` on create and edit. `NodeCode` and `NodeName` remain required. No database schema was changed.
+- `frontend/index.html`, `frontend/css/node-create.css`: Active checkbox redesigned as a themed toggle using existing DMS variables.
+- `frontend/css/node-actions.css`: added styling for the root `+ Add Child Node` row.
+- Individual code commits: `780d683d89c6f5ed1e7ff0c860eecbb1a7aa6ce8`, `8b7df76380065fe5e1c1186f9497bcbfccb399af`, `b96c19f6a2bf070b748c99b8039465c88e4cc696`, `cc5118699d9f9549ced685dc215f863afcd209e0`, `e6b487d2070b4ba88859d7c6768c46ff43995773`, `3c4848b4afef13fb2573ab9d1610f8510bc75026`.
+- Verification performed: fetched each changed file again from `main` and confirmed the expected changes are present. Runtime SQL Server/UI testing has not yet been performed.
+
 ## Recent Commit History
 - a2eaed9dd52995f90386ad77fbc6496aacd8ea37 — Fix SRSC node color status permission (use PDF_VIEW for /api/srsc-status)
 - 251711a115cf8c0eedd6c16e4900f0f086ce299f — Enforce PDF_VIEW for SRSC PDF viewing
@@ -259,10 +269,10 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 
 # NEXT ACTION
 
-1. Restart backend/server.js.
-2. Log in with a user having NODE_CREATE and NODE_EDIT, click Edit Node, and verify MIDA and REBAR each show + Add Child Node directly below the root row.
-3. Add a first child under MIDA and REBAR and verify the new Node is saved with the correct ParentID.
-4. Edit an existing Node and clear JET Position, Norme, and Mass; verify the corresponding database values become SQL NULL and no replacement/default value is written.
-5. Verify the Active toggle visually and test both Active and Inactive saves.
-6. Verify Node creation no longer returns HTTP 401 and that the authenticated session is preserved on POST/PUT/DELETE.
-7. Run node --check backend/server.js and node --check frontend/js/node-create.js / node --check frontend/js/node-actions.js in the pilot environment, then verify the UI against the real SQL Server.
+1. Restart `backend/server.js` so the current server.js is loaded.
+2. Login, click `Edit Node`, and verify MIDA and REBAR show `+ Add Child Node` directly below each root.
+3. Create a child under each root and verify the saved `ParentID` points to the selected root.
+4. Edit a Node, clear `JET_Position`, `Norme`, and `Mass`, save, and verify SQL values are `NULL`.
+5. Verify Node create/edit no longer returns HTTP 401 and confirm the request carries the authenticated session cookie in browser Network headers.
+6. Verify Active toggle and both Active/Inactive saves.
+7. Run `node --check backend/server.js`, `node --check frontend/js/node-create.js`, and `node --check frontend/js/node-actions.js` in the pilot environment, then perform the real SQL Server/UI regression test.
