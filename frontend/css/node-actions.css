@@ -71,3 +71,10 @@
 .node-edit-btn:active {
     transform: translateY(1px);
 }
+
+
+/* Root child action shown only while Edit Node mode is active */
+.root-add-row { display:none; padding:4px 0 7px 38px; }
+.tree-container.create-node-mode .root-add-row { display:block; }
+.root-add-btn { min-height:28px; padding:4px 12px; border:1px dashed var(--ok-dim); border-radius:7px; background:rgba(111,217,154,.05); color:var(--ok); font-family:var(--mono); font-size:10px; font-weight:600; }
+.root-add-btn:hover { background:rgba(111,217,154,.13); border-color:var(--ok); }
