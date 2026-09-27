@@ -275,7 +275,7 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 - `backend/server.js` now accepts `ParentID = NULL` for root creation while continuing to validate non-null parent IDs. Root `FolderPath` is generated from the new root's code/name. No database schema was changed.
 - Removed the previous `root-add-row` / `+ Add Child Node` UI.
 - Code commits: `2a25e6300da77d47aea53786c687608b58955d85`, `2c1518ae6b358834fb00df01af895e0b0cb1343c`, `1d8ef9c287b291b90f985c341150648a48fbf245`, `1adf31a96636bffa9f641f11d1f844c763d2d2e1`, `630fe95ab96eec3f682b1388d703bad40efe45de`, `fb3837950b9e841a03519d75f19391fe760d83f4`.
-- Verification: the changed files were fetched again from `main` and the root creation flow was inspected. Runtime SQL Server/UI testing and `node --check` have not yet been performed.
+- Verification: the changed files were fetched again from `main`; the root creation flow and MutationObserver behavior were inspected. Runtime SQL Server/UI testing and `node --check` have not yet been performed.
 
 # NEXT ACTION
 
