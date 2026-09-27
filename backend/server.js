@@ -449,6 +449,55 @@ app.get('/api/srsc-status', auth.requirePermission('PDF_VIEW'), async (req, res)
   } catch (e) { sendServerError(res, 'SRSC status failed', e); }
 });
 
+async function getNodeHierarchy(id) {
+  const chain = [];
+  let currentId = Number(id);
+  const seen = new Set();
+
+  while (Number.isInteger(currentId) && currentId > 0 && !seen.has(currentId) && chain.length < 100) {
+    seen.add(currentId);
+    const request = new sql.Request();
+    request.input('id', sql.Int, currentId);
+    const result = await request.query(
+      `SELECT TOP 1 NodeID, ParentID, NodeCode, NodeName
+       FROM dbo.Nodes
+       WHERE NodeID = @id AND IsActive = 1;`
+    );
+    const node = result.recordset[0];
+    if (!node) break;
+    chain.push(node);
+    currentId = node.ParentID == null ? null : Number(node.ParentID);
+  }
+
+  // chain is current -> parent -> ... -> root. Return root -> current.
+  chain.reverse();
+  return chain;
+}
+
+app.get('/api/node-hierarchy/:nodeId', auth.requirePermission('FILE_VIEW'), async (req, res) => {
+  const id = Number(req.params.nodeId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid Node ID' });
+  }
+
+  try {
+    const chain = await getNodeHierarchy(id);
+    if (!chain.length) return res.status(404).json({ error: 'Node not found' });
+
+    res.json({
+      nodeId: id,
+      hierarchy: chain.slice(0, 3).map((node, index) => ({
+        level: index,
+        nodeId: Number(node.NodeID),
+        nodeCode: node.NodeCode || '',
+        nodeName: node.NodeName || '',
+      })),
+    });
+  } catch (e) {
+    sendServerError(res, 'Node hierarchy request failed', e);
+  }
+});
+
 async function getNodeStorage(id){const r=new sql.Request();r.input('id',sql.Int,id);const q=await r.query(`SELECT TOP 1 N.NodeID,N.NodeCode,N.FolderPath,N.PathID,P.RootPath FROM dbo.Nodes N LEFT JOIN dbo.tblPath P ON N.PathID=P.PathID WHERE N.NodeID=@id;`);return q.recordset[0]||null;}
 app.get('/api/node-folders/:nodeId', auth.requirePermission('FILE_VIEW'),async(req,res)=>{const id=Number(req.params.nodeId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);if(!root)return res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:false,folders:[]});if(!fs.existsSync(root)||!fs.statSync(root).isDirectory())return res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:true,folderExists:false,folders:[]});const folders=ALLOWED_SRSC_FOLDERS.map(name=>{const p=path.join(root,name);try{return{name,exists:fs.existsSync(p)&&fs.statSync(p).isDirectory()};}catch(_){return{name,exists:false};}}).filter(x=>x.exists);res.json({nodeId:id,nodeCode:node.NodeCode,hasFolderPath:true,folderExists:true,folders});}catch(e){sendServerError(res,'Node folders request failed',e);}});
 
