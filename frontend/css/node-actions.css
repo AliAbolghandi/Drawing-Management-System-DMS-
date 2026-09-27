@@ -73,8 +73,37 @@
 }
 
 
-/* Root child action shown only while Edit Node mode is active */
-.root-add-row { display:none; padding:4px 0 7px 38px; }
-.tree-container.create-node-mode .root-add-row { display:block; }
-.root-add-btn { min-height:28px; padding:4px 12px; border:1px dashed var(--ok-dim); border-radius:7px; background:rgba(111,217,154,.05); color:var(--ok); font-family:var(--mono); font-size:10px; font-weight:600; }
-.root-add-btn:hover { background:rgba(111,217,154,.13); border-color:var(--ok); }
+/* ---- Add a new main root Node ---- */
+.root-create-row {
+    display: none;
+    padding: 8px 0 10px 38px;
+}
+
+.tree-container.create-node-mode .root-create-row {
+    display: block;
+}
+
+.root-create-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--ok-dim);
+    border-radius: 7px;
+    background: rgba(111, 217, 154, .07);
+    color: var(--ok);
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 27px;
+    text-align: center;
+    transition: background .15s ease, border-color .15s ease, transform .05s ease;
+}
+
+.root-create-btn:hover {
+    background: rgba(111, 217, 154, .16);
+    border-color: var(--ok);
+}
+
+.root-create-btn:active {
+    transform: translateY(1px);
+}
