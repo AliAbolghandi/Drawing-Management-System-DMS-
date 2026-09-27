@@ -1,6 +1,6 @@
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-09-22
+Last updated: 2026-09-27
 Repository: https://github.com/AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
@@ -185,6 +185,16 @@ Expected color matrix remains:
 - Neither -> default
 
 
+## Recent SRSC Empty-Folder Cleanup / Node Color Fix
+- SRSC status is now based on the presence of at least one real file anywhere under the four allowed top-level company folders: SLD, DOC, PIC, Catalog.
+- Empty top-level SRSC folders are automatically removed when their entire subtree contains no files.
+- Nested empty directories inside an SRSC folder do not count as content; if the top-level folder contains no files anywhere below it, the whole top-level folder is removed.
+- Files in nested subfolders keep the corresponding top-level folder and keep the Node in SRSC/green status.
+- Filesystem inspection/deletion errors are handled conservatively: the folder is kept and the status is treated as populated so an I/O/permission error cannot cause unintended deletion.
+- The delete-file API immediately re-checks the four SRSC folders after a successful deletion and updates the Node SRSC cache, so removing the last file can immediately clear the green status.
+- No database schema/API permission contract was changed.
+- Code commit: b669d64944681fa8d85460f7c62711d18e25d9aa — Fix SRSC empty-folder cleanup and node color status
+
 ## Recent UI/RBAC Change — Viewer controls
 - VIEWER (RoleID 4 / RoleCode VIEWER) must not see node/file editing controls.
 - Updated frontend/index.html to load /api/auth/me permissions and hide:
@@ -231,7 +241,8 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 
 # NEXT ACTION
 
-1. Restart backend/server.js if it is currently running, then log in with a VIEWER (RoleID 4) account.
-2. Verify the Viewer UI does not show Edit Node, Upload Files, or Delete Files, and does not show the per-node + / Edit / Delete controls.
-3. Verify a DrawingExpert/DrawingSupervisor/Admin account still sees the controls allowed by its permissions.
-4. If Viewer still sees a control, inspect /api/auth/me -> permissions and confirm the corresponding permission is not granted to RoleCode VIEWER.
+1. Restart backend/server.js.
+2. Test a Node with an empty SLD/DOC/PIC/Catalog folder: the empty top-level folder should be removed and the Node should no longer be green unless another allowed folder contains a file.
+3. Test a Node with a file in a nested subfolder of one of the four folders: the top-level folder must remain and the Node must remain green.
+4. Test deleting the last file from an SRSC folder through DMS: the top-level folder should be removed and the Node color should recalculate to the previous Danieli/default rules.
+5. Run a local Node.js syntax check (node --check backend/server.js) and perform the above tests against the real factory storage path; this environment could not execute that local check because outbound network/DNS access is unavailable.
