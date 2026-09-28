@@ -1,6 +1,6 @@
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-09-27
+Last updated: 2026-09-28
 Repository: https://github.com/AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
@@ -277,11 +277,84 @@ Before the AI session approaches its usage/context limit, the AI must warn the u
 - Code commits: `2a25e6300da77d47aea53786c687608b58955d85`, `2c1518ae6b358834fb00df01af895e0b0cb1343c`, `1d8ef9c287b291b90f985c341150648a48fbf245`, `1adf31a96636bffa9f641f11d1f844c763d2d2e1`, `630fe95ab96eec3f682b1388d703bad40efe45de`, `fb3837950b9e841a03519d75f19391fe760d83f4`.
 - Verification: the changed files were fetched again from `main`; the root creation flow and MutationObserver behavior were inspected. Runtime SQL Server/UI testing and `node --check` have not yet been performed.
 
+
+
+## New Project Phase — Request-Based Drawing Access & Workflow — 2026-09-28
+This is the next functional phase of DMS. The system is moving from direct PDF/file visibility toward controlled, request-based access for actions that require authorization or controlled processing.
+
+### New Functional Goals
+- A user must be able to submit a request for a **stamped PDF** associated with a selected Node instead of treating the currently visible PDF as automatically sufficient for every business action.
+- A user must be able to submit a **request for an SRSC drawing** when the required drawing/action is not simply covered by normal viewing permission.
+- Every drawing-related request must receive a **unique Request ID** and persist its business data in the database.
+- A request must retain at least the selected Node/context, requester identity, request description/reason, current status, and relevant workflow timestamps/actors.
+- The system must provide worklists appropriate to the user's responsibility:
+  - Requester: view and track their own requests and statuses.
+  - Manager: review requests requiring managerial approval and approve/reject them.
+  - Admin / DrawingSupervisor: manage/assign approved or actionable requests to a DrawingExpert.
+  - DrawingExpert: receive assigned drawing work and process the requested drawing action.
+- The workflow must support **manager approval/rejection** before controlled drawing work proceeds where approval is required.
+- Admin/DrawingSupervisor must be able to assign a request to a **DrawingExpert**.
+- The system must provide notifications for important workflow transitions/assignments so responsible users can identify pending actions.
+- Request authorization must be enforced in the backend through RBAC/PermissionCode checks. Frontend visibility alone is not an authorization boundary.
+- The existing PDF viewing permissions and current SRSC/Danieli access behavior must remain intact unless a new request workflow explicitly governs a separate controlled action.
+- Existing Node, PDF, file, authentication, and RBAC functionality must not be removed while this phase is implemented.
+- API contracts and the established database structure must remain backward-compatible where possible. Any new database objects required for the request workflow must be additive and must not delete or structurally alter existing tables without explicit approval.
+
+### Request Workflow Concept
+1. User selects a Node and chooses the applicable request action, such as **Request Stamped PDF** or **Request SRSC Drawing**.
+2. DMS creates a unique request record and captures the requester, Node, request type, description, and initial status.
+3. If the request requires managerial approval, it enters the Manager worklist.
+4. Manager approves or rejects the request; the decision and actor/time are persisted.
+5. Approved actionable requests become available to Admin/DrawingSupervisor for assignment.
+6. Admin/DrawingSupervisor assigns the request to a DrawingExpert.
+7. DrawingExpert processes the assigned request and the request status progresses through the defined workflow.
+8. Notifications are generated for relevant users when a request is created, approved/rejected, assigned, or otherwise requires action.
+9. Request history must remain auditable; important state changes and assignments must not be silently overwritten.
+
+### Planned / Proposed Request-Workflow Data Model
+The request phase is expected to use additive tables based on the Tables-v02 design discussion:
+- `DrawingRequests`
+- `DrawingRequestStatuses`
+- `DrawingRequestAssignments`
+- `Notifications`
+
+These tables are intended to support request persistence, status tracking, assignment history, and notifications. Exact columns, keys, foreign keys, status codes, and permission mappings must be verified against the actual Tables-v02/Tables-v03 files and current SQL Server schema before any SQL change is applied.
+
+### Request Permissions / RBAC
+New request-specific permissions should be additive and follow the existing PermissionCode model. Candidate capabilities from the phase discussion include:
+- Create drawing request
+- View own drawing requests
+- Review/approve/reject requests
+- Assign drawing requests
+- View/act on assigned DrawingExpert work
+- View/manage request notifications
+
+Exact PermissionCode names and role mappings must be finalized against the current security schema before implementation. Existing PDF_VIEW, FILE_VIEW, FILE_Edit, NODE_VIEW, NODE_EDIT/NODE_CREATE/NODE_DELETE and established role semantics must not be changed merely to introduce the request workflow.
+
+### UI Direction
+- Add a request action such as **Request Drawing** in the relevant Node/drawing context.
+- The request dialog must clearly identify the selected Node and request type and collect the required description/reason.
+- Provide a **My Requests** view for requesters.
+- Provide dedicated pending/request worklists for Manager, Admin/DrawingSupervisor, and DrawingExpert according to RBAC.
+- Request status, Request ID, requester, Node, assignment, and approval state must be visible where appropriate.
+- Notifications should be accessible from the authenticated DMS UI.
+- Existing Viewer restrictions and current drawing/file viewing UI must remain functional.
+
+### Security / Audit Requirements for This Phase
+- Request creation, approval/rejection, assignment, and status transitions must be validated server-side.
+- A user must not be able to approve, reject, assign, or process a request by modifying frontend code, URL parameters, Request ID, or direct API calls.
+- Backend authorization must validate both the user's permission and the request/workflow state where applicable.
+- Request IDs must not be trusted as authorization; ownership/role and workflow state must be checked server-side.
+- Sensitive request information must not be exposed to unauthorized users.
+- Workflow events should be auditable through the existing logging/audit approach.
+
 # NEXT ACTION
 
-1. Restart `backend/server.js` so the current root-creation code is loaded.
-2. Login and click `Edit Node`.
-3. Verify a single square `+` appears immediately after the last root Node (currently REBAR) and no `+ Add Child Node` text appears under MIDA/REBAR.
-4. Click the square `+`, create a third root, and verify the new row appears at the root level with `ParentID = NULL`.
-5. Verify child creation under the new root still works through the normal per-node `+` control.
-6. Run `node --check backend/server.js`, `node --check frontend/js/node-create.js`, and `node --check frontend/js/node-actions.js` in the pilot environment, then perform the real SQL Server/UI regression test.
+1. Verify the latest real GitHub/main state and current SQL Server schema before implementing the request workflow.
+2. Inspect and reconcile Tables-v02 and Tables-v03 with the actual database, especially the proposed request/notification tables and existing Users/Roles/Permissions/UserRoles/RolePermissions/UserManager relationships.
+3. Finalize the additive request data model and PermissionCode list before changing SQL.
+4. Implement the request workflow incrementally: request creation -> Manager review -> Admin/DrawingSupervisor assignment -> DrawingExpert worklist -> status/history -> notifications.
+5. Add backend authorization for every request action and verify direct API calls cannot bypass workflow permissions or state.
+6. Add the corresponding UI worklists and request dialogs without removing existing PDF/file viewing functionality.
+7. Run syntax checks, API/RBAC/security regression tests, and real SQL Server/UI tests in the pilot environment.
+8. After implementation and verification, update this file again with the exact schema, API routes, PermissionCodes, changed files, test results, and real commit SHA.
