@@ -1,0 +1,321 @@
+﻿LineText
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# DMS DATABASE SCHEMA
+
+- Database: `dbDrawingManagment`
+- Generated At: `2026-09-28 14:37:14`
+- Data Exported: **NO**
+- Purpose: Complete relational database schema and relationship definition
+
+---
+
+# 1. DATABASE SUMMARY
+
+| Property | Value |
+|---|---|
+| Database | `dbDrawingManagment` |
+| Compatibility Level | `160` |
+| Recovery Model | `FULL` |
+
+---
+
+# 2. TABLE LIST
+
+| Schema | Table | Object ID | Created | Modified |
+|---|---|---:|---|---|
+| `dbo` | `DanieliPDF` | `1525580473` | `2026-09-05 11:33:52` | `2026-09-06 08:19:39` |
+| `dbo` | `Logs` | `274100017` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
+| `dbo` | `Nodes` | `1237579447` | `2026-08-31 14:39:42` | `2026-09-16 15:10:38` |
+| `dbo` | `Permissions` | `130099504` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
+| `dbo` | `RolePermissions` | `242099903` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
+| `dbo` | `Roles` | `82099333` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
+| `dbo` | `sysdiagrams` | `1077578877` | `2026-08-31 11:58:40` | `2026-08-31 11:58:40` |
+| `dbo` | `tblPath` | `1589580701` | `2026-09-06 07:56:46` | `2026-09-10 10:51:43` |
+| `dbo` | `UserManager` | `178099675` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
+| `dbo` | `UserRoles` | `210099789` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
+| `dbo` | `Users` | `18099105` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
+
+---
+
+# 3. COMPLETE TABLE DEFINITIONS
+
+## `dbo.DanieliPDF`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `PDFID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 2 | `NodeID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `NodeCode` | `nvarchar(200)` | 400 | 0 | 0 | NO | NO |  | NO |
+| 4 | `PDFName` | `nvarchar(200)` | 400 | 0 | 0 | NO | NO |  | NO |
+| 5 | `PathID` | `int` | 4 | 10 | 0 | NO | NO | `((3))` | NO |
+
+---
+
+## `dbo.Logs`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `LogID` | `bigint` | 8 | 19 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `UserID` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 3 | `UserName` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 4 | `Action` | `nvarchar(100)` | 200 | 0 | 0 | NO | NO |  | NO |
+| 5 | `IPAddress` | `nvarchar(64)` | 128 | 0 | 0 | YES | NO |  | NO |
+| 6 | `CreatedAt` | `datetime2(0)` | 6 | 19 | 0 | NO | NO | `(sysutcdatetime())` | NO |
+
+---
+
+## `dbo.Nodes`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `NodeID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 2 | `ParentID` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 3 | `NodeCode` | `nvarchar(100)` | 200 | 0 | 0 | NO | NO |  | NO |
+| 4 | `NodeName` | `nvarchar(255)` | 510 | 0 | 0 | YES | NO |  | NO |
+| 5 | `isActive` | `bit` | 1 | 1 | 0 | NO | NO |  | NO |
+| 6 | `CreatedAt` | `datetime2(7)` | 8 | 27 | 7 | YES | NO |  | NO |
+| 7 | `UpdatedAt` | `datetime2(7)` | 8 | 27 | 7 | YES | NO |  | NO |
+| 8 | `FolderPath` | `nvarchar(1000)` | 2000 | 0 | 0 | YES | NO |  | NO |
+| 9 | `PathID` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 10 | `JET_Position` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 11 | `Norme` | `text` | 16 | 0 | 0 | YES | NO |  | NO |
+| 12 | `Mass` | `text` | 16 | 0 | 0 | YES | NO |  | NO |
+
+---
+
+## `dbo.Permissions`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `PermissionID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `PermissionCode` | `nvarchar(100)` | 200 | 0 | 0 | NO | NO |  | NO |
+| 3 | `PermissionName` | `nvarchar(150)` | 300 | 0 | 0 | NO | NO |  | NO |
+| 4 | `Description` | `nvarchar(500)` | 1000 | 0 | 0 | YES | NO |  | NO |
+| 5 | `IsActive` | `bit` | 1 | 1 | 0 | NO | NO | `((1))` | NO |
+
+---
+
+## `dbo.RolePermissions`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `RolePermissionID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `RoleID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `PermissionID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+
+---
+
+## `dbo.Roles`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `RoleID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `RoleCode` | `nvarchar(100)` | 200 | 0 | 0 | NO | NO |  | NO |
+| 3 | `RoleName` | `nvarchar(150)` | 300 | 0 | 0 | NO | NO |  | NO |
+| 4 | `Description` | `nvarchar(500)` | 1000 | 0 | 0 | YES | NO |  | NO |
+| 5 | `IsActive` | `bit` | 1 | 1 | 0 | NO | NO | `((1))` | NO |
+
+---
+
+## `dbo.sysdiagrams`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `name` | `sysname` | 256 | 0 | 0 | NO | NO |  | NO |
+| 2 | `principal_id` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `diagram_id` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 4 | `version` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 5 | `definition` | `varbinary(MAX)` | -1 | 0 | 0 | YES | NO |  | NO |
+
+### Table Description
+
+| Property | Value |
+|---|---|
+| `microsoft_database_tools_support` | `1` |
+
+---
+
+## `dbo.tblPath`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `PathID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 2 | `SourceName` | `nvarchar(50)` | 100 | 0 | 0 | NO | NO |  | NO |
+| 3 | `RootPath` | `nvarchar(500)` | 1000 | 0 | 0 | NO | NO |  | NO |
+
+---
+
+## `dbo.UserManager`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `UserManagerID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `ManagerID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `UserID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+
+---
+
+## `dbo.UserRoles`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `UserRoleID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `UserID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `RoleID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+
+---
+
+## `dbo.Users`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `UserID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `Username` | `nvarchar(100)` | 200 | 0 | 0 | NO | NO |  | NO |
+| 3 | `Name` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 4 | `Family` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 5 | `PasswordHash` | `nvarchar(500)` | 1000 | 0 | 0 | YES | NO |  | NO |
+| 6 | `IsActive` | `bit` | 1 | 1 | 0 | NO | NO | `((0))` | NO |
+| 7 | `CreatedAt` | `datetime2(0)` | 6 | 19 | 0 | NO | NO | `(sysutcdatetime())` | NO |
+| 8 | `UpdatedAt` | `datetime2(0)` | 6 | 19 | 0 | YES | NO |  | NO |
+| 9 | `LastLoginAt` | `datetime2(0)` | 6 | 19 | 0 | YES | NO |  | NO |
+
+---
+
+# 4. PRIMARY KEYS
+
+| Table | Constraint | Columns |
+|---|---|---|
+| `dbo.DanieliPDF` | `PK_DanieliPDF` | `PDFID` |
+| `dbo.Logs` | `PK_Logs` | `LogID` |
+| `dbo.Nodes` | `PK_Nodes` | `NodeID` |
+| `dbo.Permissions` | `PK_Permissions` | `PermissionID` |
+| `dbo.RolePermissions` | `PK_RolePermissions` | `RolePermissionID` |
+| `dbo.Roles` | `PK_Roles` | `RoleID` |
+| `dbo.sysdiagrams` | `PK__sysdiagr__C2B05B619FC01DEC` | `diagram_id` |
+| `dbo.tblPath` | `PK_tblPath` | `PathID` |
+| `dbo.UserManager` | `PK_UserManager` | `UserManagerID` |
+| `dbo.UserRoles` | `PK_UserRoles` | `UserRoleID` |
+| `dbo.Users` | `PK_Users` | `UserID` |
+
+---
+
+# 5. FOREIGN KEYS / RELATIONSHIPS
+
+| Foreign Key | Child Table | Child Column(s) | Parent Table | Parent Column(s) | Delete | Update | Enabled | Trusted |
+|---|---|---|---|---|---|---|---|---|
+| `FK_DanieliPDF_Nodes` | `dbo.DanieliPDF` | `NodeID` | `dbo.Nodes` | `NodeID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DanieliPDF_tblPath` | `dbo.DanieliPDF` | `PathID` | `dbo.tblPath` | `PathID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_Nodes_tblPath` | `dbo.Nodes` | `PathID` | `dbo.tblPath` | `PathID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+
+---
+
+# 6. UNIQUE CONSTRAINTS
+
+| Table | Constraint | Columns |
+|---|---|---|
+| `dbo.sysdiagrams` | `UK_principal_name` | `principal_id`, `name` |
+
+---
+
+# 7. INDEXES
+
+| Table | Index | Type | Unique | Primary Key | Unique Constraint | Key Columns | Included Columns |
+|---|---|---|---|---|---|---|---|
+| `dbo.DanieliPDF` | `IX_DanieliPDF_NodeID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `NodeID` | `` |
+| `dbo.DanieliPDF` | `PK_DanieliPDF` | `CLUSTERED` | `YES` | `YES` | `NO` | `PDFID` | `` |
+| `dbo.Logs` | `IX_Logs_UserID_CreatedAt` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `UserID`, `CreatedAt` | `` |
+| `dbo.Logs` | `PK_Logs` | `CLUSTERED` | `YES` | `YES` | `NO` | `LogID` | `` |
+| `dbo.Nodes` | `IX_Nodes_ParentID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `ParentID` | `` |
+| `dbo.Nodes` | `PK_Nodes` | `CLUSTERED` | `YES` | `YES` | `NO` | `NodeID` | `` |
+| `dbo.Permissions` | `PK_Permissions` | `CLUSTERED` | `YES` | `YES` | `NO` | `PermissionID` | `` |
+| `dbo.Permissions` | `UX_Permissions_PermissionCode` | `NONCLUSTERED` | `YES` | `NO` | `NO` | `PermissionCode` | `` |
+| `dbo.RolePermissions` | `IX_RolePermissions_PermissionID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `PermissionID` | `` |
+| `dbo.RolePermissions` | `PK_RolePermissions` | `CLUSTERED` | `YES` | `YES` | `NO` | `RolePermissionID` | `` |
+| `dbo.RolePermissions` | `UX_RolePermissions_Role_Permission` | `NONCLUSTERED` | `YES` | `NO` | `NO` | `RoleID`, `PermissionID` | `` |
+| `dbo.Roles` | `PK_Roles` | `CLUSTERED` | `YES` | `YES` | `NO` | `RoleID` | `` |
+| `dbo.Roles` | `UX_Roles_RoleCode` | `NONCLUSTERED` | `YES` | `NO` | `NO` | `RoleCode` | `` |
+| `dbo.sysdiagrams` | `PK__sysdiagr__C2B05B619FC01DEC` | `CLUSTERED` | `YES` | `YES` | `NO` | `diagram_id` | `` |
+| `dbo.sysdiagrams` | `UK_principal_name` | `NONCLUSTERED` | `YES` | `NO` | `YES` | `principal_id`, `name` | `` |
+| `dbo.tblPath` | `PK_tblPath` | `CLUSTERED` | `YES` | `YES` | `NO` | `PathID` | `` |
+| `dbo.UserManager` | `IX_UserManager_UserID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `UserID` | `` |
+| `dbo.UserManager` | `PK_UserManager` | `CLUSTERED` | `YES` | `YES` | `NO` | `UserManagerID` | `` |
+| `dbo.UserRoles` | `IX_UserRoles_RoleID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `RoleID` | `` |
+| `dbo.UserRoles` | `PK_UserRoles` | `CLUSTERED` | `YES` | `YES` | `NO` | `UserRoleID` | `` |
+| `dbo.UserRoles` | `UX_UserRoles_User_Role` | `NONCLUSTERED` | `YES` | `NO` | `NO` | `UserID`, `RoleID` | `` |
+| `dbo.Users` | `PK_Users` | `CLUSTERED` | `YES` | `YES` | `NO` | `UserID` | `` |
+| `dbo.Users` | `UX_Users_Username` | `NONCLUSTERED` | `YES` | `NO` | `NO` | `Username` | `` |
+
+---
+
+# 8. CHECK CONSTRAINTS
+
+| Table | Constraint | Definition | Disabled | Not Trusted |
+|---|---|---|---|---|
+
+---
+
+# 9. VIEWS
+
+
+---
+
+# 10. TRIGGERS
+
+| Table | Trigger | Enabled | Type |
+|---|---|---|---|
+
+### Trigger Definitions
+
+
+---
+
+# 11. RELATIONSHIP MAP
+
+Every line below represents a Child ? Parent relationship.
+
+- `dbo.DanieliPDF.NodeID` ? `dbo.Nodes.NodeID`  (FK: `FK_DanieliPDF_Nodes`)
+- `dbo.DanieliPDF.PathID` ? `dbo.tblPath.PathID`  (FK: `FK_DanieliPDF_tblPath`)
+- `dbo.Nodes.PathID` ? `dbo.tblPath.PathID`  (FK: `FK_Nodes_tblPath`)
+
+---
+
+# 12. RELATIONSHIP SUMMARY
+
+| Child Table | Child Column(s) | Foreign Key | Parent Table | Parent Column(s) | Delete | Update |
+|---|---|---|---|---|---|---|
+| `dbo.DanieliPDF` | `NodeID` | `FK_DanieliPDF_Nodes` | `dbo.Nodes` | `NodeID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DanieliPDF` | `PathID` | `FK_DanieliPDF_tblPath` | `dbo.tblPath` | `PathID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.Nodes` | `PathID` | `FK_Nodes_tblPath` | `dbo.tblPath` | `PathID` | `NO_ACTION` | `NO_ACTION` |
+
+---
+
+# 13. SCHEMA OBJECT COUNTS
+
+| Object Type | Count |
+|---|---:|
+| Tables | 11 |
+| Views | 0 |
+| Primary Keys | 11 |
+| Foreign Keys | 3 |
+| Unique Constraints | 1 |
+| Check Constraints | 0 |
+| Indexes | 205 |
+| Triggers | 0 |
+
+---
+
+# 14. NOTES
+
+- This document contains database metadata only.
+- No table rows were exported.
+- No user records were exported.
+- No file records were exported as data.
+- Foreign Key relationships are explicitly documented.
+- Multi-column Foreign Keys are kept together as one relationship.
+- Index key columns and included columns are documented separately.
+- View and Trigger definitions are included where SQL Server exposes them.
+
+# END OF DATABASE SCHEMA EXPORT
+
+
+Completion time: 2026-09-28T14:37:15.3361809+03:30
