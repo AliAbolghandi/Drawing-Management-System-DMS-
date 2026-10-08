@@ -449,20 +449,89 @@ Exact PermissionCode names and role mappings must be finalized against the curre
   - 98e33c3439a8857a229204acf304ed100871ee46 — restore missing Add Request button
   - 59521d300ac4241f66e7e74d923391182d046c61 — apply existing request button styling
 
+# Admin Database Management — 2026-10-08
+
+## Current Task
+Add an Admin-only in-app database management environment so an Admin can view, add, edit, activate/deactivate, and delete records without using SQL manually.
+
+## Implemented
+- Added Admin-only **Management** button to the main DMS header.
+  - File: `frontend/index.html`
+  - The button is hidden by default and shown only when `/api/auth/me` reports `user.isAdmin=true`.
+  - Commit: `5ef3bbb883232941b2d0c0802969363b6414042c`
+- Added dedicated management page:
+  - `frontend/management.html`
+  - `frontend/js/management.js`
+  - `frontend/css/management.css`
+  - Supports table selection, table search, row search, pagination, add, edit, delete, confirmation, and error reporting.
+  - Uses the existing DMS session cookie with `credentials: include`.
+  - Commit: `b7c0d30c8aaff86d1de210ba5b41a6aebcb049e9`
+  - Commit: `a1be812204e75d935c18fbc654ea84f357dc17de`
+  - Commit: `cc9e05bd6868b81266818796467b5c2f9a591a4c`
+- Added live Admin authorization:
+  - File: `backend/auth.js`
+  - `requireAdmin()` checks the current SQL Server relationship `Users -> UserRoles -> Roles`, requiring active user + active `RoleCode='Admin'`.
+  - `writeAudit` is exported for Admin CRUD audit logging.
+  - Commit: `80b829cde4d935b226b29a92c136570a491d98b3`
+- Added secure metadata-driven CRUD API:
+  - File: `backend/admin-db.js`
+  - Registered from `backend/server.js`.
+  - Commit: `0b5da40bcc75172f46f53eb7336b6e3f20921e4e`
+  - Hardened after implementation:
+    - `sysdiagrams` is excluded from management.
+    - `dbo.Logs` is read-only to preserve audit integrity.
+    - `Users.PasswordHash` is never returned to the UI.
+    - Users can set/change password through a dedicated password field; hashing uses the same scrypt format as `backend/set-password.js`.
+    - Commit: `790de20c2e8bbbd04705d3d97a1741127e4e9cad`
+- `backend/server.js` now imports/registers the dedicated Admin module and serves `/management.html`.
+  - Commit: `96bfe72c4f7cee27fed7f02b844576ba8c927ba1`
+  - Management route: `GET /management.html` (authenticated page; API remains Admin-only).
+  - Admin API routes:
+    - `GET /api/admin/tables`
+    - `GET /api/admin/tables/:tableName/rows`
+    - `POST /api/admin/tables/:tableName/rows`
+    - `PATCH /api/admin/tables/:tableName/rows`
+    - `DELETE /api/admin/tables/:tableName/rows`
+- Database schema was not changed.
+- Current verified schema source: `SQL/Relation between table.rpt`.
+- Current schema contains 17 dbo tables. Important RBAC tables include `Users`, `UserRoles`, `Roles`, `RolePermissions`, `Permissions`, and workflow tables include `DrawingRequests`, `DrawingRequestStatuses`, `DrawingRequestAssignments`, `DrawingRequestHistory`, `Notifications`, plus `UserManager`.
+- The Admin UI is metadata-driven from SQL Server system catalog, so it automatically reflects current table columns/PKs/FKs instead of hardcoding the table structure.
+
+## Security / Behavior
+- Table/column identifiers are resolved from SQL Server metadata and safely quoted.
+- Row values are parameterized; the UI never submits arbitrary SQL.
+- Primary keys, Identity columns, Computed columns, and audit timestamps are not directly editable.
+- Foreign-key constraints remain enforced by SQL Server. Delete/update failures are returned as controlled errors.
+- Every successful Admin insert/update/delete writes an entry to `dbo.Logs`.
+- `Logs` cannot be edited/deleted through this panel.
+- Admin authorization is checked server-side for every Admin API request; hiding the Management button is not the security boundary.
+- User activation/deactivation is supported through the `Users.IsActive` field.
+- Role permissions can be managed through `RolePermissions` records by editing/adding/removing `RoleID` + `PermissionID`.
+
+## Testing Status
+- Source files were fetched again from GitHub after the changes and structural anchors were verified.
+- A local runtime test could not be performed because this AI environment cannot reach the user's local SQL Server at `localhost`.
+- An external `git clone`/Node syntax check was attempted but the execution environment could not resolve `github.com`; therefore no claim of runtime/syntax execution is made.
+- Next real-machine test must start the DMS backend against the actual SQL Server and verify:
+  1. Admin sees Management.
+  2. Non-Admin cannot access Admin APIs.
+  3. Users can be added and activated/deactivated.
+  4. RolePermissions can be added/removed.
+  5. Delete behavior respects foreign keys.
+  6. Password creation/reset from the Users form allows login.
+
+## Known Limitations
+- The management UI currently uses generic inputs for FK columns; it does not yet provide relationship-aware dropdowns for every FK.
+- `dbo.Logs` is intentionally read-only.
+- `sysdiagrams` is intentionally excluded.
+- Runtime SQL Server/browser validation remains pending on the user's machine.
+
 # NEXT ACTION
 
-1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture the actual SQL Server result/errors.
-2. Log in with a user that has REQUEST_DRAWING_CREATE, select a Node, and verify Add Request is visible; log in with a user without it and verify it is hidden.
-3. Click Add Request and verify the modal opens with the selected Node, then submit and verify the request/notification in Worklist.
-4. Implement the next workflow actions in order: Manager approve/reject, DrawingSupervisor/Admin drawing approval/assignment, DrawingExpert accept/transfer/reject/complete, correction return, and final approve/reject.
-5. Decide and fix the known Notifications.RequestNumber UNIQUE design limitation before implementing multiple notifications for the same request.
-6. Re-run the database relationship export after v04 deployment and update SQL/Relation between table.rpt.
-1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture the actual SQL Server result/errors; the new request API cannot work until the v04 workflow tables exist.
-2. Verify the new request API against real data:
-   - requester has exactly one active UserManager mapping;
-   - POST /api/drawing-requests creates DrawingRequests, DrawingRequestHistory, and the Manager Notifications row;
-   - GET /api/drawing-requests returns only requests permitted by PermissionCode plus requester/manager/expert responsibility.
-3. Test the browser UI with a VIEWER/Manager account: select a Node -> Add Request -> submit -> open Worklist -> verify the request and notification badge.
-4. Implement the next workflow actions in order: Manager approve/reject, DrawingSupervisor/Admin drawing approval/assignment, DrawingExpert accept/transfer/reject/complete, correction return, and final approve/reject. Each action must enforce PermissionCode + current workflow status + ownership/responsibility.
-5. Decide and fix the known Notifications.RequestNumber UNIQUE design limitation before implementing multiple notifications for the same request.
-6. Re-run the database relationship export after v04 deployment and update SQL/Relation between table.rpt.
+1. Start the DMS backend on the real Windows/SQL Server machine and run a syntax/runtime smoke test for `backend/auth.js`, `backend/server.js`, `backend/admin-db.js`, and `frontend/js/management.js`.
+2. Log in as Admin and click **Management**; verify all 17 application tables appear and `Nodes` pagination works with the large dataset.
+3. Verify `Users`: add a test user with password, toggle `IsActive`, save, then log in with that account.
+4. Verify `Roles`, `Permissions`, and `RolePermissions`: add/remove a permission and confirm the user's effective permissions change after a fresh login.
+5. Verify FK-protected delete/update behavior on a non-critical test record.
+6. Improve the generic FK editor with searchable relationship dropdowns (especially `RolePermissions.RoleID`, `RolePermissions.PermissionID`, `UserRoles.UserID/RoleID`, `UserManager.ManagerID/UserID`) without changing database schema.
+7. After runtime validation, update this file with the exact test result and latest commit hash.
