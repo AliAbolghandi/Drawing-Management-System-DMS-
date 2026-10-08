@@ -204,7 +204,7 @@ Expected color matrix remains:
 - Code commit: b669d64944681fa8d85460f7c62711d18e25d9aa — Fix SRSC empty-folder cleanup and node color status
 
 ## Recent UI/RBAC Change — Viewer controls
-- VIEWER (RoleID 4 / RoleCode VIEWER) must not see node/file editing controls.
+- VIEWER must not see node/file editing controls unless the effective PermissionCode set grants them.
 - Updated frontend/index.html to load /api/auth/me permissions and hide:
   - Edit Node button (#createNewNodeBtn) unless NODE_EDIT/NODE_CREATE/NODE_DELETE is granted.
   - Upload Files button (#uploadFilesBtn) unless FILE_Edit is granted.
@@ -363,7 +363,7 @@ Exact PermissionCode names and role mappings must be finalized against the curre
   - dbo.Notifications
 - The migration adds Role Manager (RoleID is resolved by RoleCode/existing identity state).
 - It adds the 15 request permissions REQUEST_DRAWING_* from v04 and the v04 RolePermissions mapping without duplicating existing mappings.
-- It aligns UserID=7 from VIEWER (RoleID=4) to Manager (RoleID=5) when the existing v02 row is present, matching Tables-v04.
+- It aligns UserID=7 from VIEWER to Manager when the existing v02 row is present, resolving both roles by RoleCode rather than fixed RoleID values.
 - It seeds the 14 v04 workflow statuses, including EXPERT_REJECTED, RETURNED_FOR_CORRECTION, PENDING_FINAL_APPROVAL, FINAL_APPROVED, FINAL_REJECTED, and CANCELLED.
 - It seeds the 14 v04 ActionCode rows.
 - Existing Nodes, DanieliPDF, tblPath, Users, UserManager, and Logs data are not re-imported.
@@ -377,9 +377,35 @@ Exact PermissionCode names and role mappings must be finalized against the curre
 - Tables-v04.xlsx defines Notifications.RequestNumber as NVARCHAR(30) UNIQUE. The migration intentionally preserves this v04 definition. This may prevent multiple notifications for the same request, so it must be explicitly reviewed before implementing multi-event notifications.
 - Tables-v04.xlsx does not contain request-row data in DrawingRequests, DrawingRequestAssignments, DrawingRequestHistory, or Notifications; only status/action seed data is present for the new workflow objects.
 
+## Recent Authorization Hardening — 2026-10-08
+
+- `backend/auth.js` is now strictly PermissionCode-driven for backend authorization.
+- `requirePermission(permissionCode)` no longer allows `req.user.isAdmin` to bypass `RolePermissions`.
+- Effective permissions loaded at login are resolved through:
+  `Users -> UserRoles -> Roles -> RolePermissions -> Permissions`.
+- Only active permissions (`Permissions.IsActive=1`) are loaded into the session permission set.
+- `isAdmin` remains only informational/session metadata and is not an authorization bypass.
+- `backend/server.js` dynamic `/api/node-file` authorization was also corrected: PDF access requires `PDF_VIEW`, non-PDF access requires `FILE_VIEW`, with no Admin bypass.
+- All inspected `backend/server.js` protected routes use explicit PermissionCode strings such as `NODE_VIEW`, `NODE_CREATE`, `NODE_EDIT`, `NODE_DELETE`, `PDF_VIEW`, `FILE_VIEW`, and `FILE_Edit`; no RoleID is passed to `requirePermission`.
+- `SQL/Inserttable.sql` RolePermissions seeding now resolves roles by `RoleCode` (`Admin`, `DrawingSupervisor`, `DrawingExpert`, `VIEWER`, `Manager`) and permissions by `PermissionCode`; fixed RoleID 1..5 mappings were removed.
+- The v04 UserID=7 role alignment in `SQL/Inserttable.sql` now resolves VIEWER and Manager RoleIDs from their RoleCode values before updating `UserRoles`.
+- `frontend/index.html` RBAC visibility documentation no longer references VIEWER RoleID; UI visibility remains based on effective PermissionCode values.
+- Database schema was not changed by this authorization hardening; the existing `RolePermissions` relationship remains the authoritative RBAC mapping.
+- Runtime SQL Server/UI testing is still pending in this session. Static source inspection confirmed there is no remaining `req.user.isAdmin` authorization bypass in the inspected Backend paths.
+
+## Authorization Design Rule
+
+- `RoleID` is a relational database key used to join `Roles` and `RolePermissions`; it is never a permission identifier.
+- Backend route guards must receive a `PermissionCode`, never a RoleID.
+- Authorization must be evaluated from the user's effective permissions produced by `UserRoles -> Roles -> RolePermissions -> Permissions`.
+- Adding a new role must require only database Role/RolePermissions data; Backend route authorization must not require a new hard-coded RoleID.
+- Adding/removing a permission from a role must be possible through `RolePermissions` without changing Backend authorization code.
+
 # NEXT ACTION
 
 1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture any SQL Server errors/results.
+2. Verify the authorization result with at least VIEWER, Manager, DrawingExpert, DrawingSupervisor, and Admin role assignments: changing RolePermissions must change backend access without changing code.
+3. Verify no Backend route uses RoleID as a permission or relies on the Admin bypass; inspect any newly added workflow routes before implementation.
 2. Verify the resulting tables, columns, PKs, FKs, unique constraints, indexes, 14 statuses, 14 action codes, 15 new permissions, Manager role, RolePermissions, and UserID=7 role mapping.
 3. Re-run the database relationship export query and update SQL/Relation between table.rpt so it reflects the new v04 relationships.
 4. Before implementing notifications, decide explicitly whether Notifications.RequestNumber should remain UNIQUE or be changed to allow multiple notifications per request.
