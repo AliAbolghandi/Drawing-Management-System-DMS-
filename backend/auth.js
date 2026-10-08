@@ -135,6 +135,29 @@ function createAuth(frontendOrigins) {
     };
   }
 
+  function requireAdmin() {
+    return async (req, res, next) => {
+      if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+      try {
+        const r = new sql.Request();
+        r.input('userId', sql.Int, req.user.userId);
+        const q = await r.query(`
+          SELECT TOP 1 1 AS IsAdmin
+          FROM dbo.UserRoles ur
+          INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID
+          INNER JOIN dbo.Users u ON u.UserID=ur.UserID
+          WHERE ur.UserID=@userId AND u.IsActive=1
+            AND r.RoleCode=N'Admin' AND r.IsActive=1;
+        `);
+        if (!q.recordset.length) return res.status(403).json({ error: 'Admin access required.' });
+        next();
+      } catch (e) {
+        console.error('Admin authorization check failed:', e.message);
+        res.status(500).json({ error: 'Authorization service is unavailable.' });
+      }
+    };
+  }
+
   function apiRateLimit(req, res, next) {
     const key = getClientIp(req);
     const now = Date.now();
@@ -356,6 +379,8 @@ function createAuth(frontendOrigins) {
     securityHeaders,
     authenticate,
     requirePermission,
+    requireAdmin,
+    writeAudit,
     apiSecurity: (req, res, next) => apiRateLimit(req, res, err => {
       if (err) return next(err);
       csrfGuard(req, res, next);
