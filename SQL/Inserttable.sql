@@ -49,25 +49,25 @@ BEGIN TRY
           migration resolves permissions by PermissionCode.
        ============================================================ */
     INSERT INTO dbo.Permissions
-        (PermissionCode, PermissionName, Module, Description)
-    SELECT v.PermissionCode, v.PermissionName, v.Module, v.Description
+        (PermissionCode, PermissionName, [Description], IsActive)
+    SELECT v.PermissionCode, v.PermissionName, v.[Description], 1
     FROM (VALUES
-        (N'REQUEST_DRAWING_CREATE',           CAST(NULL AS nvarchar(150)), CAST(NULL AS nvarchar(100)), CAST(NULL AS nvarchar(500))),
-        (N'REQUEST_DRAWING_VIEW_OWN',         NULL, NULL, NULL),
-        (N'REQUEST_DRAWING_VIEW_MANAGER',     NULL, NULL, NULL),
-        (N'REQUEST_DRAWING_APPROVE',          NULL, NULL, NULL),
-        (N'REQUEST_DRAWING_REJECT',           NULL, NULL, NULL),
-        (N'REQUEST_DRAWING_VIEW_ALL',         NULL, NULL, NULL),
-        (N'REQUEST_DRAWING_ASSIGN',           NULL, NULL, NULL),
-        (N'REQUEST_DRAWING_VIEW_ASSIGNED',    NULL, NULL, NULL),
-        (N'REQUEST_DRAWING_ACCEPT',           NULL, NULL, N'DrawingExpert بتواند درخواست ارجاع‌شده را Accept کند.'),
-        (N'REQUEST_DRAWING_TRANSFER',         NULL, NULL, N'DrawingExpert بتواند درخواست را به DrawingExpert دیگری واگذار کند.'),
-        (N'REQUEST_DRAWING_EXPERT_REJECT',    NULL, NULL, N'DrawingExpert بتواند درخواست را Reject کند.'),
-        (N'REQUEST_DRAWING_COMPLETE',         NULL, NULL, N'DrawingExpert بتواند کار را تمام‌شده اعلام کند.'),
-        (N'REQUEST_DRAWING_RETURN_CORRECTION',NULL, NULL, N'کاربر مجاز بتواند درخواست را برای اصلاح برگرداند.'),
-        (N'REQUEST_DRAWING_FINAL_APPROVE',    NULL, NULL, N'Admin/DrawingSupervisor بتوانند تأیید نهایی کنند.'),
-        (N'REQUEST_DRAWING_FINAL_REJECT',     NULL, NULL, N'Admin/DrawingSupervisor بتوانند تأیید نهایی را رد کنند.')
-    ) AS v(PermissionCode, PermissionName, Module, Description)
+        (N'REQUEST_DRAWING_CREATE',             N'Create Drawing Request',              N'Create a drawing request.'),
+        (N'REQUEST_DRAWING_VIEW_OWN',          N'View Own Drawing Requests',            N'View drawing requests created by the current user.'),
+        (N'REQUEST_DRAWING_VIEW_MANAGER',      N'View Manager Requests',                N'View drawing requests assigned to the current manager for approval.'),
+        (N'REQUEST_DRAWING_APPROVE',           N'Approve Drawing Request',              N'Approve a drawing request at the Manager approval stage.'),
+        (N'REQUEST_DRAWING_REJECT',            N'Reject Drawing Request',               N'Reject a drawing request at the Manager approval stage.'),
+        (N'REQUEST_DRAWING_VIEW_ALL',          N'View All Drawing Requests',             N'View all drawing requests permitted by the workflow.'),
+        (N'REQUEST_DRAWING_ASSIGN',            N'Assign Drawing Request',               N'Assign an approved drawing request to a DrawingExpert.'),
+        (N'REQUEST_DRAWING_VIEW_ASSIGNED',     N'View Assigned Drawing Requests',       N'View drawing requests assigned to the current DrawingExpert.'),
+        (N'REQUEST_DRAWING_ACCEPT',            N'Accept Drawing Request',               N'DrawingExpert can accept an assigned request.'),
+        (N'REQUEST_DRAWING_TRANSFER',          N'Transfer Drawing Request',             N'DrawingExpert can transfer a request to another DrawingExpert.'),
+        (N'REQUEST_DRAWING_EXPERT_REJECT',     N'Expert Reject Drawing Request',        N'DrawingExpert can reject an assigned request.'),
+        (N'REQUEST_DRAWING_COMPLETE',          N'Complete Drawing Request',             N'DrawingExpert can mark the assigned work as completed.'),
+        (N'REQUEST_DRAWING_RETURN_CORRECTION', N'Return Drawing Request for Correction', N'An authorized user can return the request for correction.'),
+        (N'REQUEST_DRAWING_FINAL_APPROVE',     N'Final Approve Drawing Request',        N'Admin/DrawingSupervisor can give final approval.'),
+        (N'REQUEST_DRAWING_FINAL_REJECT',      N'Final Reject Drawing Request',         N'Admin/DrawingSupervisor can reject final approval.')
+    ) AS v(PermissionCode, PermissionName, [Description])
     WHERE NOT EXISTS (
         SELECT 1
         FROM dbo.Permissions p
