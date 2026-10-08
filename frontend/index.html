@@ -264,8 +264,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 <script>
 /*
  * RBAC UI visibility:
- * VIEWER (RoleID 4) has only read permissions, so editing/upload/delete
- * controls must not be visible. Authorization is still enforced server-side.
+ * Editing/upload/delete controls are shown only when the effective
+ * PermissionCode set grants the corresponding permission. Authorization is
+ * always enforced server-side through RolePermissions.
  */
 (() => {
   const host = window.location.hostname || 'localhost';
