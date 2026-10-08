@@ -534,17 +534,19 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - `sysdiagrams` is intentionally excluded.
 - Runtime SQL Server/browser validation remains pending on the user's machine.
 
-# NEXT ACTION
 
-1. Restart the DMS backend (`backend/server.js`) so the current GitHub source is running.
-2. Keep the frontend on Live Server `http://127.0.0.1:5500` if desired, refresh the Management page, and confirm Network now calls `http://127.0.0.1:3000/api/auth/me` and receives `200` for the Admin session.
-3. Confirm the table list loads; the previous `tables/null/rows` error should disappear because rows are loaded only after a real table is selected.
-4. Verify `Users`, `Roles`, `Permissions`, and `RolePermissions` CRUD on test records.
-5. If the Admin session was created on `localhost` while the page is on `127.0.0.1`, use one hostname consistently (`127.0.0.1` recommended) and log in again.
-6. After runtime validation, update this file with the exact test result and latest commit hash. on the real Windows/SQL Server machine and run a syntax/runtime smoke test for `backend/auth.js`, `backend/server.js`, `backend/admin-db.js`, and `frontend/js/management.js`.
-2. Log in as Admin and click **Management**; verify all 17 application tables appear and `Nodes` pagination works with the large dataset.
-3. Verify `Users`: add a test user with password, toggle `IsActive`, save, then log in with that account.
-4. Verify `Roles`, `Permissions`, and `RolePermissions`: add/remove a permission and confirm the user's effective permissions change after a fresh login.
-5. Verify FK-protected delete/update behavior on a non-critical test record.
-6. Improve the generic FK editor with searchable relationship dropdowns (especially `RolePermissions.RoleID`, `RolePermissions.PermissionID`, `UserRoles.UserID/RoleID`, `UserManager.ManagerID/UserID`) without changing database schema.
-7. After runtime validation, update this file with the exact test result and latest commit hash.
+## Management Table Row Ordering Fix — 2026-10-08
+- User requirement: records shown in the **Management** database table view must be ordered by the table's primary key.
+- Backend file: `backend/admin-db.js`.
+- `metadata()` now reads SQL Server `sys.index_columns.key_ordinal` for primary-key columns and exposes `PrimaryKeyOrdinal` in table metadata.
+- `GET /api/admin/tables/:tableName/rows` now builds its `ORDER BY` from all primary-key columns in actual PK ordinal order. This also correctly handles composite primary keys; it no longer sorts only by the first PK column.
+- If a table has no PK, the existing fallback remains the first column.
+- No database schema was changed.
+- Code commit: `de451fcd2fa9127276790d1e4a23ae24969d0140` — Sort Management table rows by full primary key
+- Verification: the updated file was fetched from `main` after commit and the SQL/JavaScript change was structurally inspected. Runtime Management/UI testing against SQL Server has not been performed in this session.
+
+# NEXT ACTION
+1. Run the backend and open **Management** as an admin.
+2. Select a table with a numeric PK and confirm rows are displayed ascending by PK.
+3. If any table has a composite PK, confirm ordering follows the PK column order defined by SQL Server.
+4. If runtime testing reveals a table-specific ordering issue, inspect `backend/admin-db.js` `metadata()` and the rows endpoint before changing the database schema.
