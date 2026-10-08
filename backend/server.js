@@ -906,6 +906,7 @@ const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
 app.get('/', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'login.html')));
 app.get('/login.html', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'login.html')));
 app.get('/index.html', auth.authenticatePage, (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'index.html')));
+app.get('/management.html', auth.authenticatePage, (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'management.html')));
 app.use(express.static(FRONTEND_DIR, { index: false }));
 
 app.listen(PORT,'0.0.0.0',async()=>{console.log(`Server running on http://0.0.0.0:${PORT}`);await testDatabaseConnection();});
