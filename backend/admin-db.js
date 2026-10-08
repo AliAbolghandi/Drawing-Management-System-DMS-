@@ -157,10 +157,17 @@ function registerAdminDatabaseRoutes(app, deps) {
       const primaryKeyColumns = meta.columns
         .filter(c => c.IsPrimaryKey)
         .sort((a, b) => a.PrimaryKeyOrdinal - b.PrimaryKeyOrdinal || a.ColumnID - b.ColumnID);
-      const orderColumns = primaryKeyColumns.length
-        ? primaryKeyColumns
-        : [meta.columns[0]];
-      const order = orderColumns.map(c => qi(c.ColumnName)).join(', ');
+      const defaultOrderColumns = primaryKeyColumns.length ? primaryKeyColumns : [meta.columns[0]];
+      const requestedSort = typeof req.query.sortBy === 'string' ? req.query.sortBy : '';
+      const sortColumn = meta.columns.find(c => c.ColumnName === requestedSort);
+      const sortDirection = String(req.query.sortDir || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+      const orderParts = sortColumn
+        ? [qi(sortColumn.ColumnName) + ' ' + sortDirection]
+        : [qi(defaultOrderColumns[0].ColumnName) + ' ASC'];
+      if (sortColumn && defaultOrderColumns.some(c => c.ColumnName === sortColumn.ColumnName) === false) {
+        orderParts.push(...defaultOrderColumns.map(c => qi(c.ColumnName) + ' ASC'));
+      }
+      const order = orderParts.join(', ');
       const r = new sql.Request();
       r.input('offset', sql.Int, (page - 1) * pageSize);
       r.input('fetch', sql.Int, pageSize);
