@@ -192,21 +192,29 @@ BEGIN TRY
           Tables-v02: UserID 7 = VIEWER (RoleID 4)
           Tables-v04: UserID 7 = Manager (RoleID 5)
        ============================================================ */
+    DECLARE @ViewerRoleID int = (
+        SELECT TOP 1 RoleID FROM dbo.Roles WHERE RoleCode = N'VIEWER' AND IsActive = 1
+    );
+    DECLARE @ManagerRoleID int = (
+        SELECT TOP 1 RoleID FROM dbo.Roles WHERE RoleCode = N'Manager' AND IsActive = 1
+    );
+
     IF EXISTS (SELECT 1 FROM dbo.Users WHERE UserID = 7)
-       AND EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleID = 5)
+       AND @ViewerRoleID IS NOT NULL
+       AND @ManagerRoleID IS NOT NULL
        AND EXISTS (
             SELECT 1 FROM dbo.UserRoles
-            WHERE UserID = 7 AND RoleID = 4
+            WHERE UserID = 7 AND RoleID = @ViewerRoleID
        )
        AND NOT EXISTS (
             SELECT 1 FROM dbo.UserRoles
-            WHERE UserID = 7 AND RoleID = 5
+            WHERE UserID = 7 AND RoleID = @ManagerRoleID
        )
     BEGIN
         UPDATE dbo.UserRoles
-        SET RoleID = 5
+        SET RoleID = @ManagerRoleID
         WHERE UserID = 7
-          AND RoleID = 4;
+          AND RoleID = @ViewerRoleID;
     END;
 
     /* ============================================================
