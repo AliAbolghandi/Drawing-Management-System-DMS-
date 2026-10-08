@@ -245,6 +245,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('userFamilyValue').textContent=u.family||'-';
     document.getElementById('userUsernameValue').textContent=u.username||'-';
     document.getElementById('userMenuLabel').textContent=(u.name||u.username||'User');
+    const managementButton=document.getElementById('managementButton');
+    if (managementButton && d.user?.isAdmin) {
+      managementButton.classList.remove('hidden');
+      managementButton.addEventListener('click',()=>{ window.location.href='management.html'; });
+    }
   } catch(e) {}
   btn.addEventListener('click',()=>{const open=panel.hidden;panel.hidden=!open;btn.setAttribute('aria-expanded',String(open));});
   document.addEventListener('click',(e)=>{if(!e.target.closest('#userMenu')){panel.hidden=true;btn.setAttribute('aria-expanded','false');}});
