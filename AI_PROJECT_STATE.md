@@ -545,8 +545,32 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - Code commit: `de451fcd2fa9127276790d1e4a23ae24969d0140` — Sort Management table rows by full primary key
 - Verification: the updated file was fetched from `main` after commit and the SQL/JavaScript change was structurally inspected. Runtime Management/UI testing against SQL Server has not been performed in this session.
 
+## Management Column Sorting — 2026-10-08
+- User changed the requirement: Management should allow sorting the currently opened table by clicking any column header.
+- Backend: `backend/admin-db.js`
+  - `GET /api/admin/tables/:tableName/rows` accepts `sortBy` and `sortDir`.
+  - `sortBy` is validated against actual table metadata, so arbitrary SQL identifiers are not accepted.
+  - `sortDir` accepts only `asc` or `desc`; invalid values fall back to `ASC`.
+  - If no column is selected, the default remains PK-based ordering.
+  - When sorting by a non-PK column, the PK columns are appended as deterministic tie-breakers.
+- Frontend: `frontend/js/management.js`
+  - Every table header is clickable.
+  - First click sorts ascending.
+  - Second click on the same header switches to descending.
+  - Active header shows `▲` / `▼`.
+  - Changing table resets sorting to the default state.
+- CSS: `frontend/css/management.css` styles the header sort buttons.
+- Commits:
+  - Backend: `a3b8bf1b55acb408a8e324567e11f6d8e2ef2d4f`
+  - Frontend JS: `a28aeb6e424dbb8092afb490e908828e53d9a93e`
+  - Frontend CSS: `df867b2ec93cccf910fb2019e8e063fc4007dece`
+- Runtime browser/SQL Server test was not performed in this session.
+
+
 # NEXT ACTION
-1. Run the backend and open **Management** as an admin.
-2. Select a table with a numeric PK and confirm rows are displayed ascending by PK.
-3. If any table has a composite PK, confirm ordering follows the PK column order defined by SQL Server.
-4. If runtime testing reveals a table-specific ordering issue, inspect `backend/admin-db.js` `metadata()` and the rows endpoint before changing the database schema.
+
+1. Restart the DMS backend and refresh the Management page.
+2. Open any table and click a column header; verify the first click sorts ascending and the second click sorts descending.
+3. Verify the Network request contains `sortBy=<ColumnName>&sortDir=asc|desc`.
+4. Verify sorting works across numeric, text, date/time, and nullable columns.
+5. If runtime testing passes, record the exact browser/SQL Server test result here.
