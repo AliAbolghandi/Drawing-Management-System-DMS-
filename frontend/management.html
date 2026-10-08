@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DMS Database Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/management.css">
+</head>
+<body class="management-page">
+<header class="top-header">
+ <div class="header-title"><div class="brand-mark"></div><div><h1>Database Management</h1><span>Administrative data management</span></div></div>
+ <div class="header-status"><button id="backButton" class="mgmt-secondary">← DMS</button><span id="adminIdentity" class="status connected">Admin</span></div>
+</header>
+<main class="management-layout">
+ <aside class="management-sidebar">
+  <div class="mgmt-sidebar-head"><strong>Tables</strong><span id="tableCount">-</span></div>
+  <input id="tableSearch" class="mgmt-search" placeholder="Search tables..." autocomplete="off">
+  <div id="tableList" class="table-list"><div class="mgmt-loading">Loading tables...</div></div>
+ </aside>
+ <section class="management-content">
+  <div class="mgmt-toolbar">
+   <div><h2 id="tableTitle">Select a table</h2><span id="tableMeta">Choose a table from the left.</span></div>
+   <div class="mgmt-actions"><input id="rowSearch" class="mgmt-search row-search" placeholder="Search rows..." autocomplete="off"><button id="refreshBtn" class="mgmt-secondary">Refresh</button><button id="addRowBtn" class="mgmt-primary" disabled>+ Add Record</button></div>
+  </div>
+  <div id="notice" class="mgmt-notice hidden"></div>
+  <div class="table-wrap"><table id="dataGrid"><thead></thead><tbody><tr><td class="mgmt-empty">Select a table to begin.</td></tr></tbody></table></div>
+  <div class="pagination"><button id="prevBtn" class="mgmt-secondary" disabled>←</button><span id="pageInfo">Page 1</span><button id="nextBtn" class="mgmt-secondary" disabled>→</button></div>
+ </section>
+</main>
+<div id="recordModal" class="modal-backdrop hidden">
+ <div class="record-modal">
+  <div class="record-head"><div><h3 id="modalTitle">Add Record</h3><span id="modalSubtitle"></span></div><button id="modalClose" class="modal-close">×</button></div>
+  <form id="recordForm"><div id="formFields" class="form-fields"></div><div id="formError" class="form-error hidden"></div><div class="modal-actions"><button type="button" id="modalCancel" class="mgmt-secondary">Cancel</button><button type="submit" id="modalSave" class="mgmt-primary">Save</button></div></form>
+ </div>
+</div>
+<script src="js/management.js"></script>
+</body></html>
