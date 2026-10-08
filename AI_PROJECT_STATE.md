@@ -435,8 +435,28 @@ Exact PermissionCode names and role mappings must be finalized against the curre
   - 2ac35faae9094e7c6e5b039bd76be75070b6b09c — Node Details Add Request and worklist sidebar
   - f1cb6d6feb6f235e29cb5d9b552634b8a15008b7 — allow PATCH through API CORS
 
+## Add Request Button Fix — 2026-10-08
+- Root cause: frontend/js/request-workflow.js correctly checked REQUEST_DRAWING_CREATE and controlled #addRequestBtn, but the current frontend/index.html did not actually contain an element with that ID.
+- Restored the missing Node Details action button beside Upload Files:
+  - id="addRequestBtn"
+  - label: Add Request
+  - class: request-drawing-btn (reuses existing request-workflow styling)
+- Existing frontend authorization logic remains unchanged: request-workflow.js loads /api/auth/me, stores effective PermissionCodes in window.DMS.permissions, and hides the button unless REQUEST_DRAWING_CREATE is present.
+- The backend POST /api/drawing-requests permission check remains authoritative.
+- Verification: fetched frontend/index.html from main after the change and confirmed the button, label, styling class, and request-workflow.js script are present. Source inspection also confirmed the permission check and MutationObserver remain active.
+- Runtime browser/SQL Server test has not been performed in this session.
+- Commits:
+  - 98e33c3439a8857a229204acf304ed100871ee46 — restore missing Add Request button
+  - 59521d300ac4241f66e7e74d923391182d046c61 — apply existing request button styling
+
 # NEXT ACTION
 
+1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture the actual SQL Server result/errors.
+2. Log in with a user that has REQUEST_DRAWING_CREATE, select a Node, and verify Add Request is visible; log in with a user without it and verify it is hidden.
+3. Click Add Request and verify the modal opens with the selected Node, then submit and verify the request/notification in Worklist.
+4. Implement the next workflow actions in order: Manager approve/reject, DrawingSupervisor/Admin drawing approval/assignment, DrawingExpert accept/transfer/reject/complete, correction return, and final approve/reject.
+5. Decide and fix the known Notifications.RequestNumber UNIQUE design limitation before implementing multiple notifications for the same request.
+6. Re-run the database relationship export after v04 deployment and update SQL/Relation between table.rpt.
 1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture the actual SQL Server result/errors; the new request API cannot work until the v04 workflow tables exist.
 2. Verify the new request API against real data:
    - requester has exactly one active UserManager mapping;
