@@ -1,9 +1,10 @@
 (() => {
 'use strict';
 const state={tables:[],meta:null,table:null,rows:[],page:1,pageSize:50,total:0,search:'',editing:null};
+const API_BASE=(window.DMS_API_BASE||(location.port==='5500'||location.port==='5501'?location.protocol+'//'+location.hostname+':3000':''));
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-async function api(url,options={}){const r=await fetch(url,{credentials:'include',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let d={};try{d=await r.json();}catch{}if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d;}
+async function api(url,options={}){const r=await fetch(API_BASE+url,{credentials:'include',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let d={};try{d=await r.json();}catch{}if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d;}
 function notice(msg){$('notice').textContent=msg;$('notice').classList.toggle('hidden',!msg);}
 async function boot(){try{const me=await api('/api/auth/me');if(!me.authenticated||!me.user?.isAdmin){location.href='/index.html';return;}$('adminIdentity').textContent='Admin · '+(me.user.username||'');const d=await api('/api/admin/tables');state.tables=d.tables||[];$('tableCount').textContent=state.tables.length;renderTables();}catch(e){notice(e.message);}}
 function renderTables(){const q=$('tableSearch').value.trim().toLowerCase();const list=state.tables.filter(t=>t.tableName.toLowerCase().includes(q));$('tableList').innerHTML=list.map(t=>'<button class="table-entry '+(t.tableName===state.table?'active':'')+'" data-table="'+esc(t.tableName)+'"><span>'+esc(t.tableName)+'</span><small>'+Number(t.approxRows||0).toLocaleString()+'</small></button>').join('')||'<div class="mgmt-loading">No tables found.</div>';document.querySelectorAll('.table-entry').forEach(b=>b.onclick=()=>selectTable(b.dataset.table));}
