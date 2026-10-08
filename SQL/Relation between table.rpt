@@ -1,9 +1,9 @@
-﻿LineText
+LineText
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # DMS DATABASE SCHEMA
 
 - Database: `dbDrawingManagment`
-- Generated At: `2026-09-28 14:37:14`
+- Generated At: `2026-10-08 10:38:11`
 - Data Exported: **NO**
 - Purpose: Complete relational database schema and relationship definition
 
@@ -23,9 +23,15 @@
 
 | Schema | Table | Object ID | Created | Modified |
 |---|---|---:|---|---|
+| `dbo` | `ActionCode` | `370100359` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
 | `dbo` | `DanieliPDF` | `1525580473` | `2026-09-05 11:33:52` | `2026-09-06 08:19:39` |
+| `dbo` | `DrawingRequestAssignments` | `546100986` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
+| `dbo` | `DrawingRequestHistory` | `642101328` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
+| `dbo` | `DrawingRequests` | `418100530` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
+| `dbo` | `DrawingRequestStatuses` | `322100188` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
 | `dbo` | `Logs` | `274100017` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
-| `dbo` | `Nodes` | `1237579447` | `2026-08-31 14:39:42` | `2026-09-16 15:10:38` |
+| `dbo` | `Nodes` | `1237579447` | `2026-08-31 14:39:42` | `2026-10-08 09:59:13` |
+| `dbo` | `Notifications` | `754101727` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
 | `dbo` | `Permissions` | `130099504` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
 | `dbo` | `RolePermissions` | `242099903` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
 | `dbo` | `Roles` | `82099333` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
@@ -33,11 +39,20 @@
 | `dbo` | `tblPath` | `1589580701` | `2026-09-06 07:56:46` | `2026-09-10 10:51:43` |
 | `dbo` | `UserManager` | `178099675` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
 | `dbo` | `UserRoles` | `210099789` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
-| `dbo` | `Users` | `18099105` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
+| `dbo` | `Users` | `18099105` | `2026-09-21 15:03:17` | `2026-10-08 09:59:13` |
 
 ---
 
 # 3. COMPLETE TABLE DEFINITIONS
+
+## `dbo.ActionCode`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `ActionCodeID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 2 | `ActionCode` | `nvarchar(50)` | 100 | 0 | 0 | NO | NO |  | NO |
+
+---
 
 ## `dbo.DanieliPDF`
 
@@ -48,6 +63,77 @@
 | 3 | `NodeCode` | `nvarchar(200)` | 400 | 0 | 0 | NO | NO |  | NO |
 | 4 | `PDFName` | `nvarchar(200)` | 400 | 0 | 0 | NO | NO |  | NO |
 | 5 | `PathID` | `int` | 4 | 10 | 0 | NO | NO | `((3))` | NO |
+
+---
+
+## `dbo.DrawingRequestAssignments`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `AssignmentID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `RequestID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `RequestNumber` | `nvarchar(30)` | 60 | 0 | 0 | YES | NO |  | NO |
+| 4 | `AssignedByUserID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 5 | `AssignedUsername` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 6 | `DrawingExpertUserID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 7 | `DrawingExpertUsername` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 8 | `AssignedAt` | `datetime2(7)` | 8 | 27 | 7 | NO | NO |  | NO |
+| 9 | `AcceptedAt` | `datetime2(7)` | 8 | 27 | 7 | YES | NO |  | NO |
+| 10 | `CompletedAt` | `datetime2(7)` | 8 | 27 | 7 | YES | NO |  | NO |
+| 11 | `IsCurrent` | `bit` | 1 | 1 | 0 | NO | NO | `((1))` | NO |
+| 12 | `AssignmentStatus` | `nvarchar(30)` | 60 | 0 | 0 | YES | NO |  | NO |
+| 13 | `Comment` | `nvarchar(1000)` | 2000 | 0 | 0 | YES | NO |  | NO |
+
+---
+
+## `dbo.DrawingRequestHistory`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `HistoryID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `RequestID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `RequestNumber` | `nvarchar(30)` | 60 | 0 | 0 | YES | NO |  | NO |
+| 4 | `ActionCode` | `nvarchar(50)` | 100 | 0 | 0 | NO | NO |  | NO |
+| 5 | `FromStatusID` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 6 | `ToStatusID` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 7 | `ActionByUserID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 8 | `ActionByUsername` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 9 | `Comment` | `nvarchar(1000)` | 2000 | 0 | 0 | YES | NO |  | NO |
+| 10 | `CreatedAt` | `datetime2(7)` | 8 | 27 | 7 | NO | NO |  | NO |
+
+---
+
+## `dbo.DrawingRequests`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `RequestID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `RequestNumber` | `nvarchar(30)` | 60 | 0 | 0 | NO | NO |  | NO |
+| 3 | `NodeID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 4 | `NodeCode` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 5 | `RequesterUserID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 6 | `RequesterUsername` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 7 | `ManagerUserID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 8 | `ManagerUsername` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 9 | `Description` | `nvarchar(1000)` | 2000 | 0 | 0 | YES | NO |  | NO |
+| 10 | `StatusID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 11 | `AssignedDrawingExpertID` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 12 | `CreatedAt` | `datetime2(7)` | 8 | 27 | 7 | NO | NO |  | NO |
+| 13 | `ManagerDecisionAt` | `datetime2(7)` | 8 | 27 | 7 | YES | NO |  | NO |
+| 14 | `ManagerComment` | `nvarchar(1000)` | 2000 | 0 | 0 | YES | NO |  | NO |
+| 15 | `AssignedAt` | `datetime2(7)` | 8 | 27 | 7 | YES | NO |  | NO |
+| 16 | `UpdatedAt` | `datetime2(7)` | 8 | 27 | 7 | NO | NO |  | NO |
+
+---
+
+## `dbo.DrawingRequestStatuses`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `StatusID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 2 | `StatusCode` | `nvarchar(50)` | 100 | 0 | 0 | NO | NO |  | NO |
+| 3 | `StatusName` | `nvarchar(150)` | 300 | 0 | 0 | NO | NO |  | NO |
+| 4 | `Description` | `nvarchar(1000)` | 2000 | 0 | 0 | YES | NO |  | NO |
 
 ---
 
@@ -80,6 +166,24 @@
 | 10 | `JET_Position` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
 | 11 | `Norme` | `text` | 16 | 0 | 0 | YES | NO |  | NO |
 | 12 | `Mass` | `text` | 16 | 0 | 0 | YES | NO |  | NO |
+
+---
+
+## `dbo.Notifications`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `NotificationID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `UserID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `Username` | `nvarchar(100)` | 200 | 0 | 0 | YES | NO |  | NO |
+| 4 | `RequestID` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 5 | `RequestNumber` | `nvarchar(30)` | 60 | 0 | 0 | YES | NO |  | NO |
+| 6 | `NotificationType` | `nvarchar(50)` | 100 | 0 | 0 | YES | NO |  | NO |
+| 7 | `Title` | `nvarchar(200)` | 400 | 0 | 0 | YES | NO |  | NO |
+| 8 | `Message` | `nvarchar(1000)` | 2000 | 0 | 0 | YES | NO |  | NO |
+| 9 | `IsRead` | `bit` | 1 | 1 | 0 | NO | NO | `((0))` | NO |
+| 10 | `CreatedAt` | `datetime2(7)` | 8 | 27 | 7 | NO | NO |  | NO |
+| 11 | `ReadAt` | `datetime2(7)` | 8 | 27 | 7 | YES | NO |  | NO |
 
 ---
 
@@ -185,9 +289,15 @@
 
 | Table | Constraint | Columns |
 |---|---|---|
+| `dbo.ActionCode` | `PK_ActionCode` | `ActionCodeID` |
 | `dbo.DanieliPDF` | `PK_DanieliPDF` | `PDFID` |
+| `dbo.DrawingRequestAssignments` | `PK_DrawingRequestAssignments` | `AssignmentID` |
+| `dbo.DrawingRequestHistory` | `PK_DrawingRequestHistory` | `HistoryID` |
+| `dbo.DrawingRequests` | `PK_DrawingRequests` | `RequestID` |
+| `dbo.DrawingRequestStatuses` | `PK_DrawingRequestStatuses` | `StatusID` |
 | `dbo.Logs` | `PK_Logs` | `LogID` |
 | `dbo.Nodes` | `PK_Nodes` | `NodeID` |
+| `dbo.Notifications` | `PK_Notifications` | `NotificationID` |
 | `dbo.Permissions` | `PK_Permissions` | `PermissionID` |
 | `dbo.RolePermissions` | `PK_RolePermissions` | `RolePermissionID` |
 | `dbo.Roles` | `PK_Roles` | `RoleID` |
@@ -205,7 +315,22 @@
 |---|---|---|---|---|---|---|---|---|
 | `FK_DanieliPDF_Nodes` | `dbo.DanieliPDF` | `NodeID` | `dbo.Nodes` | `NodeID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
 | `FK_DanieliPDF_tblPath` | `dbo.DanieliPDF` | `PathID` | `dbo.tblPath` | `PathID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestAssignments_AssignedBy` | `dbo.DrawingRequestAssignments` | `AssignedByUserID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestAssignments_Expert` | `dbo.DrawingRequestAssignments` | `DrawingExpertUserID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestAssignments_Request` | `dbo.DrawingRequestAssignments` | `RequestID` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestHistory_ActionCode` | `dbo.DrawingRequestHistory` | `ActionCode` | `dbo.ActionCode` | `ActionCode` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestHistory_FromStatus` | `dbo.DrawingRequestHistory` | `FromStatusID` | `dbo.DrawingRequestStatuses` | `StatusID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestHistory_Request` | `dbo.DrawingRequestHistory` | `RequestID` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestHistory_ToStatus` | `dbo.DrawingRequestHistory` | `ToStatusID` | `dbo.DrawingRequestStatuses` | `StatusID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestHistory_User` | `dbo.DrawingRequestHistory` | `ActionByUserID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequests_AssignedExpert` | `dbo.DrawingRequests` | `AssignedDrawingExpertID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequests_Manager` | `dbo.DrawingRequests` | `ManagerUserID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequests_Node` | `dbo.DrawingRequests` | `NodeID` | `dbo.Nodes` | `NodeID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequests_Requester` | `dbo.DrawingRequests` | `RequesterUserID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequests_Status` | `dbo.DrawingRequests` | `StatusID` | `dbo.DrawingRequestStatuses` | `StatusID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
 | `FK_Nodes_tblPath` | `dbo.Nodes` | `PathID` | `dbo.tblPath` | `PathID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_Notifications_Request` | `dbo.Notifications` | `RequestID` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_Notifications_User` | `dbo.Notifications` | `UserID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
 
 ---
 
@@ -213,6 +338,10 @@
 
 | Table | Constraint | Columns |
 |---|---|---|
+| `dbo.ActionCode` | `UX_ActionCode_ActionCode` | `ActionCode` |
+| `dbo.DrawingRequests` | `UX_DrawingRequests_RequestNumber` | `RequestNumber` |
+| `dbo.DrawingRequestStatuses` | `UX_DrawingRequestStatuses_StatusCode` | `StatusCode` |
+| `dbo.Notifications` | `UX_Notifications_RequestNumber` | `RequestNumber` |
 | `dbo.sysdiagrams` | `UK_principal_name` | `principal_id`, `name` |
 
 ---
@@ -221,12 +350,29 @@
 
 | Table | Index | Type | Unique | Primary Key | Unique Constraint | Key Columns | Included Columns |
 |---|---|---|---|---|---|---|---|
+| `dbo.ActionCode` | `PK_ActionCode` | `CLUSTERED` | `YES` | `YES` | `NO` | `ActionCodeID` | `` |
+| `dbo.ActionCode` | `UX_ActionCode_ActionCode` | `NONCLUSTERED` | `YES` | `NO` | `YES` | `ActionCode` | `` |
 | `dbo.DanieliPDF` | `IX_DanieliPDF_NodeID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `NodeID` | `` |
 | `dbo.DanieliPDF` | `PK_DanieliPDF` | `CLUSTERED` | `YES` | `YES` | `NO` | `PDFID` | `` |
+| `dbo.DrawingRequestAssignments` | `IX_DrawingRequestAssignments_Expert_Current` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `DrawingExpertUserID`, `IsCurrent` | `` |
+| `dbo.DrawingRequestAssignments` | `IX_DrawingRequestAssignments_RequestID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `RequestID` | `` |
+| `dbo.DrawingRequestAssignments` | `PK_DrawingRequestAssignments` | `CLUSTERED` | `YES` | `YES` | `NO` | `AssignmentID` | `` |
+| `dbo.DrawingRequestHistory` | `IX_DrawingRequestHistory_RequestID_CreatedAt` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `RequestID`, `CreatedAt` | `` |
+| `dbo.DrawingRequestHistory` | `PK_DrawingRequestHistory` | `CLUSTERED` | `YES` | `YES` | `NO` | `HistoryID` | `` |
+| `dbo.DrawingRequests` | `IX_DrawingRequests_AssignedDrawingExpertID_StatusID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `AssignedDrawingExpertID`, `StatusID` | `` |
+| `dbo.DrawingRequests` | `IX_DrawingRequests_ManagerUserID_StatusID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `ManagerUserID`, `StatusID` | `` |
+| `dbo.DrawingRequests` | `IX_DrawingRequests_RequesterUserID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `RequesterUserID` | `` |
+| `dbo.DrawingRequests` | `PK_DrawingRequests` | `CLUSTERED` | `YES` | `YES` | `NO` | `RequestID` | `` |
+| `dbo.DrawingRequests` | `UX_DrawingRequests_RequestNumber` | `NONCLUSTERED` | `YES` | `NO` | `YES` | `RequestNumber` | `` |
+| `dbo.DrawingRequestStatuses` | `PK_DrawingRequestStatuses` | `CLUSTERED` | `YES` | `YES` | `NO` | `StatusID` | `` |
+| `dbo.DrawingRequestStatuses` | `UX_DrawingRequestStatuses_StatusCode` | `NONCLUSTERED` | `YES` | `NO` | `YES` | `StatusCode` | `` |
 | `dbo.Logs` | `IX_Logs_UserID_CreatedAt` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `UserID`, `CreatedAt` | `` |
 | `dbo.Logs` | `PK_Logs` | `CLUSTERED` | `YES` | `YES` | `NO` | `LogID` | `` |
 | `dbo.Nodes` | `IX_Nodes_ParentID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `ParentID` | `` |
 | `dbo.Nodes` | `PK_Nodes` | `CLUSTERED` | `YES` | `YES` | `NO` | `NodeID` | `` |
+| `dbo.Notifications` | `IX_Notifications_UserID_IsRead_CreatedAt` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `UserID`, `IsRead`, `CreatedAt` | `` |
+| `dbo.Notifications` | `PK_Notifications` | `CLUSTERED` | `YES` | `YES` | `NO` | `NotificationID` | `` |
+| `dbo.Notifications` | `UX_Notifications_RequestNumber` | `NONCLUSTERED` | `YES` | `NO` | `YES` | `RequestNumber` | `` |
 | `dbo.Permissions` | `PK_Permissions` | `CLUSTERED` | `YES` | `YES` | `NO` | `PermissionID` | `` |
 | `dbo.Permissions` | `UX_Permissions_PermissionCode` | `NONCLUSTERED` | `YES` | `NO` | `NO` | `PermissionCode` | `` |
 | `dbo.RolePermissions` | `IX_RolePermissions_PermissionID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `PermissionID` | `` |
@@ -275,7 +421,22 @@ Every line below represents a Child ? Parent relationship.
 
 - `dbo.DanieliPDF.NodeID` ? `dbo.Nodes.NodeID`  (FK: `FK_DanieliPDF_Nodes`)
 - `dbo.DanieliPDF.PathID` ? `dbo.tblPath.PathID`  (FK: `FK_DanieliPDF_tblPath`)
+- `dbo.DrawingRequestAssignments.AssignedByUserID` ? `dbo.Users.UserID`  (FK: `FK_DrawingRequestAssignments_AssignedBy`)
+- `dbo.DrawingRequestAssignments.DrawingExpertUserID` ? `dbo.Users.UserID`  (FK: `FK_DrawingRequestAssignments_Expert`)
+- `dbo.DrawingRequestAssignments.RequestID` ? `dbo.DrawingRequests.RequestID`  (FK: `FK_DrawingRequestAssignments_Request`)
+- `dbo.DrawingRequestHistory.ActionCode` ? `dbo.ActionCode.ActionCode`  (FK: `FK_DrawingRequestHistory_ActionCode`)
+- `dbo.DrawingRequestHistory.FromStatusID` ? `dbo.DrawingRequestStatuses.StatusID`  (FK: `FK_DrawingRequestHistory_FromStatus`)
+- `dbo.DrawingRequestHistory.RequestID` ? `dbo.DrawingRequests.RequestID`  (FK: `FK_DrawingRequestHistory_Request`)
+- `dbo.DrawingRequestHistory.ToStatusID` ? `dbo.DrawingRequestStatuses.StatusID`  (FK: `FK_DrawingRequestHistory_ToStatus`)
+- `dbo.DrawingRequestHistory.ActionByUserID` ? `dbo.Users.UserID`  (FK: `FK_DrawingRequestHistory_User`)
+- `dbo.DrawingRequests.AssignedDrawingExpertID` ? `dbo.Users.UserID`  (FK: `FK_DrawingRequests_AssignedExpert`)
+- `dbo.DrawingRequests.ManagerUserID` ? `dbo.Users.UserID`  (FK: `FK_DrawingRequests_Manager`)
+- `dbo.DrawingRequests.NodeID` ? `dbo.Nodes.NodeID`  (FK: `FK_DrawingRequests_Node`)
+- `dbo.DrawingRequests.RequesterUserID` ? `dbo.Users.UserID`  (FK: `FK_DrawingRequests_Requester`)
+- `dbo.DrawingRequests.StatusID` ? `dbo.DrawingRequestStatuses.StatusID`  (FK: `FK_DrawingRequests_Status`)
 - `dbo.Nodes.PathID` ? `dbo.tblPath.PathID`  (FK: `FK_Nodes_tblPath`)
+- `dbo.Notifications.RequestID` ? `dbo.DrawingRequests.RequestID`  (FK: `FK_Notifications_Request`)
+- `dbo.Notifications.UserID` ? `dbo.Users.UserID`  (FK: `FK_Notifications_User`)
 
 ---
 
@@ -285,7 +446,22 @@ Every line below represents a Child ? Parent relationship.
 |---|---|---|---|---|---|---|
 | `dbo.DanieliPDF` | `NodeID` | `FK_DanieliPDF_Nodes` | `dbo.Nodes` | `NodeID` | `NO_ACTION` | `NO_ACTION` |
 | `dbo.DanieliPDF` | `PathID` | `FK_DanieliPDF_tblPath` | `dbo.tblPath` | `PathID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestAssignments` | `AssignedByUserID` | `FK_DrawingRequestAssignments_AssignedBy` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestAssignments` | `DrawingExpertUserID` | `FK_DrawingRequestAssignments_Expert` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestAssignments` | `RequestID` | `FK_DrawingRequestAssignments_Request` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestHistory` | `ActionCode` | `FK_DrawingRequestHistory_ActionCode` | `dbo.ActionCode` | `ActionCode` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestHistory` | `FromStatusID` | `FK_DrawingRequestHistory_FromStatus` | `dbo.DrawingRequestStatuses` | `StatusID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestHistory` | `RequestID` | `FK_DrawingRequestHistory_Request` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestHistory` | `ToStatusID` | `FK_DrawingRequestHistory_ToStatus` | `dbo.DrawingRequestStatuses` | `StatusID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestHistory` | `ActionByUserID` | `FK_DrawingRequestHistory_User` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequests` | `AssignedDrawingExpertID` | `FK_DrawingRequests_AssignedExpert` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequests` | `ManagerUserID` | `FK_DrawingRequests_Manager` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequests` | `NodeID` | `FK_DrawingRequests_Node` | `dbo.Nodes` | `NodeID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequests` | `RequesterUserID` | `FK_DrawingRequests_Requester` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequests` | `StatusID` | `FK_DrawingRequests_Status` | `dbo.DrawingRequestStatuses` | `StatusID` | `NO_ACTION` | `NO_ACTION` |
 | `dbo.Nodes` | `PathID` | `FK_Nodes_tblPath` | `dbo.tblPath` | `PathID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.Notifications` | `RequestID` | `FK_Notifications_Request` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.Notifications` | `UserID` | `FK_Notifications_User` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
 
 ---
 
@@ -293,13 +469,13 @@ Every line below represents a Child ? Parent relationship.
 
 | Object Type | Count |
 |---|---:|
-| Tables | 11 |
+| Tables | 17 |
 | Views | 0 |
-| Primary Keys | 11 |
-| Foreign Keys | 3 |
-| Unique Constraints | 1 |
+| Primary Keys | 17 |
+| Foreign Keys | 18 |
+| Unique Constraints | 5 |
 | Check Constraints | 0 |
-| Indexes | 205 |
+| Indexes | 222 |
 | Triggers | 0 |
 
 ---
@@ -318,4 +494,4 @@ Every line below represents a Child ? Parent relationship.
 # END OF DATABASE SCHEMA EXPORT
 
 
-Completion time: 2026-09-28T14:37:15.3361809+03:30
+Completion time: 2026-10-08T10:38:12.3572575+03:30
