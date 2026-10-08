@@ -10,6 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/request-workflow.css">
   <link rel="stylesheet" href="css/tree-fix.css">
   <link rel="stylesheet" href="css/node-create.css">
   <link rel="stylesheet" href="css/node-actions.css">
@@ -63,7 +64,7 @@
         <h1>Drawing Management System</h1><span>Equipment structure and drawing management</span>
       </div>
     </div>
-    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span><div id="userMenu" class="user-menu">
+    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span><button id="rwSidebarToggle" type="button" class="rw-sidebar-toggle" aria-expanded="false">Worklist</button><div id="userMenu" class="user-menu">
       <button id="userMenuButton" type="button" class="user-menu-button" aria-expanded="false">
         <span id="userMenuLabel">User</span><span class="user-menu-chevron">▾</span>
       </button>
@@ -229,6 +230,7 @@
   <script src="js/node-actions.js"></script>
   <script src="js/node-create.js"></script>
   <script src="js/node-upload.js"></script>
+  <script src="js/request-workflow.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   const btn=document.getElementById('userMenuButton'), panel=document.getElementById('userMenuPanel');
@@ -317,6 +319,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 })();
 </script>
 
-</body>
+
+  <div id="rwOverlay" class="request-workflow-overlay"></div>
+  <aside id="rwSidebar" class="request-workflow-sidebar" aria-label="User worklist">
+    <div class="rw-sidebar-header"><h2>My Worklist</h2><button id="rwClose" type="button" class="rw-close" aria-label="Close">×</button></div>
+    <div class="rw-user-card">
+      <div id="rwUserName" class="rw-user-name">-</div>
+      <div id="rwUserUsername" class="rw-user-meta"></div>
+      <button id="rwLogout" type="button" class="rw-logout">Logout</button>
+    </div>
+    <button id="rwWorklistButton" type="button" class="rw-worklist-button">Refresh Worklist <span id="rwNotificationBadge" class="rw-badge" hidden>0</span></button>
+    <div id="rwContent" class="rw-content"><div class="rw-loading">Loading worklist...</div></div>
+  </aside>
+  <div id="rwRequestModal" class="rw-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwRequestTitle">
+    <div class="rw-dialog">
+      <div class="rw-dialog-header"><h3 id="rwRequestTitle">Add Drawing Request</h3><button id="rwRequestClose" type="button" class="rw-close" aria-label="Close">×</button></div>
+      <div class="rw-dialog-body">
+        <div class="rw-node-context"><strong id="rwNodeCode">-</strong><span id="rwNodeName">-</span></div>
+        <label for="rwRequestDescription">Reason / Description</label>
+        <textarea id="rwRequestDescription" maxlength="1000" placeholder="Describe why the drawing is required..."></textarea>
+        <div id="rwRequestError" class="rw-error"></div>
+        <div class="rw-dialog-actions"><button id="rwRequestCancel" type="button">Cancel</button><button id="rwRequestSubmit" type="button" class="rw-submit">Submit Request</button></div>
+      </div>
+    </div>
+  </div>
+\n</body>
 
 </html>
