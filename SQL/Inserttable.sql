@@ -80,63 +80,110 @@ BEGIN TRY
           Mapping is resolved by PermissionCode, not by identity
           values, so it remains safe if PermissionID values differ.
        ============================================================ */
+    /* ============================================================
+       3. table-v04 RolePermissions mapping
+          Authorization uses PermissionCode resolved through RoleCode.
+          RoleID and PermissionID are database keys, not hard-coded
+          authorization identifiers.
+          Existing mappings are preserved; only missing mappings are added.
+       ============================================================ */
     INSERT INTO dbo.RolePermissions (RoleID, PermissionID)
-    SELECT rp.RoleID, p.PermissionID
+    SELECT r.RoleID, p.PermissionID
     FROM (VALUES
-        /* Admin */
-        (1,N'NODE_VIEW'),(1,N'NODE_CREATE'),(1,N'NODE_EDIT'),(1,N'NODE_DELETE'),
-        (1,N'PDF_VIEW'),(1,N'PDF_Danieli_Download'),(1,N'PDF_SRSC_Download'),(1,N'PDF_Approve'),
-        (1,N'FILE_VIEW'),(1,N'FILE_Edit'),(1,N'USER_VIEW'),(1,N'USER_Manager'),
-        (1,N'ROLE_MANAGE'),(1,N'AUDIT_VIEW'),
-        (1,N'REQUEST_DRAWING_CREATE'),(1,N'REQUEST_DRAWING_VIEW_OWN'),(1,N'REQUEST_DRAWING_VIEW_MANAGER'),
-        (1,N'REQUEST_DRAWING_APPROVE'),(1,N'REQUEST_DRAWING_REJECT'),(1,N'REQUEST_DRAWING_VIEW_ALL'),
-        (1,N'REQUEST_DRAWING_ASSIGN'),(1,N'REQUEST_DRAWING_VIEW_ASSIGNED'),
-        (1,N'REQUEST_DRAWING_ACCEPT'),(1,N'REQUEST_DRAWING_TRANSFER'),
-        (1,N'REQUEST_DRAWING_EXPERT_REJECT'),(1,N'REQUEST_DRAWING_COMPLETE'),
-        (1,N'REQUEST_DRAWING_RETURN_CORRECTION'),(1,N'REQUEST_DRAWING_FINAL_APPROVE'),
-        (1,N'REQUEST_DRAWING_FINAL_REJECT'),
-
-        /* DrawingSupervisor */
-        (2,N'NODE_VIEW'),(2,N'NODE_CREATE'),(2,N'NODE_EDIT'),(2,N'NODE_DELETE'),
-        (2,N'PDF_VIEW'),(2,N'PDF_Danieli_Download'),(2,N'PDF_SRSC_Download'),(2,N'PDF_Approve'),
-        (2,N'FILE_VIEW'),(2,N'FILE_Edit'),(2,N'USER_VIEW'),
-        (2,N'REQUEST_DRAWING_CREATE'),(2,N'REQUEST_DRAWING_VIEW_OWN'),(2,N'REQUEST_DRAWING_VIEW_MANAGER'),
-        (2,N'REQUEST_DRAWING_APPROVE'),(2,N'REQUEST_DRAWING_REJECT'),(2,N'REQUEST_DRAWING_VIEW_ALL'),
-        (2,N'REQUEST_DRAWING_ASSIGN'),(2,N'REQUEST_DRAWING_VIEW_ASSIGNED'),
-        (2,N'REQUEST_DRAWING_RETURN_CORRECTION'),(2,N'REQUEST_DRAWING_FINAL_APPROVE'),
-        (2,N'REQUEST_DRAWING_FINAL_REJECT'),
-
-        /* DrawingExpert */
-        (3,N'NODE_VIEW'),(3,N'NODE_CREATE'),(3,N'NODE_EDIT'),(3,N'NODE_DELETE'),
-        (3,N'PDF_VIEW'),(3,N'PDF_Danieli_Download'),(3,N'PDF_SRSC_Download'),(3,N'PDF_Approve'),
-        (3,N'FILE_VIEW'),(3,N'FILE_Edit'),
-        (3,N'REQUEST_DRAWING_CREATE'),(3,N'REQUEST_DRAWING_VIEW_OWN'),
-        (3,N'REQUEST_DRAWING_VIEW_ALL'),(3,N'REQUEST_DRAWING_VIEW_ASSIGNED'),
-        (3,N'REQUEST_DRAWING_ACCEPT'),(3,N'REQUEST_DRAWING_TRANSFER'),
-        (3,N'REQUEST_DRAWING_EXPERT_REJECT'),(3,N'REQUEST_DRAWING_COMPLETE'),
-        (3,N'REQUEST_DRAWING_RETURN_CORRECTION'),
-
-        /* VIEWER */
-        (4,N'NODE_VIEW'),(4,N'PDF_VIEW'),(4,N'PDF_Danieli_Download'),
-        (4,N'REQUEST_DRAWING_CREATE'),(4,N'REQUEST_DRAWING_VIEW_OWN'),
-
-        /* Manager */
-        (5,N'NODE_VIEW'),(5,N'PDF_VIEW'),(5,N'PDF_Danieli_Download'),
-        (5,N'REQUEST_DRAWING_CREATE'),(5,N'REQUEST_DRAWING_VIEW_OWN'),
-        (5,N'REQUEST_DRAWING_VIEW_MANAGER'),(5,N'REQUEST_DRAWING_APPROVE'),
-        (5,N'REQUEST_DRAWING_REJECT')
-    ) AS rp(RoleID, PermissionCode)
+        (N'Admin',N'NODE_VIEW'),
+        (N'Admin',N'NODE_CREATE'),
+        (N'Admin',N'NODE_EDIT'),
+        (N'Admin',N'NODE_DELETE'),
+        (N'Admin',N'PDF_VIEW'),
+        (N'Admin',N'PDF_Danieli_Download'),
+        (N'Admin',N'PDF_SRSC_Download'),
+        (N'Admin',N'PDF_Approve'),
+        (N'Admin',N'FILE_VIEW'),
+        (N'Admin',N'FILE_Edit'),
+        (N'Admin',N'USER_VIEW'),
+        (N'Admin',N'USER_Manager'),
+        (N'Admin',N'ROLE_MANAGE'),
+        (N'Admin',N'AUDIT_VIEW'),
+        (N'Admin',N'REQUEST_DRAWING_CREATE'),
+        (N'Admin',N'REQUEST_DRAWING_VIEW_OWN'),
+        (N'Admin',N'REQUEST_DRAWING_VIEW_MANAGER'),
+        (N'Admin',N'REQUEST_DRAWING_APPROVE'),
+        (N'Admin',N'REQUEST_DRAWING_REJECT'),
+        (N'Admin',N'REQUEST_DRAWING_VIEW_ALL'),
+        (N'Admin',N'REQUEST_DRAWING_ASSIGN'),
+        (N'Admin',N'REQUEST_DRAWING_VIEW_ASSIGNED'),
+        (N'Admin',N'REQUEST_DRAWING_ACCEPT'),
+        (N'Admin',N'REQUEST_DRAWING_TRANSFER'),
+        (N'Admin',N'REQUEST_DRAWING_EXPERT_REJECT'),
+        (N'Admin',N'REQUEST_DRAWING_COMPLETE'),
+        (N'Admin',N'REQUEST_DRAWING_RETURN_CORRECTION'),
+        (N'Admin',N'REQUEST_DRAWING_FINAL_APPROVE'),
+        (N'Admin',N'REQUEST_DRAWING_FINAL_REJECT'),
+        (N'DrawingSupervisor',N'NODE_VIEW'),
+        (N'DrawingSupervisor',N'NODE_CREATE'),
+        (N'DrawingSupervisor',N'NODE_EDIT'),
+        (N'DrawingSupervisor',N'NODE_DELETE'),
+        (N'DrawingSupervisor',N'PDF_VIEW'),
+        (N'DrawingSupervisor',N'PDF_Danieli_Download'),
+        (N'DrawingSupervisor',N'PDF_SRSC_Download'),
+        (N'DrawingSupervisor',N'PDF_Approve'),
+        (N'DrawingSupervisor',N'FILE_VIEW'),
+        (N'DrawingSupervisor',N'FILE_Edit'),
+        (N'DrawingSupervisor',N'USER_VIEW'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_CREATE'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_VIEW_OWN'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_VIEW_MANAGER'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_APPROVE'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_REJECT'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_VIEW_ALL'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_ASSIGN'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_VIEW_ASSIGNED'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_RETURN_CORRECTION'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_FINAL_APPROVE'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_FINAL_REJECT'),
+        (N'DrawingExpert',N'NODE_VIEW'),
+        (N'DrawingExpert',N'NODE_CREATE'),
+        (N'DrawingExpert',N'NODE_EDIT'),
+        (N'DrawingExpert',N'NODE_DELETE'),
+        (N'DrawingExpert',N'PDF_VIEW'),
+        (N'DrawingExpert',N'PDF_Danieli_Download'),
+        (N'DrawingExpert',N'PDF_SRSC_Download'),
+        (N'DrawingExpert',N'PDF_Approve'),
+        (N'DrawingExpert',N'FILE_VIEW'),
+        (N'DrawingExpert',N'FILE_Edit'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_CREATE'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_VIEW_OWN'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_VIEW_ALL'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_VIEW_ASSIGNED'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_ACCEPT'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_TRANSFER'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_EXPERT_REJECT'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_COMPLETE'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_RETURN_CORRECTION'),
+        (N'VIEWER',N'NODE_VIEW'),
+        (N'VIEWER',N'PDF_VIEW'),
+        (N'VIEWER',N'PDF_Danieli_Download'),
+        (N'VIEWER',N'REQUEST_DRAWING_CREATE'),
+        (N'VIEWER',N'REQUEST_DRAWING_VIEW_OWN'),
+        (N'Manager',N'NODE_VIEW'),
+        (N'Manager',N'PDF_VIEW'),
+        (N'Manager',N'PDF_Danieli_Download'),
+        (N'Manager',N'REQUEST_DRAWING_CREATE'),
+        (N'Manager',N'REQUEST_DRAWING_VIEW_OWN'),
+        (N'Manager',N'REQUEST_DRAWING_VIEW_MANAGER'),
+        (N'Manager',N'REQUEST_DRAWING_APPROVE'),
+        (N'Manager',N'REQUEST_DRAWING_REJECT')
+    ) AS rp(RoleCode, PermissionCode)
+    INNER JOIN dbo.Roles r
+        ON r.RoleCode = rp.RoleCode
+       AND r.IsActive = 1
     INNER JOIN dbo.Permissions p
         ON p.PermissionCode = rp.PermissionCode
-    WHERE EXISTS (
-        SELECT 1
-        FROM dbo.Roles r
-        WHERE r.RoleID = rp.RoleID
-    )
-    AND NOT EXISTS (
+       AND p.IsActive = 1
+    WHERE NOT EXISTS (
         SELECT 1
         FROM dbo.RolePermissions x
-        WHERE x.RoleID = rp.RoleID
+        WHERE x.RoleID = r.RoleID
           AND x.PermissionID = p.PermissionID
     );
 
