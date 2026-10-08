@@ -55,6 +55,7 @@ function registerAdminDatabaseRoutes(app, deps) {
   }
 
   async function metadata(tableName) {
+    if (tableName === 'sysdiagrams') return null;
     const r = new sql.Request();
     r.input('tableName', sql.NVarChar(128), tableName);
     const q = await r.query(
@@ -167,8 +168,9 @@ function registerAdminDatabaseRoutes(app, deps) {
       }
       const tableSql = 'dbo.' + qi(meta.tableName);
       const count = await r.query('SELECT COUNT_BIG(*) AS Total FROM ' + tableSql + ' ' + where + ';');
+      const selectColumns = meta.columns.map(c => c.ColumnName === 'PasswordHash' ? 'CAST(NULL AS nvarchar(500)) AS [PasswordHash]' : qi(c.ColumnName)).join(',');
       const rows = await r.query(
-        'SELECT ' + meta.columns.map(c => qi(c.ColumnName)).join(',') +
+        'SELECT ' + selectColumns +
         ' FROM ' + tableSql + ' ' + where +
         ' ORDER BY ' + qi(order) +
         ' OFFSET @offset ROWS FETCH NEXT @fetch ROWS ONLY;'
