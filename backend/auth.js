@@ -124,7 +124,13 @@ function createAuth(frontendOrigins) {
   function requirePermission(permission) {
     return (req, res, next) => {
       if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
-      if (req.user.isAdmin || req.user.permissions.has(permission)) return next();
+
+      // Authorization is always derived from the user's effective PermissionCodes
+      // loaded through UserRoles -> Roles -> RolePermissions -> Permissions.
+      // isAdmin is informational only and MUST NOT bypass RolePermissions.
+      const permissionCode = typeof permission === 'string' ? permission.trim() : '';
+      if (permissionCode && req.user.permissions.has(permissionCode)) return next();
+
       return res.status(403).json({ error: 'Permission denied.' });
     };
   }
@@ -248,7 +254,7 @@ function createAuth(frontendOrigins) {
         FROM dbo.UserRoles ur
         INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1
         INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID
-        INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID
+        INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1
         WHERE ur.UserID=@userId
       `);
 
