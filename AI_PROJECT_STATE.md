@@ -348,13 +348,39 @@ Exact PermissionCode names and role mappings must be finalized against the curre
 - Sensitive request information must not be exposed to unauthorized users.
 - Workflow events should be auditable through the existing logging/audit approach.
 
+# Current Task — table-v04 database migration — 2026-10-08
+
+- User supplied and finalized Tables-v04.xlsx as the current request-workflow schema/data definition.
+- Existing production/pilot database is still based on Tables-v02/current SQL Server schema; the request-workflow tables from v03/v04 did not previously exist.
+- Current GitHub schema reference remains SQL/Relation between table.rpt; it documents the existing 11-table database and existing relationships.
+- Added SQL/Inserttable.sql as an idempotent SQL Server migration/seed script.
+- The migration adds the v04 workflow objects:
+  - dbo.DrawingRequestStatuses
+  - dbo.ActionCode
+  - dbo.DrawingRequests
+  - dbo.DrawingRequestAssignments
+  - dbo.DrawingRequestHistory
+  - dbo.Notifications
+- The migration adds Role Manager (RoleID is resolved by RoleCode/existing identity state).
+- It adds the 15 request permissions REQUEST_DRAWING_* from v04 and the v04 RolePermissions mapping without duplicating existing mappings.
+- It aligns UserID=7 from VIEWER (RoleID=4) to Manager (RoleID=5) when the existing v02 row is present, matching Tables-v04.
+- It seeds the 14 v04 workflow statuses, including EXPERT_REJECTED, RETURNED_FOR_CORRECTION, PENDING_FINAL_APPROVAL, FINAL_APPROVED, FINAL_REJECTED, and CANCELLED.
+- It seeds the 14 v04 ActionCode rows.
+- Existing Nodes, DanieliPDF, tblPath, Users, UserManager, and Logs data are not re-imported.
+- Important schema reconciliation: the actual current dbo.Permissions table has no Module column and PermissionName is NOT NULL. The migration therefore does NOT attempt to add/use Module; it supplies valid PermissionName/Description values while preserving the existing database structure.
+- Static validation of the committed SQL file was performed: transaction/TRY-CATCH structure, all six new table names, all 14 status codes, all 14 action codes, and compatibility with the current Permissions column layout were verified. The SQL has NOT yet been executed against the real SQL Server instance in this session.
+- Git commit containing the corrected migration: 11bc49e52a21e3f3b7f26babe3e43ea6ca259a1 — Align table-v04 permission seed with current Permissions schema.
+- Previous initial migration commit superseded by the corrected file: be0d93c8a08308795f66675b4fa0e6bd093fad10.
+
+## Known schema/design point to verify before workflow implementation
+
+- Tables-v04.xlsx defines Notifications.RequestNumber as NVARCHAR(30) UNIQUE. The migration intentionally preserves this v04 definition. This may prevent multiple notifications for the same request, so it must be explicitly reviewed before implementing multi-event notifications.
+- Tables-v04.xlsx does not contain request-row data in DrawingRequests, DrawingRequestAssignments, DrawingRequestHistory, or Notifications; only status/action seed data is present for the new workflow objects.
+
 # NEXT ACTION
 
-1. Verify the latest real GitHub/main state and current SQL Server schema before implementing the request workflow.
-2. Inspect and reconcile Tables-v02 and Tables-v03 with the actual database, especially the proposed request/notification tables and existing Users/Roles/Permissions/UserRoles/RolePermissions/UserManager relationships.
-3. Finalize the additive request data model and PermissionCode list before changing SQL.
-4. Implement the request workflow incrementally: request creation -> Manager review -> Admin/DrawingSupervisor assignment -> DrawingExpert worklist -> status/history -> notifications.
-5. Add backend authorization for every request action and verify direct API calls cannot bypass workflow permissions or state.
-6. Add the corresponding UI worklists and request dialogs without removing existing PDF/file viewing functionality.
-7. Run syntax checks, API/RBAC/security regression tests, and real SQL Server/UI tests in the pilot environment.
-8. After implementation and verification, update this file again with the exact schema, API routes, PermissionCodes, changed files, test results, and real commit SHA.
+1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture any SQL Server errors/results.
+2. Verify the resulting tables, columns, PKs, FKs, unique constraints, indexes, 14 statuses, 14 action codes, 15 new permissions, Manager role, RolePermissions, and UserID=7 role mapping.
+3. Re-run the database relationship export query and update SQL/Relation between table.rpt so it reflects the new v04 relationships.
+4. Before implementing notifications, decide explicitly whether Notifications.RequestNumber should remain UNIQUE or be changed to allow multiple notifications per request.
+5. After database verification, implement the request workflow backend incrementally with the v04 statuses/ActionCodes and RBAC permissions, starting with request creation and Manager approval/rejection.
