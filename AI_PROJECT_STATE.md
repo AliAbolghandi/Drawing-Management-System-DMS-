@@ -404,9 +404,7 @@ Exact PermissionCode names and role mappings must be finalized against the curre
 # NEXT ACTION
 
 1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture any SQL Server errors/results.
-2. Verify the authorization result with at least VIEWER, Manager, DrawingExpert, DrawingSupervisor, and Admin role assignments: changing RolePermissions must change backend access without changing code.
-3. Verify no Backend route uses RoleID as a permission or relies on the Admin bypass; inspect any newly added workflow routes before implementation.
-2. Verify the resulting tables, columns, PKs, FKs, unique constraints, indexes, 14 statuses, 14 action codes, 15 new permissions, Manager role, RolePermissions, and UserID=7 role mapping.
-3. Re-run the database relationship export query and update SQL/Relation between table.rpt so it reflects the new v04 relationships.
-4. Before implementing notifications, decide explicitly whether Notifications.RequestNumber should remain UNIQUE or be changed to allow multiple notifications per request.
-5. After database verification, implement the request workflow backend incrementally with the v04 statuses/ActionCodes and RBAC permissions, starting with request creation and Manager approval/rejection.
+2. Verify the resulting v04 tables, columns, PKs, FKs, unique constraints, indexes, 14 statuses, 14 ActionCode rows, 15 request permissions, Manager role, RolePermissions mappings, and UserID=7 role mapping.
+3. Verify authorization with VIEWER, Manager, DrawingExpert, DrawingSupervisor, and Admin role assignments: changing RolePermissions must change backend access without changing Backend code.
+4. Re-run the database relationship export query and update SQL/Relation between table.rpt so it reflects the new v04 relationships.
+5. Before implementing notifications/workflow routes, inspect each new route to ensure it authorizes exclusively through PermissionCode + workflow-state/ownership checks and never through RoleID or an Admin bypass.
