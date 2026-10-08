@@ -401,10 +401,48 @@ Exact PermissionCode names and role mappings must be finalized against the curre
 - Adding a new role must require only database Role/RolePermissions data; Backend route authorization must not require a new hard-coded RoleID.
 - Adding/removing a permission from a role must be possible through `RolePermissions` without changing Backend authorization code.
 
+
+## Drawing Request + User Worklist UI — 2026-10-08
+
+- Added the first usable UI/API layer for the v04 drawing-request workflow.
+- backend/server.js:
+  - Added POST /api/drawing-requests, protected by REQUEST_DRAWING_CREATE.
+  - The route validates the selected active Node, resolves the requester’s active Manager through dbo.UserManager, creates a unique request number, inserts dbo.DrawingRequests, writes REQUEST_CREATED to dbo.DrawingRequestHistory, and creates a Manager notification.
+  - Added GET /api/drawing-requests. It returns only requests allowed by effective PermissionCodes and responsibility/ownership:
+    - REQUEST_DRAWING_VIEW_ALL
+    - requester-owned requests through REQUEST_DRAWING_VIEW_OWN
+    - manager-responsibility requests through REQUEST_DRAWING_VIEW_MANAGER
+    - assigned DrawingExpert requests through REQUEST_DRAWING_VIEW_ASSIGNED
+  - Added GET /api/drawing-requests/notifications and PATCH /api/drawing-requests/notifications/:notificationId/read, scoped to req.user.userId.
+  - CORS now allows PATCH for notification read updates.
+  - No RoleID or isAdmin bypass is used by these request/worklist routes.
+- frontend/index.html:
+  - Added Add Request beside Upload Files in the Node Details SRSC action area.
+  - Added a slide-in User Worklist sidebar containing user name/username, Logout, notification badge, and worklist refresh.
+  - Added the Add Drawing Request dialog with selected Node context and request description.
+  - Added frontend/css/request-workflow.css and frontend/js/request-workflow.js.
+- frontend/js/request-workflow.js:
+  - Loads /api/auth/me and uses effective PermissionCode data to control Add Request visibility.
+  - Submits the selected Node request to the backend.
+  - Loads and renders the user’s permitted worklist.
+  - Loads unread notification count.
+- Database structures were not changed by this UI/API implementation. It depends on the v04 workflow tables already defined in SQL/Inserttable.sql: DrawingRequests, DrawingRequestStatuses, DrawingRequestAssignments, DrawingRequestHistory, and Notifications, plus UserManager.
+- Runtime SQL Server and browser UI testing has not been performed in this session. Source-level verification was performed by fetching the changed files from main after each write.
+- Commits for this feature:
+  - 29af9dec948273a38bd78c4387bc5f3e56601cd9 — request/worklist/notification backend APIs
+  - 1d6ca9c0a72d709233415ddeadf86d1857050e85 — request/worklist CSS
+  - 07924bb872f752b1363c1226d446ecf0a592184f — request/worklist frontend logic
+  - 2ac35faae9094e7c6e5b039bd76be75070b6b09c — Node Details Add Request and worklist sidebar
+  - f1cb6d6feb6f235e29cb5d9b552634b8a15008b7 — allow PATCH through API CORS
+
 # NEXT ACTION
 
-1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture any SQL Server errors/results.
-2. Verify the resulting v04 tables, columns, PKs, FKs, unique constraints, indexes, 14 statuses, 14 ActionCode rows, 15 request permissions, Manager role, RolePermissions mappings, and UserID=7 role mapping.
-3. Verify authorization with VIEWER, Manager, DrawingExpert, DrawingSupervisor, and Admin role assignments: changing RolePermissions must change backend access without changing Backend code.
-4. Re-run the database relationship export query and update SQL/Relation between table.rpt so it reflects the new v04 relationships.
-5. Before implementing notifications/workflow routes, inspect each new route to ensure it authorizes exclusively through PermissionCode + workflow-state/ownership checks and never through RoleID or an Admin bypass.
+1. Execute SQL/Inserttable.sql on the real dbDrawingManagment SQL Server database and capture the actual SQL Server result/errors; the new request API cannot work until the v04 workflow tables exist.
+2. Verify the new request API against real data:
+   - requester has exactly one active UserManager mapping;
+   - POST /api/drawing-requests creates DrawingRequests, DrawingRequestHistory, and the Manager Notifications row;
+   - GET /api/drawing-requests returns only requests permitted by PermissionCode plus requester/manager/expert responsibility.
+3. Test the browser UI with a VIEWER/Manager account: select a Node -> Add Request -> submit -> open Worklist -> verify the request and notification badge.
+4. Implement the next workflow actions in order: Manager approve/reject, DrawingSupervisor/Admin drawing approval/assignment, DrawingExpert accept/transfer/reject/complete, correction return, and final approve/reject. Each action must enforce PermissionCode + current workflow status + ownership/responsibility.
+5. Decide and fix the known Notifications.RequestNumber UNIQUE design limitation before implementing multiple notifications for the same request.
+6. Re-run the database relationship export after v04 deployment and update SQL/Relation between table.rpt.
