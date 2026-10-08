@@ -62,11 +62,12 @@ function registerAdminDatabaseRoutes(app, deps) {
       "SELECT c.column_id AS ColumnID,c.name AS ColumnName,ty.name AS DataType,c.max_length AS MaxLength," +
       "c.precision AS PrecisionValue,c.scale AS ScaleValue,c.is_nullable AS IsNullable,c.is_identity AS IsIdentity," +
       "c.is_computed AS IsComputed,dc.definition AS DefaultDefinition," +
-      "CAST(CASE WHEN pk.column_id IS NOT NULL THEN 1 ELSE 0 END AS bit) AS IsPrimaryKey " +
+      "CAST(CASE WHEN pk.column_id IS NOT NULL THEN 1 ELSE 0 END AS bit) AS IsPrimaryKey," +
+      "CAST(ISNULL(pk.key_ordinal,0) AS int) AS PrimaryKeyOrdinal " +
       "FROM sys.tables t INNER JOIN sys.schemas s ON s.schema_id=t.schema_id " +
       "INNER JOIN sys.columns c ON c.object_id=t.object_id INNER JOIN sys.types ty ON ty.user_type_id=c.user_type_id " +
       "LEFT JOIN sys.default_constraints dc ON dc.parent_object_id=c.object_id AND dc.parent_column_id=c.column_id " +
-      "LEFT JOIN (SELECT ic.object_id,ic.column_id FROM sys.index_columns ic INNER JOIN sys.indexes i " +
+      "LEFT JOIN (SELECT ic.object_id,ic.column_id,ic.key_ordinal FROM sys.index_columns ic INNER JOIN sys.indexes i " +
       "ON i.object_id=ic.object_id AND i.index_id=ic.index_id WHERE i.is_primary_key=1) pk " +
       "ON pk.object_id=c.object_id AND pk.column_id=c.column_id " +
       "WHERE s.name=N'dbo' AND t.name=@tableName ORDER BY c.column_id;"
@@ -88,6 +89,7 @@ function registerAdminDatabaseRoutes(app, deps) {
       IsIdentity: Boolean(c.IsIdentity),
       IsComputed: Boolean(c.IsComputed),
       IsPrimaryKey: Boolean(c.IsPrimaryKey),
+      PrimaryKeyOrdinal: Number(c.PrimaryKeyOrdinal || 0),
       ReadOnly: Boolean(c.IsIdentity || c.IsComputed || ['CreatedAt','UpdatedAt','LastLoginAt'].includes(c.ColumnName))
     }));
     return {
@@ -152,7 +154,13 @@ function registerAdminDatabaseRoutes(app, deps) {
       const page = Math.min(10000, Math.max(1, Number(req.query.page) || 1));
       const pageSize = Math.min(200, Math.max(10, Number(req.query.pageSize) || 50));
       const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-      const order = meta.columns.find(c => c.IsPrimaryKey)?.ColumnName || meta.columns[0].ColumnName;
+      const primaryKeyColumns = meta.columns
+        .filter(c => c.IsPrimaryKey)
+        .sort((a, b) => a.PrimaryKeyOrdinal - b.PrimaryKeyOrdinal || a.ColumnID - b.ColumnID);
+      const orderColumns = primaryKeyColumns.length
+        ? primaryKeyColumns
+        : [meta.columns[0]];
+      const order = orderColumns.map(c => qi(c.ColumnName)).join(', ');
       const r = new sql.Request();
       r.input('offset', sql.Int, (page - 1) * pageSize);
       r.input('fetch', sql.Int, pageSize);
@@ -172,7 +180,7 @@ function registerAdminDatabaseRoutes(app, deps) {
       const rows = await r.query(
         'SELECT ' + selectColumns +
         ' FROM ' + tableSql + ' ' + where +
-        ' ORDER BY ' + qi(order) +
+        ' ORDER BY ' + order +
         ' OFFSET @offset ROWS FETCH NEXT @fetch ROWS ONLY;'
       );
       res.json({ table: meta, rows: rows.recordset, total: Number(count.recordset[0].Total), page, pageSize });
