@@ -660,6 +660,193 @@ app.post('/api/node-file-upload/:nodeId', auth.requirePermission('FILE_Edit'), a
   }
 });
 
+
+/* ============================================================
+   Drawing Request / User Worklist API
+   Authorization is PermissionCode-based. Ownership/responsibility
+   is enforced in SQL and is never inferred from RoleID.
+   ============================================================ */
+
+function getRequestNumber() {
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+  const suffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+  return 'DR-' + stamp + '-' + suffix;
+}
+
+app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE'), async (req, res) => {
+  const nodeId = Number(req.body?.nodeId);
+  const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
+
+  if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error: 'Invalid Node ID.' });
+  if (description.length > 1000) return res.status(400).json({ error: 'Description must not exceed 1000 characters.' });
+
+  const db = new sql.Request();
+  db.input('nodeId', sql.Int, nodeId);
+  db.input('requesterUserId', sql.Int, req.user.userId);
+
+  try {
+    const nodeResult = await db.query(`
+      SELECT TOP 1 NodeID, NodeCode, NodeName
+      FROM dbo.Nodes
+      WHERE NodeID=@nodeId AND IsActive=1;
+    `);
+    const node = nodeResult.recordset[0];
+    if (!node) return res.status(404).json({ error: 'Node not found or inactive.' });
+
+    const managerResult = await db.query(`
+      SELECT TOP 1 m.UserID AS ManagerUserID, m.Username AS ManagerUsername
+      FROM dbo.UserManager um
+      INNER JOIN dbo.Users m ON m.UserID=um.ManagerID AND m.IsActive=1
+      WHERE um.UserID=@requesterUserId;
+    `);
+    const manager = managerResult.recordset[0];
+    if (!manager) {
+      return res.status(409).json({ error: 'No active Manager is assigned to the current user. The request cannot be submitted.' });
+    }
+
+    const requestNumber = getRequestNumber();
+    const insertRequest = new sql.Request();
+    insertRequest.input('requestNumber', sql.NVarChar(30), requestNumber);
+    insertRequest.input('nodeId', sql.Int, node.NodeID);
+    insertRequest.input('nodeCode', sql.NVarChar(100), node.NodeCode || null);
+    insertRequest.input('requesterUserId', sql.Int, req.user.userId);
+    insertRequest.input('requesterUsername', sql.NVarChar(100), req.user.username);
+    insertRequest.input('managerUserId', sql.Int, Number(manager.ManagerUserID));
+    insertRequest.input('managerUsername', sql.NVarChar(100), manager.ManagerUsername || null);
+    insertRequest.input('description', sql.NVarChar(1000), description || null);
+
+    const result = await insertRequest.query(`
+      DECLARE @requestID int;
+      INSERT INTO dbo.DrawingRequests
+        (RequestNumber, NodeID, NodeCode, RequesterUserID, RequesterUsername,
+         ManagerUserID, ManagerUsername, [Description], StatusID, CreatedAt, UpdatedAt)
+      VALUES
+        (@requestNumber, @nodeId, @nodeCode, @requesterUserId, @requesterUsername,
+         @managerUserId, @managerUsername, @description,
+         (SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'PENDING_MANAGER'),
+         SYSUTCDATETIME(), SYSUTCDATETIME());
+
+      SET @requestID = CONVERT(int, SCOPE_IDENTITY());
+
+      INSERT INTO dbo.DrawingRequestHistory
+        (RequestID, RequestNumber, ActionCode, FromStatusID, ToStatusID,
+         ActionByUserID, ActionByUsername, Comment, CreatedAt)
+      SELECT @requestID, @requestNumber, N'REQUEST_CREATED', NULL, s.StatusID,
+             @requesterUserId, @requesterUsername, @description, SYSUTCDATETIME()
+      FROM dbo.DrawingRequestStatuses s
+      WHERE s.StatusCode=N'PENDING_MANAGER';
+
+      INSERT INTO dbo.Notifications
+        (UserID, Username, RequestID, RequestNumber, NotificationType,
+         Title, Message, IsRead, CreatedAt)
+      VALUES
+        (@managerUserId, @managerUsername, @requestID, @requestNumber,
+         N'REQUEST_CREATED', N'New Drawing Request',
+         CONCAT(N'Drawing request ', @requestNumber, N' requires your Manager approval.'),
+         0, SYSUTCDATETIME());
+
+      SELECT dr.RequestID, dr.RequestNumber, dr.NodeID, dr.NodeCode,
+             n.NodeName, dr.RequesterUserID, dr.RequesterUsername,
+             dr.ManagerUserID, dr.ManagerUsername,
+             s.StatusCode, s.StatusName, dr.[Description],
+             dr.CreatedAt, dr.UpdatedAt
+      FROM dbo.DrawingRequests dr
+      INNER JOIN dbo.Nodes n ON n.NodeID=dr.NodeID
+      INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID
+      WHERE dr.RequestID=@requestID;
+    `);
+
+    res.status(201).json({ success: true, request: result.recordset[0] });
+  } catch (e) {
+    console.error('Drawing request creation failed:', e);
+    sendServerError(res, 'Drawing request creation failed', e);
+  }
+});
+
+app.get('/api/drawing-requests', async (req, res) => {
+  const permissions = req.user.permissions;
+  const canOwn = permissions.has('REQUEST_DRAWING_VIEW_OWN');
+  const canManager = permissions.has('REQUEST_DRAWING_VIEW_MANAGER');
+  const canAssigned = permissions.has('REQUEST_DRAWING_VIEW_ASSIGNED');
+  const canAll = permissions.has('REQUEST_DRAWING_VIEW_ALL');
+
+  if (!canOwn && !canManager && !canAssigned && !canAll) return res.status(403).json({ error: 'Permission denied.' });
+
+  const db = new sql.Request();
+  db.input('userId', sql.Int, req.user.userId);
+  db.input('canAll', sql.Bit, canAll);
+  db.input('canOwn', sql.Bit, canOwn);
+  db.input('canManager', sql.Bit, canManager);
+  db.input('canAssigned', sql.Bit, canAssigned);
+
+  try {
+    const result = await db.query(`
+      SELECT DISTINCT
+        dr.RequestID, dr.RequestNumber, dr.NodeID, dr.NodeCode, n.NodeName,
+        dr.RequesterUserID, dr.RequesterUsername, dr.ManagerUserID, dr.ManagerUsername,
+        dr.AssignedDrawingExpertID, au.Username AS AssignedDrawingExpertUsername,
+        s.StatusCode, s.StatusName, dr.[Description], dr.CreatedAt,
+        dr.ManagerDecisionAt, dr.ManagerComment, dr.AssignedAt, dr.UpdatedAt
+      FROM dbo.DrawingRequests dr
+      INNER JOIN dbo.Nodes n ON n.NodeID=dr.NodeID
+      INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID
+      LEFT JOIN dbo.Users au ON au.UserID=dr.AssignedDrawingExpertID
+      WHERE (@canAll=1)
+         OR (@canOwn=1 AND dr.RequesterUserID=@userId)
+         OR (@canManager=1 AND dr.ManagerUserID=@userId)
+         OR (@canAssigned=1 AND dr.AssignedDrawingExpertID=@userId)
+      ORDER BY dr.UpdatedAt DESC, dr.RequestID DESC;
+    `);
+    res.json({ requests: result.recordset });
+  } catch (e) {
+    console.error('Drawing worklist load failed:', e);
+    sendServerError(res, 'Drawing worklist load failed', e);
+  }
+});
+
+app.get('/api/drawing-requests/notifications', async (req, res) => {
+  const db = new sql.Request();
+  db.input('userId', sql.Int, req.user.userId);
+  try {
+    const result = await db.query(`
+      SELECT TOP 50 NotificationID, RequestID, RequestNumber, NotificationType,
+             Title, Message, IsRead, CreatedAt, ReadAt
+      FROM dbo.Notifications
+      WHERE UserID=@userId
+      ORDER BY IsRead ASC, CreatedAt DESC, NotificationID DESC;
+    `);
+    res.json({
+      notifications: result.recordset,
+      unreadCount: result.recordset.filter(x => !x.IsRead).length
+    });
+  } catch (e) {
+    console.error('Notification load failed:', e);
+    sendServerError(res, 'Notification load failed', e);
+  }
+});
+
+app.patch('/api/drawing-requests/notifications/:notificationId/read', async (req, res) => {
+  const notificationId = Number(req.params.notificationId);
+  if (!Number.isInteger(notificationId) || notificationId <= 0) return res.status(400).json({ error: 'Invalid notification ID.' });
+
+  const db = new sql.Request();
+  db.input('notificationId', sql.Int, notificationId);
+  db.input('userId', sql.Int, req.user.userId);
+  try {
+    const result = await db.query(`
+      UPDATE dbo.Notifications
+      SET IsRead=1, ReadAt=SYSUTCDATETIME()
+      WHERE NotificationID=@notificationId AND UserID=@userId;
+      SELECT @@ROWCOUNT AS Updated;
+    `);
+    if (Number(result.recordset[0]?.Updated || 0) === 0) return res.status(404).json({ error: 'Notification not found.' });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Notification update failed:', e);
+    sendServerError(res, 'Notification update failed', e);
+  }
+});
+
 setInterval(() => auth.cleanup(), 10 * 60 * 1000);
 
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
