@@ -452,7 +452,9 @@ Exact PermissionCode names and role mappings must be finalized against the curre
 # Admin Database Management — 2026-10-08
 
 ## Current Task
-Add an Admin-only in-app database management environment so an Admin can view, add, edit, activate/deactivate, and delete records without using SQL manually.
+Fix Admin Management API origin when frontend is opened through Live Server (`127.0.0.1:5500`), then validate the Admin database management environment.
+
+Previous task: Add an Admin-only in-app database management environment so an Admin can view, add, edit, activate/deactivate, and delete records without using SQL manually.
 
 ## Implemented
 - Added Admin-only **Management** button to the main DMS header.
@@ -520,6 +522,12 @@ Add an Admin-only in-app database management environment so an Admin can view, a
   5. Delete behavior respects foreign keys.
   6. Password creation/reset from the Users form allows login.
 
+## Latest Fix — 2026-10-08
+- User reported `GET http://127.0.0.1:5500/api/auth/me 404` and `GET http://127.0.0.1:5500/api/admin/tables/null/rows 404`.
+- Root cause: frontend was opened through Live Server on port 5500, while Node backend serves APIs on port 3000. Relative `/api/...` requests therefore went to Live Server instead of Node.
+- Fixed `frontend/js/management.js` to use `API_BASE` dynamically: when frontend runs on ports 5500/5501 it targets the same hostname on port 3000; when served by the Node backend it remains same-origin.
+- Commit: `1579eefb62bc61e5934b17c8d49eb5afbf0cd375`.
+
 ## Known Limitations
 - The management UI currently uses generic inputs for FK columns; it does not yet provide relationship-aware dropdowns for every FK.
 - `dbo.Logs` is intentionally read-only.
@@ -528,7 +536,12 @@ Add an Admin-only in-app database management environment so an Admin can view, a
 
 # NEXT ACTION
 
-1. Start the DMS backend on the real Windows/SQL Server machine and run a syntax/runtime smoke test for `backend/auth.js`, `backend/server.js`, `backend/admin-db.js`, and `frontend/js/management.js`.
+1. Restart the DMS backend (`backend/server.js`) so the current GitHub source is running.
+2. Keep the frontend on Live Server `http://127.0.0.1:5500` if desired, refresh the Management page, and confirm Network now calls `http://127.0.0.1:3000/api/auth/me` and receives `200` for the Admin session.
+3. Confirm the table list loads; the previous `tables/null/rows` error should disappear because rows are loaded only after a real table is selected.
+4. Verify `Users`, `Roles`, `Permissions`, and `RolePermissions` CRUD on test records.
+5. If the Admin session was created on `localhost` while the page is on `127.0.0.1`, use one hostname consistently (`127.0.0.1` recommended) and log in again.
+6. After runtime validation, update this file with the exact test result and latest commit hash. on the real Windows/SQL Server machine and run a syntax/runtime smoke test for `backend/auth.js`, `backend/server.js`, `backend/admin-db.js`, and `frontend/js/management.js`.
 2. Log in as Admin and click **Management**; verify all 17 application tables appear and `Nodes` pagination works with the large dataset.
 3. Verify `Users`: add a test user with password, toggle `IsActive`, save, then log in with that account.
 4. Verify `Roles`, `Permissions`, and `RolePermissions`: add/remove a permission and confirm the user's effective permissions change after a fresh login.
