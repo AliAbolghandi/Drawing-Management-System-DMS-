@@ -82,7 +82,7 @@ app.use(auth.securityHeaders);
 app.use(cors({
   origin: (origin, callback) => callback(null, !origin || FRONTEND_ORIGINS.has(origin)),
   credentials: true,
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type']
 }));
 app.use(express.json({ limit: '1mb' }));
