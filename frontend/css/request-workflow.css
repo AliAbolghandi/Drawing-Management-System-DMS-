@@ -1,0 +1,41 @@
+/* Drawing request / worklist UI */
+.request-workflow-sidebar{position:fixed;top:0;right:0;width:min(430px,92vw);height:100vh;background:#0f172a;color:#e2e8f0;box-shadow:-14px 0 35px rgba(0,0,0,.35);z-index:3000;transform:translateX(105%);transition:transform .22s ease;display:flex;flex-direction:column;border-left:1px solid #334155}
+.request-workflow-sidebar.open{transform:translateX(0)}
+.request-workflow-overlay{position:fixed;inset:0;background:rgba(2,6,23,.48);z-index:2999;display:none}
+.request-workflow-overlay.open{display:block}
+.rw-sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:18px;border-bottom:1px solid #334155}
+.rw-sidebar-header h2{margin:0;font-size:18px}
+.rw-close,.rw-sidebar-toggle{border:1px solid #475569;background:#1e293b;color:#e2e8f0;border-radius:8px;cursor:pointer}
+.rw-close{width:34px;height:34px;font-size:20px}
+.rw-sidebar-toggle{padding:8px 12px;margin-right:8px}
+.rw-user-card{margin:16px;padding:14px;border:1px solid #334155;border-radius:10px;background:#111c2f}
+.rw-user-card .rw-user-name{font-weight:700;color:#f8fafc;font-size:16px}
+.rw-user-meta{font-size:12px;color:#94a3b8;margin-top:4px}
+.rw-logout{width:100%;margin-top:12px;padding:9px;border:0;border-radius:7px;background:#b91c1c;color:#fff;cursor:pointer}
+.rw-worklist-button{margin:0 16px 12px;padding:11px;border:1px solid #475569;border-radius:8px;background:#1e293b;color:#f8fafc;cursor:pointer;text-align:left}
+.rw-worklist-button.active{background:#334155}
+.rw-badge{float:right;min-width:20px;padding:2px 6px;border-radius:999px;background:#dc2626;color:#fff;text-align:center;font-size:11px}
+.rw-content{padding:0 16px 18px;overflow:auto;flex:1}
+.rw-loading,.rw-empty{padding:22px 4px;color:#94a3b8;text-align:center}
+.rw-request-card{border:1px solid #334155;border-radius:10px;background:#111827;padding:12px;margin-bottom:10px}
+.rw-request-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.rw-request-number{font-weight:700;color:#f8fafc}
+.rw-status{font-size:11px;padding:4px 7px;border-radius:999px;background:#334155;color:#cbd5e1;white-space:nowrap}
+.rw-request-node{margin-top:7px;color:#cbd5e1;font-size:13px}
+.rw-request-meta{margin-top:6px;color:#94a3b8;font-size:11px;line-height:1.5}
+.rw-request-description{margin-top:8px;color:#cbd5e1;font-size:12px;white-space:pre-wrap}
+.request-drawing-btn{padding:8px 12px;border:1px solid #2563eb;background:#1d4ed8;color:#fff;border-radius:7px;cursor:pointer}
+.request-drawing-btn:hover{background:#2563eb}
+.rw-modal{position:fixed;inset:0;background:rgba(2,6,23,.62);z-index:3100;display:flex;align-items:center;justify-content:center;padding:20px}
+.rw-modal.hidden{display:none}
+.rw-dialog{width:min(520px,96vw);background:#fff;color:#0f172a;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.4);overflow:hidden}
+.rw-dialog-header{padding:18px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+.rw-dialog-header h3{margin:0;font-size:18px}
+.rw-dialog-body{padding:20px}
+.rw-node-context{padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;margin-bottom:14px}
+.rw-node-context strong{display:block}
+.rw-dialog textarea{width:100%;min-height:130px;resize:vertical;border:1px solid #cbd5e1;border-radius:8px;padding:10px;box-sizing:border-box;font:inherit}
+.rw-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.rw-dialog-actions button{padding:9px 14px;border-radius:7px;border:1px solid #cbd5e1;cursor:pointer}
+.rw-submit{background:#1d4ed8!important;color:#fff;border-color:#1d4ed8!important}
+.rw-error{margin-top:10px;color:#b91c1c;font-size:13px}
