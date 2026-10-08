@@ -1,6 +1,6 @@
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-09-28
+Last updated: 2026-10-08
 Repository: https://github.com/AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
