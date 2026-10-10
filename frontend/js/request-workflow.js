@@ -26,7 +26,12 @@
   function setRequestButtonVisibility() {
     const btn = $('addRequestBtn');
     if (!btn) return;
-    btn.classList.toggle('hidden', !hasPermission('REQUEST_DRAWING_CREATE'));
+    const allowed = hasPermission('REQUEST_DRAWING_CREATE');
+    // Keep the requested control visible; effective RolePermission still decides
+    // whether it can be used, and the API remains the final authorization check.
+    btn.disabled = !allowed;
+    btn.title = allowed ? '' : 'Your RolePermission does not include REQUEST_DRAWING_CREATE.';
+    btn.setAttribute('aria-disabled', String(!allowed));
   }
 
   async function requestJson(url, options = {}) {
@@ -71,7 +76,11 @@
     const box=$('rwContent');if(!box)return;
     if(!requests.length){box.innerHTML='<div class="rw-empty">No requests are currently visible in your worklist.</div>';return;}
     const userId=Number(window.DMS?.user?.userId||0);
-    const btn=(r,a,label,p)=>hasPermission(p)?`<button type="button" class="rw-action-btn" data-request-action="${a}" data-request-id="${Number(r.RequestID)}">${label}</button>`:'';
+    const btn=(r,a,label,p)=>{
+      const allowed=hasPermission(p);
+      const permissionHint=allowed?'':` title="Permission required: ${escapeHtml(p)}"`;
+      return `<button type="button" class="rw-action-btn" data-request-action="${a}" data-request-id="${Number(r.RequestID)}" data-required-permission="${escapeHtml(p)}"${allowed?'':' disabled aria-disabled="true"'}${permissionHint}>${label}</button>`;
+    };
     box.innerHTML=requests.map(r=>{
       const s=String(r.StatusCode||'');let actions='';
       if(Number(r.RequesterUserID)===userId&&!['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','FINAL_APPROVED','FINAL_REJECTED','CANCELLED'].includes(s))actions+=btn(r,'cancel','Cancel Request','REQUEST_DRAWING_CANCEL');
@@ -171,6 +180,10 @@
     $('rwWorklistButton')?.addEventListener('click', loadWorklist);
     $('rwContent')?.addEventListener('click', async event => {
       const b=event.target.closest('[data-request-action]');if(!b)return;
+      if (b.disabled || !hasPermission(b.dataset.requiredPermission)) {
+        alert(`Permission denied: ${b.dataset.requiredPermission || 'required workflow permission'}.`);
+        return;
+      }
       const action=b.dataset.requestAction;let expertUsername='';
       if(action==='assign'||action==='transfer'){expertUsername=prompt('Enter the active DrawingExpert username:')?.trim()||'';if(!expertUsername)return;}
       const comment=prompt('Comment (optional):')||'';b.disabled=true;
