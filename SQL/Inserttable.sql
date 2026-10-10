@@ -66,7 +66,8 @@ BEGIN TRY
         (N'REQUEST_DRAWING_COMPLETE',          N'Complete Drawing Request',             N'DrawingExpert can mark the assigned work as completed.'),
         (N'REQUEST_DRAWING_RETURN_CORRECTION', N'Return Drawing Request for Correction', N'An authorized user can return the request for correction.'),
         (N'REQUEST_DRAWING_FINAL_APPROVE',     N'Final Approve Drawing Request',        N'Admin/DrawingSupervisor can give final approval.'),
-        (N'REQUEST_DRAWING_FINAL_REJECT',      N'Final Reject Drawing Request',         N'Admin/DrawingSupervisor can reject final approval.')
+        (N'REQUEST_DRAWING_FINAL_REJECT',      N'Final Reject Drawing Request',         N'Admin/DrawingSupervisor can reject final approval.'),
+        (N'REQUEST_DRAWING_CANCEL',              N'Cancel Own Drawing Request',              N'Requester may cancel their own non-final drawing request.')
     ) AS v(PermissionCode, PermissionName, [Description])
     WHERE NOT EXISTS (
         SELECT 1
@@ -165,6 +166,11 @@ BEGIN TRY
         (N'VIEWER',N'PDF_Danieli_Download'),
         (N'VIEWER',N'REQUEST_DRAWING_CREATE'),
         (N'VIEWER',N'REQUEST_DRAWING_VIEW_OWN'),
+        (N'Admin',N'REQUEST_DRAWING_CANCEL'),
+        (N'DrawingSupervisor',N'REQUEST_DRAWING_CANCEL'),
+        (N'DrawingExpert',N'REQUEST_DRAWING_CANCEL'),
+        (N'VIEWER',N'REQUEST_DRAWING_CANCEL'),
+        (N'Manager',N'REQUEST_DRAWING_CANCEL'),
         (N'Manager',N'NODE_VIEW'),
         (N'Manager',N'PDF_VIEW'),
         (N'Manager',N'PDF_Danieli_Download'),
