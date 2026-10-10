@@ -40,4 +40,4 @@
 .rw-submit{background:#1d4ed8!important;color:#fff;border-color:#1d4ed8!important}
 .rw-error{margin-top:10px;color:#b91c1c;font-size:13px}
 
-.rw-action-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.rw-action-btn{border:1px solid #475569;background:#1e293b;color:#f8fafc;border-radius:6px;padding:6px 9px;font-size:12px;cursor:pointer}.rw-action-btn:hover{background:#334155}.rw-action-btn:disabled{opacity:.55;cursor:wait}
+.rw-action-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.rw-action-btn{border:1px solid #475569;background:#1e293b;color:#f8fafc;border-radius:6px;padding:6px 9px;font-size:12px;cursor:pointer}.rw-action-btn:hover{background:#334155}.rw-action-btn:disabled{opacity:.58;cursor:not-allowed;border-style:dashed}.request-drawing-btn:disabled{opacity:.6;cursor:not-allowed}
