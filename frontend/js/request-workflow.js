@@ -44,6 +44,7 @@
       $('rwUserUsername').textContent = u.username ? `Username: ${u.username}` : '';
       window.DMS = window.DMS || {};
       window.DMS.permissions = new Set(data.permissions || []);
+      window.DMS.user = u;
       setRequestButtonVisibility();
       return data;
     } catch (e) {
@@ -67,27 +68,27 @@
   }
 
   function renderWorklist(requests) {
-    const box = $('rwContent');
-    if (!box) return;
-    if (!requests.length) {
-      box.innerHTML = '<div class="rw-empty">No requests are currently visible in your worklist.</div>';
-      return;
-    }
-    box.innerHTML = requests.map(r => `
-      <article class="rw-request-card">
-        <div class="rw-request-top">
-          <span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span>
-          <span class="rw-status">${escapeHtml(r.StatusName || r.StatusCode || '-')}</span>
-        </div>
-        <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode || '-')}</strong> — ${escapeHtml(r.NodeName || '-')}</div>
-        <div class="rw-request-meta">
-          Requester: ${escapeHtml(r.RequesterUsername || '-')}<br>
-          Manager: ${escapeHtml(r.ManagerUsername || '-')}<br>
-          Created: ${escapeHtml(formatDate(r.CreatedAt))}
-        </div>
-        ${r.Description ? `<div class="rw-request-description">${escapeHtml(r.Description)}</div>` : ''}
-      </article>
-    `).join('');
+    const box=$('rwContent');if(!box)return;
+    if(!requests.length){box.innerHTML='<div class="rw-empty">No requests are currently visible in your worklist.</div>';return;}
+    const userId=Number(window.DMS?.user?.userId||0);
+    const btn=(r,a,label,p)=>hasPermission(p)?`<button type="button" class="rw-action-btn" data-request-action="${a}" data-request-id="${Number(r.RequestID)}">${label}</button>`:'';
+    box.innerHTML=requests.map(r=>{
+      const s=String(r.StatusCode||'');let actions='';
+      if(Number(r.RequesterUserID)===userId&&!['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','FINAL_APPROVED','FINAL_REJECTED','CANCELLED'].includes(s))actions+=btn(r,'cancel','Cancel Request','REQUEST_DRAWING_CANCEL');
+      if(Number(r.ManagerUserID)===userId&&s==='PENDING_MANAGER'){actions+=btn(r,'approve','Approve','REQUEST_DRAWING_APPROVE');actions+=btn(r,'reject','Reject','REQUEST_DRAWING_REJECT');}
+      if(['PENDING_DRAWING_APPROVAL','EXPERT_REJECTED','TRANSFERRED','RETURNED_FOR_CORRECTION'].includes(s)){actions+=btn(r,'assign','Refer to Expert','REQUEST_DRAWING_ASSIGN');actions+=btn(r,'final-reject','Reject Request','REQUEST_DRAWING_FINAL_REJECT');}
+      if(Number(r.AssignedDrawingExpertID)===userId){
+        if(s==='ASSIGNED')actions+=btn(r,'accept','Accept Work','REQUEST_DRAWING_ACCEPT');
+        if(['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s)){actions+=btn(r,'transfer','Refer to Another Expert','REQUEST_DRAWING_TRANSFER');actions+=btn(r,'expert-reject','Reject Work','REQUEST_DRAWING_EXPERT_REJECT');}
+        if(['IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s))actions+=btn(r,'complete','Complete Work','REQUEST_DRAWING_COMPLETE');
+      }
+      if(['PENDING_FINAL_APPROVAL','FINAL_REJECTED'].includes(s))actions+=btn(r,'return-correction','Return for Correction','REQUEST_DRAWING_RETURN_CORRECTION');
+      if(s==='PENDING_FINAL_APPROVAL')actions+=btn(r,'final-approve','Final Approve','REQUEST_DRAWING_FINAL_APPROVE');
+      return `<article class="rw-request-card"><div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName||s||'-')}</span></div>
+        <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode||'-')}</strong> — ${escapeHtml(r.NodeName||'-')}</div>
+        <div class="rw-request-meta">Requester: ${escapeHtml(r.RequesterUsername||'-')}<br>Manager: ${escapeHtml(r.ManagerUsername||'-')}<br>Assigned expert: ${escapeHtml(r.AssignedDrawingExpertUsername||'-')}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
+        ${r.Description?`<div class="rw-request-description">${escapeHtml(r.Description)}</div>`:''}${actions?`<div class="rw-action-row">${actions}</div>`:''}</article>`;
+    }).join('');
   }
 
   async function loadWorklist() {
@@ -168,6 +169,14 @@
     $('rwClose')?.addEventListener('click', closeSidebar);
     $('rwOverlay')?.addEventListener('click', closeSidebar);
     $('rwWorklistButton')?.addEventListener('click', loadWorklist);
+    $('rwContent')?.addEventListener('click', async event => {
+      const b=event.target.closest('[data-request-action]');if(!b)return;
+      const action=b.dataset.requestAction;let expertUsername='';
+      if(action==='assign'||action==='transfer'){expertUsername=prompt('Enter the active DrawingExpert username:')?.trim()||'';if(!expertUsername)return;}
+      const comment=prompt('Comment (optional):')||'';b.disabled=true;
+      try{await requestJson(`${API}/drawing-requests/${Number(b.dataset.requestId)}/action`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,expertUsername,comment})});await loadWorklist();await loadNotifications();}
+      catch(e){alert(e.message);b.disabled=false;}
+    });
     $('rwLogout')?.addEventListener('click', async () => {
       $('rwLogout').disabled = true;
       try { await fetch(`${API}/auth/logout`, {method:'POST',credentials:'include'}); } catch (_) {}
