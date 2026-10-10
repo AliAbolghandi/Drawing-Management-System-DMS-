@@ -567,10 +567,27 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - Runtime browser/SQL Server test was not performed in this session.
 
 
+
+## Drawing Request Workflow Actions — 2026-10-10
+
+- Added backend endpoint `POST /api/drawing-requests/:requestId/action` in `backend/server.js`.
+- Actions use effective PermissionCodes and validate request ownership/responsibility/status; status changes and `DrawingRequestHistory` are written in a SQL transaction.
+- Supported: requester cancel; Manager approve/reject; Admin/DrawingSupervisor refer to DrawingExpert or reject at drawing approval; DrawingExpert accept, transfer, reject work, and complete; authorized supervisor/admin return for correction or final approval.
+- Added `REQUEST_DRAWING_CANCEL` and idempotent RolePermissions mappings to `SQL/Inserttable.sql`.
+- Updated `frontend/js/request-workflow.js` to render workflow actions by PermissionCode, user responsibility, and status. Assignment prompts for an active DrawingExpert username. Updated `frontend/css/request-workflow.css`.
+- Runtime SQL Server/browser tests have not been performed from this environment.
+- Known schema issue: `Notifications.RequestNumber` is UNIQUE in v04, so no additional per-action notifications are inserted by this change.
+- Baseline before workflow-action changes: `11bc49e52a21e3f3b7f26babe3e43ea6ca259a1`.
+- Commits for this change:
+- d5ac303897629135f1b7d9e0f5c29cb45cb2252f — backend/server.js
+- b137a121fd87770ef06fa62ec8e6d24aed7b095b — SQL/Inserttable.sql
+- a19cfa84817b316dc77b06a47414ad12d73a207d — frontend/js/request-workflow.js
+- a2001e88d9d09dcd7832faa974ba1c1a0140bb96 — frontend/css/request-workflow.css
+
 # NEXT ACTION
 
-1. Restart the DMS backend and refresh the Management page.
-2. Open any table and click a column header; verify the first click sorts ascending and the second click sorts descending.
-3. Verify the Network request contains `sortBy=<ColumnName>&sortDir=asc|desc`.
-4. Verify sorting works across numeric, text, date/time, and nullable columns.
-5. If runtime testing passes, record the exact browser/SQL Server test result here.
+1. Finish committing the backend, permission seed, and UI changes to `main`; record actual commit hashes.
+2. Run `node --check backend/server.js` and `node --check frontend/js/request-workflow.js` on the DMS machine.
+3. Execute `SQL/Inserttable.sql` in `dbDrawingManagment` so `REQUEST_DRAWING_CANCEL` exists and is mapped through `RolePermissions`.
+4. Restart the backend and test as requester/Viewer, Manager, Admin/DrawingSupervisor, and DrawingExpert across valid and invalid transitions.
+5. Verify hidden buttons and direct-API 403 behavior for missing permissions/ownership.
