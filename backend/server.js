@@ -849,6 +849,76 @@ app.patch('/api/drawing-requests/notifications/:notificationId/read', async (req
 });
 
 
+
+app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
+  const requestId = Number(req.params.requestId);
+  const action = typeof req.body?.action === 'string' ? req.body.action.trim().toLowerCase() : '';
+  const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim().slice(0, 1000) : '';
+  const expertUsername = typeof req.body?.expertUsername === 'string' ? req.body.expertUsername.trim() : '';
+  if (!Number.isInteger(requestId) || requestId <= 0) return res.status(400).json({ error: 'Invalid Request ID.' });
+  const permissions = {cancel:'REQUEST_DRAWING_CANCEL',approve:'REQUEST_DRAWING_APPROVE',reject:'REQUEST_DRAWING_REJECT',assign:'REQUEST_DRAWING_ASSIGN',transfer:'REQUEST_DRAWING_TRANSFER',accept:'REQUEST_DRAWING_ACCEPT','expert-reject':'REQUEST_DRAWING_EXPERT_REJECT',complete:'REQUEST_DRAWING_COMPLETE','return-correction':'REQUEST_DRAWING_RETURN_CORRECTION','final-approve':'REQUEST_DRAWING_FINAL_APPROVE','final-reject':'REQUEST_DRAWING_FINAL_REJECT'};
+  if (!permissions[action]) return res.status(400).json({ error: 'Unsupported workflow action.' });
+  if (!req.user.permissions.has(permissions[action])) return res.status(403).json({ error: 'Permission denied.' });
+  if (['assign','transfer'].includes(action) && !expertUsername) return res.status(400).json({ error: 'DrawingExpert username is required.' });
+  const db = new sql.Request();
+  db.input('requestId',sql.Int,requestId); db.input('userId',sql.Int,req.user.userId);
+  db.input('username',sql.NVarChar(100),req.user.username); db.input('comment',sql.NVarChar(1000),comment||null);
+  db.input('expertUsername',sql.NVarChar(100),expertUsername||null);
+  try {
+    const cr=await db.query(`SELECT dr.RequestID,dr.RequestNumber,dr.RequesterUserID,dr.ManagerUserID,dr.AssignedDrawingExpertID,s.StatusCode FROM dbo.DrawingRequests dr INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID WHERE dr.RequestID=@requestId;`);
+    const current=cr.recordset[0]; if(!current) return res.status(404).json({error:'Drawing request not found.'});
+    const status=String(current.StatusCode); let nextStatus,actionCode,allowed=false,targetExpert=null;
+    switch(action){
+      case 'cancel': allowed=Number(current.RequesterUserID)===Number(req.user.userId)&&!['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','FINAL_APPROVED','FINAL_REJECTED','CANCELLED'].includes(status); nextStatus='CANCELLED';actionCode='REQUEST_CANCELLED';break;
+      case 'approve': case 'reject': allowed=Number(current.ManagerUserID)===Number(req.user.userId)&&status==='PENDING_MANAGER';nextStatus=action==='approve'?'PENDING_DRAWING_APPROVAL':'MANAGER_REJECTED';actionCode=action==='approve'?'MANAGER_APPROVED':'MANAGER_REJECTED';break;
+      case 'assign': allowed=['PENDING_DRAWING_APPROVAL','EXPERT_REJECTED','TRANSFERRED','RETURNED_FOR_CORRECTION'].includes(status);nextStatus='ASSIGNED';actionCode='ASSIGNED_TO_EXPERT';break;
+      case 'transfer': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(status);nextStatus='TRANSFERRED';actionCode='EXPERT_TRANSFERRED';break;
+      case 'accept': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&status==='ASSIGNED';nextStatus='IN_PROGRESS';actionCode='EXPERT_ACCEPTED';break;
+      case 'expert-reject': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&['ASSIGNED','IN_PROGRESS'].includes(status);nextStatus='EXPERT_REJECTED';actionCode='EXPERT_REJECTED';break;
+      case 'complete': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&['IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(status);nextStatus='PENDING_FINAL_APPROVAL';actionCode='WORK_COMPLETED';break;
+      case 'return-correction': allowed=['PENDING_FINAL_APPROVAL','FINAL_REJECTED'].includes(status);nextStatus='RETURNED_FOR_CORRECTION';actionCode='RETURN_FOR_CORRECTION';break;
+      case 'final-approve': allowed=status==='PENDING_FINAL_APPROVAL';nextStatus='FINAL_APPROVED';actionCode='FINAL_APPROVED';break;
+      case 'final-reject': allowed=status==='PENDING_DRAWING_APPROVAL';nextStatus='DRAWING_APPROVAL_REJECTED';actionCode='DRAWING_REJECTED';break;
+    }
+    if(!allowed) return res.status(403).json({error:'This action is not allowed for your user or the current request status.'});
+    if(['assign','transfer'].includes(action)){
+      const er=new sql.Request();er.input('expertUsername',sql.NVarChar(100),expertUsername);
+      const found=await er.query(`SELECT TOP 1 u.UserID,u.Username FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleCode=N'DrawingExpert' WHERE u.Username=@expertUsername AND u.IsActive=1;`);
+      targetExpert=found.recordset[0];if(!targetExpert)return res.status(400).json({error:'Active DrawingExpert username was not found.'});
+    }
+    const sr=new sql.Request();sr.input('statusCode',sql.NVarChar(50),nextStatus);
+    const statusResult=await sr.query('SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=@statusCode;');
+    const nextStatusId=statusResult.recordset[0]?.StatusID;if(nextStatusId==null)return res.status(500).json({error:'Workflow status is missing from DrawingRequestStatuses.'});
+    const tx=new sql.Transaction();await tx.begin();
+    try{
+      const q=new sql.Request(tx);q.input('requestId',sql.Int,requestId);q.input('nextStatusId',sql.Int,nextStatusId);q.input('nextStatus',sql.NVarChar(50),nextStatus);q.input('comment',sql.NVarChar(1000),comment||null);q.input('userId',sql.Int,req.user.userId);q.input('username',sql.NVarChar(100),req.user.username);q.input('targetExpertId',sql.Int,targetExpert?Number(targetExpert.UserID):null);q.input('targetExpertUsername',sql.NVarChar(100),targetExpert?targetExpert.Username:null);q.input('actionCode',sql.NVarChar(50),actionCode);
+      await q.query(`
+        DECLARE @fromStatusID int=(SELECT StatusID FROM dbo.DrawingRequests WHERE RequestID=@requestId);
+        IF @fromStatusID IS NULL THROW 51001, 'Drawing request not found.', 1;
+        UPDATE dbo.DrawingRequests SET StatusID=@nextStatusId,UpdatedAt=SYSUTCDATETIME(),
+          AssignedDrawingExpertID=CASE WHEN @nextStatus IN (N'ASSIGNED',N'TRANSFERRED') THEN @targetExpertId ELSE AssignedDrawingExpertID END,
+          AssignedAt=CASE WHEN @nextStatus=N'ASSIGNED' THEN SYSUTCDATETIME() ELSE AssignedAt END,
+          ManagerDecisionAt=CASE WHEN @nextStatus IN (N'PENDING_DRAWING_APPROVAL',N'MANAGER_REJECTED') THEN SYSUTCDATETIME() ELSE ManagerDecisionAt END,
+          ManagerComment=CASE WHEN @nextStatus IN (N'PENDING_DRAWING_APPROVAL',N'MANAGER_REJECTED') THEN @comment ELSE ManagerComment END
+        WHERE RequestID=@requestId;
+        IF @nextStatus IN (N'ASSIGNED',N'TRANSFERRED')
+        BEGIN
+          UPDATE dbo.DrawingRequestAssignments SET IsCurrent=0 WHERE RequestID=@requestId AND IsCurrent=1;
+          INSERT INTO dbo.DrawingRequestAssignments(RequestID,RequestNumber,AssignedByUserID,AssignedUsername,DrawingExpertUserID,DrawingExpertUsername,AssignedAt,IsCurrent,AssignmentStatus,Comment)
+          SELECT @requestId,RequestNumber,@userId,@username,@targetExpertId,@targetExpertUsername,SYSUTCDATETIME(),1,@nextStatus,@comment FROM dbo.DrawingRequests WHERE RequestID=@requestId;
+        END;
+        IF @nextStatus=N'IN_PROGRESS' UPDATE dbo.DrawingRequestAssignments SET AcceptedAt=SYSUTCDATETIME(),AssignmentStatus=N'IN_PROGRESS' WHERE RequestID=@requestId AND DrawingExpertUserID=@userId AND IsCurrent=1;
+        IF @nextStatus=N'PENDING_FINAL_APPROVAL' UPDATE dbo.DrawingRequestAssignments SET CompletedAt=SYSUTCDATETIME(),AssignmentStatus=N'COMPLETED' WHERE RequestID=@requestId AND DrawingExpertUserID=@userId AND IsCurrent=1;
+        INSERT INTO dbo.DrawingRequestHistory(RequestID,RequestNumber,ActionCode,FromStatusID,ToStatusID,ActionByUserID,ActionByUsername,Comment,CreatedAt)
+        SELECT @requestId,RequestNumber,@actionCode,@fromStatusID,@nextStatusId,@userId,@username,@comment,SYSUTCDATETIME() FROM dbo.DrawingRequests WHERE RequestID=@requestId;
+      `);
+      await tx.commit();
+    }catch(e){await tx.rollback();throw e;}
+    res.json({success:true,requestId,action,statusCode:nextStatus});
+  }catch(e){console.error('Drawing request action failed:',e);sendServerError(res,'Drawing request action failed',e);}
+});
+
+
 registerAdminDatabaseRoutes(app, { sql, auth, crypto, sendServerError });
 
 setInterval(() => auth.cleanup(), 10 * 60 * 1000);
