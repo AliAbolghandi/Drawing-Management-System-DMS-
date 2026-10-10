@@ -584,10 +584,26 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - a19cfa84817b316dc77b06a47414ad12d73a207d — frontend/js/request-workflow.js
 - a2001e88d9d09dcd7832faa974ba1c1a0140bb96 — frontend/css/request-workflow.css
 
+## Drawing Workflow Button Visibility Fix — 2026-10-10
+
+- User reported that none of the requested workflow buttons were visible and confirmed they had not run `SQL/Inserttable.sql`.
+- Updated `frontend/js/request-workflow.js`:
+  - `Add Request` remains visible and becomes disabled when `REQUEST_DRAWING_CREATE` is absent from the effective PermissionCode set; its tooltip explains the missing permission.
+  - Workflow action buttons are now rendered for applicable request status/ownership even when the current user lacks the required PermissionCode; unauthorized buttons are visibly disabled and expose the required permission in a tooltip/data attribute.
+  - The click handler rechecks the required PermissionCode before calling the action API.
+  - Backend PermissionCode checks remain authoritative; this UI change does not grant permissions or bypass RBAC.
+- Updated `frontend/css/request-workflow.css` so disabled workflow controls are visibly disabled.
+- Commits:
+  - `9d5d2ddfe7c4a8c34e85ccd5464937a6adfa5c3f` — Keep drawing workflow action buttons visible with RBAC disabled states
+  - `083124d975217a068ce6aca5a6fa14136e57de00` — Style visible but unauthorized drawing workflow buttons
+- Source verification after commits confirmed the JS/CSS changes and that `frontend/index.html` loads `js/request-workflow.js`.
+- No runtime browser test, Node syntax check, or SQL Server test was run from this environment.
+- Important prerequisite: user has not run `SQL/Inserttable.sql`. According to the migration documented above, request/worklist APIs depend on the workflow tables and seed permissions in that script. Until the migration is reviewed and applied to the target database, the controls may be visible but requests/actions cannot be confirmed functional.
+
 # NEXT ACTION
 
-1. Finish committing the backend, permission seed, and UI changes to `main`; record actual commit hashes.
+1. Ask the user to refresh `frontend/index.html` with a hard reload (Ctrl+F5) and open **Worklist** to check that controls appear on existing request cards.
 2. Run `node --check backend/server.js` and `node --check frontend/js/request-workflow.js` on the DMS machine.
-3. Execute `SQL/Inserttable.sql` in `dbDrawingManagment` so `REQUEST_DRAWING_CANCEL` exists and is mapped through `RolePermissions`.
-4. Restart the backend and test as requester/Viewer, Manager, Admin/DrawingSupervisor, and DrawingExpert across valid and invalid transitions.
-5. Verify hidden buttons and direct-API 403 behavior for missing permissions/ownership.
+3. Before running `SQL/Inserttable.sql`, review its complete migration scope with the user because it creates the v04 workflow tables and seeds workflow statuses/actions/permissions; user has confirmed it has not been run.
+4. After explicit approval and database backup, apply the reviewed migration to `dbDrawingManagment`, restart the backend, and test request creation plus cancel/Manager approve-reject/Admin-Supervisor assign-reject/Expert transfer-complete actions.
+5. Record real runtime results and update this file; do not claim workflow completion before browser and SQL Server tests pass.
