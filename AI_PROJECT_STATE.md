@@ -693,10 +693,24 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - Commit: `ef2507bf3500419c0ca33249e011dfd689a7468f`.
 - Runtime browser/API/SQL Server testing has not been performed.
 
+
+
+## Worklist Unread State — Per Current User — 2026-10-11
+
+- User reported that after a Viewer request is approved by its Manager, the next responsible users did not see the request as unread/red in their Worklist.
+- Root cause: `GET /api/drawing-requests` computed `HasWorkflowAction` by checking whether *any* non-`REQUEST_CREATED` action existed for the request. A Manager's approval therefore marked the card as read for every user, including the next actor.
+- Fixed `backend/server.js`: `HasWorkflowAction` now checks for a non-`REQUEST_CREATED` history action performed by the currently authenticated user (`ActionByUserID=@userId`). A Manager's action no longer marks the request as read for the next user.
+- Updated `frontend/index.html` cache-buster for `js/request-workflow.js` to `v=20261011-user-worklist-read`.
+- No database/schema changes.
+- Commits:
+  - `296bddd43eb0a0815979485ff4e49bfe1f8f518a` — Track drawing worklist read state per current user
+  - `ddfd4833c1ead496a07f51b23c86e390fd61892c` — Refresh workflow frontend after per-user unread fix
+- Source-level verification: confirmed the old global history-existence condition was replaced with the current-user condition and the frontend cache-buster was updated. Live browser/API/SQL Server testing has not been performed.
+
 # NEXT ACTION
 
-1. Pull latest `main` locally, including `frontend/index.html`, `frontend/js/request-workflow.js`, and `backend/server.js`; restart the backend and reload the page with Ctrl+F5.
-2. Sign in as a Viewer and verify Cancel Request is enabled for the Viewer’s own request while status is `PENDING_MANAGER`; cancel it and confirm the status becomes `CANCELLED`.
-3. Submit another request and have its Manager approve it. Confirm Cancel Request is no longer offered and a direct cancel API call returns HTTP 403.
-4. Verify the Viewer cannot cancel another user’s request; confirm Manager approve/reject and other workflow actions still enforce their permissions.
-5. Record browser/API results against the actual SQL Server.
+1. Pull latest `main` locally and restart the backend so `backend/server.js` uses per-user `HasWorkflowAction`.
+2. Hard-refresh the browser with Ctrl+F5; confirm `frontend/index.html` loads `request-workflow.js?v=20261011-user-worklist-read`.
+3. Sign in as a Viewer, create a drawing request, then sign in as its Manager and approve it.
+4. Sign in as the next responsible Admin/DrawingSupervisor user and verify the approved request is red/unread until that user performs a workflow action; verify it changes to the normal background after their action.
+5. Also verify a user who already performed an action sees their own card in the read/background style, while a different next actor still sees it red. Record results from the actual browser and SQL Server.
