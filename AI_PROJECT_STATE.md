@@ -673,10 +673,22 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - Commit: `f2a2a3187d731f6d634a8474eea2ce27f0b8f643` — Restrict requester cancellation to pre-manager approval
 - Verification: source condition was matched and replaced against the current `main` file. No live SQL Server/API/browser integration test was available/performed in this session.
 
+## Viewer Cancellation Disabled-State Fix — 2026-10-11
+
+- User reported that Viewer can see the Cancel Request button but it is disabled.
+- Root cause: frontend action availability was tied to the `REQUEST_DRAWING_CANCEL` PermissionCode, and backend rejected every action without its mapped permission before checking request ownership/status. This prevented Viewer cancellation when that permission was absent from the user's effective PermissionCode set.
+- `frontend/js/request-workflow.js` now treats Cancel Request as available only in the existing owner + `PENDING_MANAGER` branch; that specific action is enabled without relying on a separate permission code.
+- `backend/server.js` now exempts only the `cancel` action from the generic PermissionCode gate. Its existing action authorization still requires `RequesterUserID === req.user.userId` and exact status `PENDING_MANAGER`. All other workflow actions retain their permission checks.
+- No database schema or permission mapping was changed. A Viewer cannot cancel another user's request or any request after Manager approval.
+- Commits:
+  - `7daff6dce96fe8b7efd960f28b9160f846afd636` — Enable requester cancellation before manager approval
+  - `5c9fbc365c7d2b921a167f1050d39ea3e0cce496` — Authorize own pending request cancellation by ownership and status
+- Verification: fetched and inspected the current source before applying exact replacements; the expected frontend/backend changes were confirmed in the updated source content returned by GitHub. Runtime browser/API/SQL Server tests have not been run in this environment.
+
 # NEXT ACTION
 
 1. Restart the DMS backend so the updated `backend/server.js` is loaded.
-2. Sign in as a Viewer and submit a request; while it is `PENDING_MANAGER`, verify Cancel Request is visible and successfully cancels only that user's own request.
-3. As the Manager, approve a separate request. Verify the Viewer no longer sees Cancel Request and a direct `POST /api/drawing-requests/:requestId/action` with `{"action":"cancel"}` returns HTTP 403 after approval.
-4. Verify a Viewer cannot cancel another user's request, and check that Manager approve/reject and the rest of the workflow remain unchanged.
-5. Record results after browser/API testing against the actual SQL Server.
+2. Sign in as a Viewer and verify Cancel Request is enabled for the Viewer’s own request while status is `PENDING_MANAGER`; cancel it and confirm the status becomes `CANCELLED`.
+3. Submit another request and have its Manager approve it. Confirm Cancel Request is no longer offered and a direct cancel API call returns HTTP 403.
+4. Verify the Viewer cannot cancel another user’s request; confirm Manager approve/reject and other workflow actions still enforce their permissions.
+5. Record browser/API results against the actual SQL Server.
