@@ -111,10 +111,12 @@
       }
       if (['PENDING_FINAL_APPROVAL','FINAL_REJECTED'].includes(s)) actions += btn(r,'return-correction','Return for Correction','REQUEST_DRAWING_RETURN_CORRECTION');
       if (s === 'PENDING_FINAL_APPROVAL') actions += btn(r,'final-approve','Final Approve','REQUEST_DRAWING_FINAL_APPROVE');
+      const comments = Array.isArray(r.Comments) ? r.Comments : [];
+      const commentsHtml = `<div class="rw-comments"><h4>Comments <span>${comments.length}</span></h4>${comments.length ? `<div class="rw-comment-list">${comments.map(comment => `<div class="rw-comment"><div class="rw-comment-meta"><strong>${escapeHtml(comment.ActionByUsername || '-')}</strong><span>${escapeHtml(comment.ActionCode || '')}</span><time>${escapeHtml(formatDate(comment.CreatedAt))}</time></div><p>${escapeHtml(comment.Comment || '')}</p></div>`).join('')}</div>` : '<div class="rw-no-comments">No comments yet.</div>'}</div>`;
       return `<article class="rw-request-card"><div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName || s || '-')}</span></div>
         <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode || '-')}</strong> — ${escapeHtml(r.NodeName || '-')}</div>
         <div class="rw-request-meta">Requester: ${escapeHtml(r.RequesterUsername || '-')}<br>Manager: ${escapeHtml(r.ManagerUsername || '-')}<br>Assigned expert: ${escapeHtml(r.AssignedDrawingExpertUsername || '-')}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
-        ${r.Description ? `<div class="rw-request-description">${escapeHtml(r.Description)}</div>` : ''}${actions ? `<div class="rw-action-row">${actions}</div>` : ''}</article>`;
+        ${r.Description ? `<div class="rw-request-description">${escapeHtml(r.Description)}</div>` : ''}${commentsHtml}${actions ? `<div class="rw-action-row">${actions}</div>` : ''}</article>`;
     };
     const section = (title, items) => `<section class="rw-list-section"><h3>${title}<span>${items.length}</span></h3><div class="rw-list-items">${items.length ? items.map(card).join('') : '<div class="rw-empty rw-section-empty">No requests in this section.</div>'}</div></section>`;
     box.innerHTML = search && filtered.length === 0
@@ -122,16 +124,24 @@
       : section('Approved Requests', approved) + section('Unapproved Requests', notApproved);
   }
 
+  const actionLabels = {
+    cancel: 'Cancel Drawing Request', approve: 'Approve Drawing Request', reject: 'Reject Drawing Request',
+    assign: 'Refer Request to Drawing Expert', transfer: 'Transfer to Another Expert',
+    accept: 'Accept Drawing Work', 'expert-reject': 'Reject Drawing Work', complete: 'Complete Drawing Work',
+    'return-correction': 'Return for Correction', 'final-approve': 'Final Approval', 'final-reject': 'Reject Drawing Request'
+  };
+
   function openActionModal(action, requestId) {
     const request = allRequests.find(r => Number(r.RequestID) === Number(requestId));
     if (!request) return;
     pendingModalAction = { action, requestId: Number(requestId), requestNumber: request.RequestNumber };
-    $('rwActionTitle').textContent = action === 'cancel' ? 'Cancel Drawing Request' : action === 'approve' ? 'Approve Drawing Request' : 'Reject Drawing Request';
-    $('rwActionPrompt').textContent = action === 'cancel'
-      ? `Do you want to cancel request ${request.RequestNumber}?`
-      : `Request ${request.RequestNumber}. Add an optional comment, then continue.`;
+    $('rwActionTitle').textContent = actionLabels[action] || 'Drawing Request Action';
+    $('rwActionPrompt').textContent = `Request ${request.RequestNumber}. Review the action, add a comment if needed, then continue.`;
     $('rwActionComment').value = '';
     $('rwActionError').textContent = '';
+    const expertField = $('rwActionExpertField');
+    if (expertField) expertField.classList.toggle('hidden', !['assign', 'transfer'].includes(action));
+    if ($('rwActionExpertUsername')) $('rwActionExpertUsername').value = '';
     $('rwActionContinue').textContent = action === 'cancel' ? 'Confirm Cancel' : 'Continue';
     $('rwActionModal').classList.remove('hidden');
   }
@@ -145,10 +155,9 @@
   function openConfirmationModal() {
     if (!pendingModalAction) return;
     const action = pendingModalAction.action;
-    $('rwConfirmTitle').textContent = action === 'approve' ? 'Confirm Approval' : 'Confirm Rejection';
-    $('rwConfirmPrompt').textContent = action === 'approve'
-      ? `Are you sure you want to approve request ${pendingModalAction.requestNumber}?`
-      : `Are you sure you want to reject request ${pendingModalAction.requestNumber}?`;
+    $('rwConfirmTitle').textContent = `Confirm: ${actionLabels[action] || 'Drawing Request Action'}`;
+    $('rwConfirmPrompt').textContent = `Are you sure you want to ${(actionLabels[action] || 'process this request').toLowerCase()} for request ${pendingModalAction.requestNumber}?`;
+    $('rwConfirmYes').textContent = action === 'cancel' ? 'Confirm Cancel' : 'Confirm Action';
     $('rwConfirmError').textContent = '';
     $('rwConfirmModal').classList.remove('hidden');
   }
@@ -157,6 +166,7 @@
     if (!pendingModalAction) return;
     const { action, requestId } = pendingModalAction;
     const comment = $('rwActionComment')?.value.trim() || '';
+    const expertUsername = $('rwActionExpertUsername')?.value.trim() || '';
     const isCancel = action === 'cancel';
     const yes = isCancel ? $('rwActionContinue') : $('rwConfirmYes');
     const errorBox = isCancel ? $('rwActionError') : $('rwConfirmError');
@@ -165,7 +175,7 @@
     try {
       await requestJson(`${API}/drawing-requests/${requestId}/action`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, comment })
+        body: JSON.stringify({ action, comment, expertUsername })
       });
       closeActionModal();
       await loadWorklist();
@@ -265,30 +275,16 @@
       }
       const action = b.dataset.requestAction;
       const requestId = Number(b.dataset.requestId);
-      if (['cancel','approve','reject'].includes(action)) {
-        openActionModal(action, requestId);
-        return;
-      }
-      let expertUsername = '';
-      if (action === 'assign' || action === 'transfer') {
-        expertUsername = prompt('Enter the active DrawingExpert username:')?.trim() || '';
-        if (!expertUsername) return;
-      }
-      const comment = prompt('Comment (optional):') || '';
-      b.disabled = true;
-      try {
-        await requestJson(`${API}/drawing-requests/${requestId}/action`, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({action,expertUsername,comment})
-        });
-        await loadWorklist();
-        await loadNotifications();
-      } catch (e) { alert(e.message); b.disabled = false; }
+      openActionModal(action, requestId);
     });
     $('rwActionClose')?.addEventListener('click', closeActionModal);
     $('rwActionBack')?.addEventListener('click', closeActionModal);
     $('rwActionContinue')?.addEventListener('click', () => {
       if (!pendingModalAction) return;
+      if (['assign','transfer'].includes(pendingModalAction.action) && !$('rwActionExpertUsername')?.value.trim()) {
+        $('rwActionError').textContent = 'Enter the active DrawingExpert username.';
+        return;
+      }
       if (pendingModalAction.action === 'cancel') executePendingAction();
       else openConfirmationModal();
     });
