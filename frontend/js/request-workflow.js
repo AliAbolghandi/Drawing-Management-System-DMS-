@@ -157,9 +157,11 @@
     if (!pendingModalAction) return;
     const { action, requestId } = pendingModalAction;
     const comment = $('rwActionComment')?.value.trim() || '';
-    const yes = $('rwConfirmYes');
+    const isCancel = action === 'cancel';
+    const yes = isCancel ? $('rwActionContinue') : $('rwConfirmYes');
+    const errorBox = isCancel ? $('rwActionError') : $('rwConfirmError');
     yes.disabled = true;
-    $('rwConfirmError').textContent = '';
+    errorBox.textContent = '';
     try {
       await requestJson(`${API}/drawing-requests/${requestId}/action`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -169,7 +171,7 @@
       await loadWorklist();
       await loadNotifications();
     } catch (e) {
-      $('rwConfirmError').textContent = e.message;
+      errorBox.textContent = e.message;
     } finally {
       yes.disabled = false;
     }
