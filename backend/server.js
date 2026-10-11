@@ -915,7 +915,7 @@ app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
     const current=cr.recordset[0]; if(!current) return res.status(404).json({error:'Drawing request not found.'});
     const status=String(current.StatusCode); let nextStatus,actionCode,allowed=false,targetExpert=null;
     switch(action){
-      case 'cancel': allowed=Number(current.RequesterUserID)===Number(req.user.userId)&&!['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','FINAL_APPROVED','FINAL_REJECTED','CANCELLED'].includes(status); nextStatus='CANCELLED';actionCode='REQUEST_CANCELLED';break;
+      case 'cancel': allowed=Number(current.RequesterUserID)===Number(req.user.userId)&&status==='PENDING_MANAGER'; nextStatus='CANCELLED';actionCode='REQUEST_CANCELLED';break;
       case 'approve': case 'reject': allowed=Number(current.ManagerUserID)===Number(req.user.userId)&&status==='PENDING_MANAGER';nextStatus=action==='approve'?'PENDING_DRAWING_APPROVAL':'MANAGER_REJECTED';actionCode=action==='approve'?'MANAGER_APPROVED':'MANAGER_REJECTED';break;
       case 'assign': allowed=['PENDING_DRAWING_APPROVAL','EXPERT_REJECTED','TRANSFERRED','RETURNED_FOR_CORRECTION'].includes(status);nextStatus='ASSIGNED';actionCode='ASSIGNED_TO_EXPERT';break;
       case 'transfer': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(status);nextStatus='TRANSFERRED';actionCode='EXPERT_TRANSFERRED';break;
