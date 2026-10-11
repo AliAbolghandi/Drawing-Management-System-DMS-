@@ -707,10 +707,22 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
   - `ddfd4833c1ead496a07f51b23c86e390fd61892c` — Refresh workflow frontend after per-user unread fix
 - Source-level verification: confirmed the old global history-existence condition was replaced with the current-user condition and the frontend cache-buster was updated. Live browser/API/SQL Server testing has not been performed.
 
+
+## Worklist Unread State — Latest Workflow Action — 2026-10-11
+
+- Follow-up: the previous per-user HasWorkflowAction check still treated a request as read forever after a user had acted on it once. This failed when the same request returned to that user later, and did not explicitly model the latest workflow handoff.
+- Updated backend/server.js in GET /api/drawing-requests: HasWorkflowAction is now true only when the latest non-REQUEST_CREATED row in dbo.DrawingRequestHistory belongs to the currently authenticated user. Ordering uses CreatedAt DESC, HistoryID DESC for deterministic handling of equal timestamps.
+- Expected behavior: a new request is unread; after Manager approval it is read for the Manager but unread for the next responsible user; after assignment it is unread for the DrawingExpert; after any later handoff it becomes unread again for the newly responsible user, even if that user acted on this request in an earlier workflow stage.
+- Updated frontend/index.html cache-buster for request-workflow.js to v=20261011-worklist-latest-action so the current unread/read rendering is loaded after refresh.
+- No database schema or permission changes.
+- Source-level validation: confirmed the old existence-based query was found and replaced exactly; confirmed the frontend cache-buster was updated. Runtime browser/API/SQL Server testing has not been performed in this environment.
+- Backend commit: 1241787d05499d03252955c786916dadfacbc914
+- Frontend cache-buster commit: 93efd9e333698e0ccda345d7ce1e5fd4ca0daed2
+
 # NEXT ACTION
 
-1. Pull latest `main` locally and restart the backend so `backend/server.js` uses per-user `HasWorkflowAction`.
-2. Hard-refresh the browser with Ctrl+F5; confirm `frontend/index.html` loads `request-workflow.js?v=20261011-user-worklist-read`.
-3. Sign in as a Viewer, create a drawing request, then sign in as its Manager and approve it.
-4. Sign in as the next responsible Admin/DrawingSupervisor user and verify the approved request is red/unread until that user performs a workflow action; verify it changes to the normal background after their action.
-5. Also verify a user who already performed an action sees their own card in the read/background style, while a different next actor still sees it red. Record results from the actual browser and SQL Server.
+1. Pull the latest main and restart the Node backend.
+2. Hard-refresh the browser with Ctrl+F5 and confirm request-workflow.js?v=20261011-worklist-latest-action loads.
+3. Test Viewer creates request -> Manager approves -> Admin/DrawingSupervisor sees red -> that user assigns to Expert -> Expert sees red.
+4. Test a request returning to a user who acted earlier; it must be red again when the latest workflow history action was performed by another user.
+5. Confirm the card turns to the normal background for the user who performs the latest workflow action. Record actual browser and SQL Server results.
