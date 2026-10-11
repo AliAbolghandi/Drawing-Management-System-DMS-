@@ -600,10 +600,36 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - No runtime browser test, Node syntax check, or SQL Server test was run from this environment.
 - Important prerequisite: user has not run `SQL/Inserttable.sql`. According to the migration documented above, request/worklist APIs depend on the workflow tables and seed permissions in that script. Until the migration is reviewed and applied to the target database, the controls may be visible but requests/actions cannot be confirmed functional.
 
+## Drawing Request Workflow — user-requested UI corrections — 2026-10-11
+
+- User requested the next six fixes for drawing requests:
+  1. Request-number search in the worklist sidebar.
+  2. Separate Approved Requests and Unapproved Requests sections.
+  3. Requester can cancel only while status is `PENDING_MANAGER`.
+  4. Fix duplicate display after creation (the frontend previously prepended `data.request` to the API list, which already contained the same newly-created row).
+  5. Requester cancellation confirmation through a modal.
+  6. Manager Approve/Reject opens an action modal; Continue opens a second confirmation modal; cancelling the second modal returns to the first.
+- Implemented in `frontend/js/request-workflow.js`:
+  - Added case-insensitive client-side search by `RequestNumber`.
+  - Renders two sections. `PENDING_MANAGER`, `MANAGER_REJECTED`, and `CANCELLED` are in Unapproved Requests; other workflow states are in Approved Requests (this reflects manager approval progression, including later-stage states).
+  - Cancel Request is rendered only for the request owner when status is `PENDING_MANAGER`.
+  - After successful creation, the UI reloads the server list instead of rendering a manually prepended duplicate.
+  - Added modal flow for cancellation and two-stage Manager approve/reject confirmation. The second modal's Cancel/close hides only the confirmation modal, preserving the first modal and its comment.
+  - Cancellation errors are shown in the cancellation modal; approve/reject errors are shown in the confirmation modal.
+- Added search input and two action modal elements to `frontend/index.html`; added styles in `frontend/css/request-workflow.css`.
+- Commits:
+  - `1ade88c00f1b1210d47f7a82083013a0f9b979a5` — Fix drawing request worklist and modal approval workflow
+  - `13902d6d2a6b534e0b9466c11e2184611c449c88` — Add request search and action confirmation modal markup
+  - `3d830f5659e84879dd9b880e52818ab0f31e637b` — Style drawing worklist search, sections, and confirmation modals
+  - `0dcabffdd8e2bcc9a712519580e7362328971891` — Keep cancellation errors visible in the cancellation modal
+- Verification performed against latest GitHub source: JavaScript compiled successfully with a JS parser; checked presence of search binding, modal markup, section labels, duplicate fix, pending-only cancel condition, and two-stage Manager confirmation.
+- Not performed: browser/UI interaction test, API integration test, or SQL Server runtime test. `SQL/Inserttable.sql` has not been run by the user; workflow runtime may still depend on its tables/permissions being present.
+- No database structure or SQL migration changed in this task.
+
 # NEXT ACTION
 
-1. Ask the user to refresh `frontend/index.html` with a hard reload (Ctrl+F5) and open **Worklist** to check that controls appear on existing request cards.
-2. Run `node --check backend/server.js` and `node --check frontend/js/request-workflow.js` on the DMS machine.
-3. Before running `SQL/Inserttable.sql`, review its complete migration scope with the user because it creates the v04 workflow tables and seeds workflow statuses/actions/permissions; user has confirmed it has not been run.
-4. After explicit approval and database backup, apply the reviewed migration to `dbDrawingManagment`, restart the backend, and test request creation plus cancel/Manager approve-reject/Admin-Supervisor assign-reject/Expert transfer-complete actions.
-5. Record real runtime results and update this file; do not claim workflow completion before browser and SQL Server tests pass.
+1. User hard-refreshes the DMS page (Ctrl+F5), opens Worklist, and verifies search, two sections, cancel modal, and Manager double-confirm modal.
+2. If the API reports missing workflow tables/permissions, review `SQL/Inserttable.sql` with the user before any database migration; do not run it without approval.
+3. Test the flow with real accounts: requester cancels only at `PENDING_MANAGER`; Manager confirms approve/reject; second-modal Cancel returns to the first modal without changing the request.
+4. Check duplicate rendering after creating a request and verify the request count in the UI matches `GET /api/drawing-requests`.
+5. Record actual browser/API/SQL Server test results here before claiming the workflow is complete.
