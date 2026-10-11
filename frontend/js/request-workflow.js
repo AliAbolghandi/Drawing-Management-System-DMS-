@@ -78,7 +78,7 @@
     const s = String(r.StatusCode || '');
     const userId = Number(window.DMS?.user?.userId || 0);
     const actions = [];
-    const add = (action, label, permission) => actions.push({ action, label, permission, allowed: hasPermission(permission) });
+    const add = (action, label, permission) => actions.push({ action, label, permission, allowed: action === 'cancel' || hasPermission(permission) });
     if (Number(r.RequesterUserID) === userId && s === 'PENDING_MANAGER') add('cancel','Cancel Request','REQUEST_DRAWING_CANCEL');
     if (Number(r.ManagerUserID) === userId && s === 'PENDING_MANAGER') {
       add('approve','Approve','REQUEST_DRAWING_APPROVE');
