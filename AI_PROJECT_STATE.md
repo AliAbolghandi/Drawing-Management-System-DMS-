@@ -742,7 +742,7 @@ Commits:
 - `b29d12a75a05eeb84ba80b8ec818a1cff7e1eaa3` — Separate unread marker from workflow status backgrounds
 - `a36d7c37bc9f233e2cdf1494d8456f2ef536875e` — Use consolidated workflow styles and refresh frontend cache
 
-Validation: JavaScript parser checks passed for both `frontend/js/request-workflow.js` and `backend/server.js`. Source checks confirmed all five CSS colors, the separate unread border, cancelled filtering, the final cache-buster, backend acceptance of `TRANSFERRED`, and prior Expert visibility. No live browser, API, or SQL Server runtime test has been run; verify against the deployed database before declaring runtime completion.
+Validation: JavaScript parser checks passed for both `frontend/js/request-workflow.js` and `backend/server.js`. An isolated test of `getRequestColorClass()` passed 11 cases: Viewer/Manager pending Manager, Admin waiting and acting, assigned/new/prior Expert on transfer, rejection, correction, and final approval. Source checks confirmed all five CSS colors, the separate unread border, cancelled filtering, the final cache-buster, backend acceptance of `TRANSFERRED`, and prior Expert visibility. No live browser, API, or SQL Server runtime test has been run; verify against the deployed database before declaring runtime completion.
 
 # NEXT ACTION
 
