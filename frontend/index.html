@@ -333,6 +333,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div id="rwUserUsername" class="rw-user-meta"></div>
       <button id="rwLogout" type="button" class="rw-logout">Logout</button>
     </div>
+    <label class="rw-search-label" for="rwRequestSearch">Search by request number</label>
+    <input id="rwRequestSearch" class="rw-request-search" type="search" placeholder="Enter request number..." autocomplete="off">
     <button id="rwWorklistButton" type="button" class="rw-worklist-button">Refresh Worklist <span id="rwNotificationBadge" class="rw-badge" hidden>0</span></button>
     <div id="rwContent" class="rw-content"><div class="rw-loading">Loading worklist...</div></div>
   </aside>
@@ -348,6 +350,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
     </div>
   </div>
-\n</body>
+\n
+  <div id="rwActionModal" class="rw-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwActionTitle">
+    <div class="rw-dialog">
+      <div class="rw-dialog-header"><h3 id="rwActionTitle">Request action</h3><button id="rwActionClose" type="button" class="rw-close" aria-label="Close">×</button></div>
+      <div class="rw-dialog-body">
+        <p id="rwActionPrompt"></p>
+        <label for="rwActionComment">Comment (optional)</label>
+        <textarea id="rwActionComment" maxlength="1000" placeholder="Add a comment if needed..."></textarea>
+        <div id="rwActionError" class="rw-error"></div>
+        <div class="rw-dialog-actions"><button id="rwActionBack" type="button">Cancel</button><button id="rwActionContinue" type="button" class="rw-submit">Continue</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="rwConfirmModal" class="rw-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwConfirmTitle">
+    <div class="rw-dialog rw-confirm-dialog">
+      <div class="rw-dialog-header"><h3 id="rwConfirmTitle">Confirm action</h3><button id="rwConfirmClose" type="button" class="rw-close" aria-label="Close">×</button></div>
+      <div class="rw-dialog-body">
+        <p id="rwConfirmPrompt">Are you sure?</p>
+        <div id="rwConfirmError" class="rw-error"></div>
+        <div class="rw-dialog-actions"><button id="rwConfirmNo" type="button">Cancel</button><button id="rwConfirmYes" type="button" class="rw-submit">Confirm</button></div>
+      </div>
+    </div>
+  </div>
+
+</body>
 
 </html>
