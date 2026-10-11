@@ -41,3 +41,16 @@
 .rw-error{margin-top:10px;color:#b91c1c;font-size:13px}
 
 .rw-action-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.rw-action-btn{border:1px solid #475569;background:#1e293b;color:#f8fafc;border-radius:6px;padding:6px 9px;font-size:12px;cursor:pointer}.rw-action-btn:hover{background:#334155}.rw-action-btn:disabled{opacity:.58;cursor:not-allowed;border-style:dashed}.request-drawing-btn:disabled{opacity:.6;cursor:not-allowed}
+
+/* Worklist search and request status sections */
+.rw-search-label{display:block;margin:0 16px 6px;color:#cbd5e1;font-size:12px}
+.rw-request-search{display:block;width:calc(100% - 32px);box-sizing:border-box;margin:0 16px 12px;padding:10px 11px;border:1px solid #475569;border-radius:8px;background:#111827;color:#f8fafc;font:inherit}
+.rw-request-search::placeholder{color:#94a3b8}
+.rw-list-section{margin-bottom:18px}
+.rw-list-section h3{display:flex;align-items:center;justify-content:space-between;margin:8px 0 10px;padding-bottom:8px;border-bottom:1px solid #475569;color:#f8fafc;font-size:14px}
+.rw-list-section h3 span{min-width:22px;padding:2px 7px;border-radius:999px;background:#334155;color:#e2e8f0;text-align:center;font-size:11px}
+.rw-section-empty{padding:12px 4px;font-size:12px}
+.rw-confirm-dialog{width:min(430px,96vw)}
+#rwActionPrompt,#rwConfirmPrompt{line-height:1.6;margin:0 0 14px}
+#rwActionModal{z-index:3200}
+#rwConfirmModal{z-index:3300}
