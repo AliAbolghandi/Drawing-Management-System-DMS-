@@ -70,16 +70,18 @@
 .rw-action-expert-field label{display:block;margin-bottom:6px}
 .rw-action-expert-field input{box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid var(--rw-border,#475569);border-radius:8px;background:var(--rw-input-bg,#0f172a);color:var(--rw-text,#e2e8f0);font:inherit}
 
-/* Compact sidebar cards use the unread/read visual convention. */
-.rw-request-list-item{display:block;width:100%;box-sizing:border-box;text-align:left;font:inherit;color:inherit;cursor:pointer;transition:background .15s ease,border-color .15s ease}
-.rw-request-list-item.rw-request-unread{background:#7f1d1d;border-color:#ef4444;color:#fff}
-.rw-request-list-item.rw-request-unread .rw-request-number,
-.rw-request-list-item.rw-request-unread .rw-request-node,
-.rw-request-list-item.rw-request-unread .rw-request-meta{color:#fff}
-.rw-request-list-item.rw-request-unread .rw-status{background:#fecaca;color:#7f1d1d}
-.rw-request-list-item.rw-request-read{background:#111827;border-color:#334155}
-.rw-request-list-item.rw-request-read:hover{background:#1e293b;border-color:#64748b}
-.rw-request-list-item:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+/* Status background and unread marker are independent. */
+.rw-request-list-item{display:block;width:100%;box-sizing:border-box;text-align:left;font:inherit;color:inherit;cursor:pointer;position:relative;transition:background .15s ease,border-color .15s ease}
+.rw-request-list-item.rw-status-yellow{background:#fef3c7;border-color:#f59e0b;color:#78350f}
+.rw-request-list-item.rw-status-orange{background:#ffedd5;border-color:#fb923c;color:#7c2d12}
+.rw-request-list-item.rw-status-green{background:#dcfce7;border-color:#22c55e;color:#14532d}
+.rw-request-list-item.rw-status-red{background:#fee2e2;border-color:#ef4444;color:#7f1d1d}
+.rw-request-list-item.rw-status-gray{background:#e5e7eb;border-color:#9ca3af;color:#374151}
+.rw-request-list-item.rw-request-unread{border-left:5px solid #dc2626}
+.rw-request-list-item .rw-request-number,.rw-request-list-item .rw-request-node,.rw-request-list-item .rw-request-meta{color:inherit}
+.rw-request-list-item .rw-status{background:rgba(15,23,42,.09);color:inherit}
+.rw-request-list-item:hover{filter:brightness(.97)}
+.rw-request-list-item:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 .rw-details-dialog{width:min(760px,96vw);max-height:90vh;display:flex;flex-direction:column}
 .rw-details-body{overflow:auto}
 .rw-dialog-footer{display:flex;justify-content:flex-end;padding:0 20px 18px}
