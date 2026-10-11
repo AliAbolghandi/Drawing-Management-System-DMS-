@@ -643,10 +643,30 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - Verification performed after fetching current `main`: `new Function(...)` syntax parsing passed for `backend/server.js` and `frontend/js/request-workflow.js`; structural checks passed for role-filtered comment query, inline rendering, removal of comment/expert `prompt()` calls, assignment input, and CSS.
 - Not performed: browser interaction test, live API integration test, or SQL Server runtime test. In particular, confirm real account RoleCode values are exactly `VIEWER` and `Manager` in the target database; the code uses these established role codes from the migration/state.
 
+## Request Sidebar and Details Modal — 2026-10-11
+
+- User requested unread/read visual state for sidebar requests, a compact request card, and a request-specific details modal containing request information, actions appropriate to the current user's role/permissions, tree navigation, and comments at the bottom.
+- `backend/server.js`: `GET /api/drawing-requests` now includes `HasWorkflowAction`, based on existence of a `dbo.DrawingRequestHistory` record whose `ActionCode` is not `REQUEST_CREATED`. New requests remain unread/red until an actual workflow action has been recorded; after any workflow action the card uses the read/background style. This is derived from server history, not browser-only state.
+- `frontend/js/request-workflow.js`: worklist cards are compact and show request number/status, node code/name, requester, manager, assigned expert, and created time. Each card is keyboard accessible and opens its request detail modal. Actions were moved from the sidebar cards into the detail modal.
+- Details modal includes request number, current status, node info, requester/manager/expert, created/updated timestamps, request description, available manager/expert/workflow actions, manager decision/comment/assignment time when present, a “Show location in tree” button, and role-filtered comments at the bottom.
+- `frontend/index.html`: added `#rwDetailsModal` markup.
+- `frontend/js/script.js`: exposed `window.DMS.revealNodeLocation(nodeId, nodeCode)`; it searches the node tree, expands the real ancestor chain, selects the target Node, opens node details, and scrolls the node into view.
+- `frontend/css/request-workflow.css`: added red unread and normal-background read styles, plus responsive detail modal layout.
+- Commits:
+  - `32825b0c7b0ea7266915dcbf584cbec2b45df4ed` — Expose workflow action state for request sidebar styling
+  - `acc5557bb057643efdd5715f94e60328ac24bdb4` — Make request sidebar compact and add full request details modal
+  - `536590ec34ec53dd4addd70a33e8be2ab01ca6a0` — Add request details modal with actions and comments
+  - `cf68d16b5dc0e29dceacb00d35a12e24ffb542cd` — Expose tree navigation for drawing request details
+  - `95b2fbd858f9ead7e394090e777913e17720cb33` — Style unread and read request cards and request details modal
+  - `d78e5e8771e2a5cccdc80609cdb1802c639833cc` — Make compact request cards accessible interactive elements
+- Syntax checks passed using JavaScript parser for `backend/server.js`, `frontend/js/request-workflow.js`, and `frontend/js/script.js`. Structural checks passed for the state field, details modal, action controls, tree-navigation hook, comments, modal IDs, and CSS.
+- Not yet performed: live browser testing, API integration test, SQL Server runtime test, or verification of real-world tree navigation for a nested Node. No database schema change is required.
+
 # NEXT ACTION
 
-1. Hard-refresh DMS (Ctrl+F5), open Worklist, and verify comments appear under each request after a workflow action adds a comment.
-2. Test comment visibility with real accounts: VIEWER sees only requester/related-manager comments; Manager sees only requester/related-manager comments; Admin/DrawingSupervisor/DrawingExpert and other roles see all comments for requests they are authorized to view.
-3. Test every action button (assign, transfer, accept, expert reject, complete, return for correction, final approve/reject) uses the modal; assignment/transfer must validate a DrawingExpert username; canceling the second confirmation must return to the first modal with its comment preserved.
-4. Perform browser/API/SQL Server runtime tests and record actual results here. No database migration is needed for comments because `DrawingRequestHistory.Comment` already exists.
-5. If the target database uses a different role code for Viewer or Manager, inspect `dbo.Roles.RoleCode` and update the backend filter to match the real role codes before accepting the access-control test.
+1. Hard-refresh DMS with Ctrl+F5 and open My Worklist. Confirm a newly submitted request with only `REQUEST_CREATED` history is red; after approve/reject/assign/transfer/accept/complete/any workflow action, confirm it changes to the normal background style after refresh.
+2. Confirm each sidebar request displays only request number/status, node code/name, requester, manager, assigned expert, and created timestamp. Clicking a card should open its details modal.
+3. Test detail modal fields and role/permission-specific action buttons for requester, Manager, DrawingExpert, and other workflow roles. Verify action modals and comments still work after action, with updated request data shown when the details modal remains open.
+4. Click “Show location in tree” on a deeply nested request and verify the tree expands the ancestor chain, selects the correct Node, and scrolls it into view.
+5. Verify Viewer/Manager comment visibility restrictions and all-comments access for other roles using real accounts. Perform browser/API/SQL Server runtime tests and record results here.
+6. If the backend response fails with missing workflow table/column errors, inspect the actual SQL Server schema first; do not run the entire `SQL/Inserttable.sql` migration without review and approval.
