@@ -788,12 +788,13 @@ app.get('/api/drawing-requests', async (req, res) => {
         dr.AssignedDrawingExpertID, au.Username AS AssignedDrawingExpertUsername,
         s.StatusCode, s.StatusName, dr.[Description], dr.CreatedAt,
         dr.ManagerDecisionAt, dr.ManagerComment, dr.AssignedAt, dr.UpdatedAt,
-        CASE WHEN EXISTS (
-          SELECT 1 FROM dbo.DrawingRequestHistory wh
+        CASE WHEN (
+          SELECT TOP 1 wh.ActionByUserID
+          FROM dbo.DrawingRequestHistory wh
           WHERE wh.RequestID=dr.RequestID
-            AND wh.ActionByUserID=@userId
             AND wh.ActionCode<>N'REQUEST_CREATED'
-        ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS HasWorkflowAction
+          ORDER BY wh.CreatedAt DESC, wh.HistoryID DESC
+        ) = @userId THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS HasWorkflowAction
       FROM dbo.DrawingRequests dr
       INNER JOIN dbo.Nodes n ON n.NodeID=dr.NodeID
       INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID
