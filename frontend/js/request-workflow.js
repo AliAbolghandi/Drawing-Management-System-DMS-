@@ -141,6 +141,10 @@
           </article>`;
         }).join('')
       : '<div class="rw-empty">No drawing requests.</div>';
+    box.querySelectorAll('.rw-request-list-item').forEach(card => {
+      const request = allRequests.find(item => Number(item.RequestID) === Number(card.dataset.openRequestId));
+      if (request) card.classList.add(getRequestColorClass(request));
+    });
   }
 
   function openRequestDetailsModal(requestId) {
