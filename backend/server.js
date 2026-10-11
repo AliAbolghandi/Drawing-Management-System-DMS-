@@ -794,7 +794,14 @@ app.get('/api/drawing-requests', async (req, res) => {
           WHERE wh.RequestID=dr.RequestID
             AND wh.ActionCode<>N'REQUEST_CREATED'
           ORDER BY wh.CreatedAt DESC, wh.HistoryID DESC
-        ) = @userId THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS HasWorkflowAction
+        ) = @userId THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS HasWorkflowAction,
+        CASE WHEN s.StatusCode=N'TRANSFERRED' AND EXISTS (
+          SELECT 1
+          FROM dbo.DrawingRequestAssignments priorAssignment
+          WHERE priorAssignment.RequestID=dr.RequestID
+            AND priorAssignment.DrawingExpertUserID=@userId
+            AND priorAssignment.IsCurrent=0
+        ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS WasPreviouslyAssignedExpert
       FROM dbo.DrawingRequests dr
       INNER JOIN dbo.Nodes n ON n.NodeID=dr.NodeID
       INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID
@@ -803,6 +810,13 @@ app.get('/api/drawing-requests', async (req, res) => {
          OR (@canOwn=1 AND dr.RequesterUserID=@userId)
          OR (@canManager=1 AND dr.ManagerUserID=@userId)
          OR (@canAssigned=1 AND dr.AssignedDrawingExpertID=@userId)
+         OR (@canAssigned=1 AND s.StatusCode=N'TRANSFERRED' AND EXISTS (
+           SELECT 1
+           FROM dbo.DrawingRequestAssignments priorAssignment
+           WHERE priorAssignment.RequestID=dr.RequestID
+             AND priorAssignment.DrawingExpertUserID=@userId
+             AND priorAssignment.IsCurrent=0
+         ))
       ORDER BY dr.UpdatedAt DESC, dr.RequestID DESC;
     `);
     const requests = result.recordset;
@@ -923,7 +937,7 @@ app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
       case 'approve': case 'reject': allowed=Number(current.ManagerUserID)===Number(req.user.userId)&&status==='PENDING_MANAGER';nextStatus=action==='approve'?'PENDING_DRAWING_APPROVAL':'MANAGER_REJECTED';actionCode=action==='approve'?'MANAGER_APPROVED':'MANAGER_REJECTED';break;
       case 'assign': allowed=['PENDING_DRAWING_APPROVAL','EXPERT_REJECTED','TRANSFERRED','RETURNED_FOR_CORRECTION'].includes(status);nextStatus='ASSIGNED';actionCode='ASSIGNED_TO_EXPERT';break;
       case 'transfer': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(status);nextStatus='TRANSFERRED';actionCode='EXPERT_TRANSFERRED';break;
-      case 'accept': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&status==='ASSIGNED';nextStatus='IN_PROGRESS';actionCode='EXPERT_ACCEPTED';break;
+      case 'accept': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&['ASSIGNED','TRANSFERRED'].includes(status);nextStatus='IN_PROGRESS';actionCode='EXPERT_ACCEPTED';break;
       case 'expert-reject': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&['ASSIGNED','IN_PROGRESS'].includes(status);nextStatus='EXPERT_REJECTED';actionCode='EXPERT_REJECTED';break;
       case 'complete': allowed=Number(current.AssignedDrawingExpertID)===Number(req.user.userId)&&['IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(status);nextStatus='PENDING_FINAL_APPROVAL';actionCode='WORK_COMPLETED';break;
       case 'return-correction': allowed=['PENDING_FINAL_APPROVAL','FINAL_REJECTED'].includes(status);nextStatus='RETURNED_FOR_CORRECTION';actionCode='RETURN_FOR_CORRECTION';break;
