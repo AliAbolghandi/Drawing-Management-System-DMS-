@@ -54,6 +54,18 @@
 <style>
 .user-menu{position:relative;margin-left:12px}.user-menu-button{border:1px solid #475569;background:#1e293b;color:#e2e8f0;border-radius:8px;padding:8px 12px;cursor:pointer}.user-menu-button:hover{background:#334155}.user-menu-chevron{margin-left:8px}.user-menu-panel{position:absolute;right:0;top:calc(100% + 8px);min-width:250px;background:#0f172a;border:1px solid #475569;border-radius:10px;padding:14px;box-shadow:0 12px 30px rgba(0,0,0,.35);z-index:1000}.user-info-row{display:flex;justify-content:space-between;gap:20px;padding:7px 0;color:#cbd5e1}.user-info-row strong{color:#f8fafc;font-weight:600}.logout-button{width:100%;margin-top:10px;padding:9px;border:0;border-radius:7px;background:#b91c1c;color:white;cursor:pointer}.logout-button:hover{background:#dc2626}
 </style>
+<style>
+/* Workflow status background and unread marker are independent. */
+.rw-request-list-item.rw-status-yellow{background:#fef3c7;border-color:#f59e0b;color:#78350f}
+.rw-request-list-item.rw-status-orange{background:#ffedd5;border-color:#fb923c;color:#7c2d12}
+.rw-request-list-item.rw-status-green{background:#dcfce7;border-color:#22c55e;color:#14532d}
+.rw-request-list-item.rw-status-red{background:#fee2e2;border-color:#ef4444;color:#7f1d1d}
+.rw-request-list-item.rw-status-gray{background:#e5e7eb;border-color:#9ca3af;color:#374151}
+.rw-request-list-item.rw-request-unread{border-left:5px solid #dc2626}
+.rw-request-list-item.rw-request-unread .rw-request-number,.rw-request-list-item.rw-request-unread .rw-request-node,.rw-request-list-item.rw-request-unread .rw-request-meta{color:inherit}
+.rw-request-list-item.rw-request-unread .rw-status{background:rgba(15,23,42,.09);color:inherit}
+.rw-request-list-item:hover{filter:brightness(.97)}
+</style>
 </head>
 
 <body>
