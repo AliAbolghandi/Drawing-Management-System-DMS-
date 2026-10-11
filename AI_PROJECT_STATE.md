@@ -626,10 +626,27 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - Not performed: browser/UI interaction test, API integration test, or SQL Server runtime test. `SQL/Inserttable.sql` has not been run by the user; workflow runtime may still depend on its tables/permissions being present.
 - No database structure or SQL migration changed in this task.
 
+## Request Workflow — Universal Action Modals and Comment Visibility — 2026-10-11
+
+- Extended the existing request action modal flow to every workflow action in `frontend/js/request-workflow.js`; actions no longer use browser `prompt()` for comments or expert usernames.
+- All non-cancel workflow actions use the action modal and the second confirmation modal. Cancel keeps the existing confirmation in the action modal. The second modal's Cancel/close hides only confirmation and leaves the action modal/comment intact.
+- Added `#rwActionExpertField` / `#rwActionExpertUsername` in `frontend/index.html`; assignment and transfer require a DrawingExpert username before confirmation. The backend continues to validate the active DrawingExpert account and action permission.
+- `GET /api/drawing-requests` in `backend/server.js` now includes a `Comments` array per request, sourced from non-empty `dbo.DrawingRequestHistory.Comment` rows. It only queries comments for requests already authorized for the current worklist.
+- Comment visibility is filtered in SQL Server on the backend: users with active `VIEWER` or `Manager` role see only comments authored by that request's `RequesterUserID` or `ManagerUserID`; users without either role see all comments for the requests in their authorized worklist. Frontend rendering is not used as a security boundary.
+- `frontend/js/request-workflow.js` renders each request's comments inline beneath its description, including author, action code, and timestamp. `frontend/css/request-workflow.css` styles the comments and expert input.
+- No database changes are required: `dbo.DrawingRequestHistory` already contains `HistoryID`, `RequestID`, `ActionByUserID`, `ActionByUsername`, `Comment`, and `CreatedAt`; workflow action comments are already written there by the action API.
+- Commits:
+  - `d68b4d5896c7f4ae59df2e42ad0cc5650ee5ed64` — Return request comments with backend role filtering
+  - `6313a0c7a45774b74b64651adad06d304034e37c` — Use workflow modals for all request actions and render comments
+  - `0a2491d9b6c7b4e0724cb4a098c3a05437c97016` — Add expert assignment field to workflow action modal
+  - `8a6bd2ad75cc6549dad5858dba5324efe7d9f306` — Style inline request comments and expert assignment modal
+- Verification performed after fetching current `main`: `new Function(...)` syntax parsing passed for `backend/server.js` and `frontend/js/request-workflow.js`; structural checks passed for role-filtered comment query, inline rendering, removal of comment/expert `prompt()` calls, assignment input, and CSS.
+- Not performed: browser interaction test, live API integration test, or SQL Server runtime test. In particular, confirm real account RoleCode values are exactly `VIEWER` and `Manager` in the target database; the code uses these established role codes from the migration/state.
+
 # NEXT ACTION
 
-1. User hard-refreshes the DMS page (Ctrl+F5), opens Worklist, and verifies search, two sections, cancel modal, and Manager double-confirm modal.
-2. If the API reports missing workflow tables/permissions, review `SQL/Inserttable.sql` with the user before any database migration; do not run it without approval.
-3. Test the flow with real accounts: requester cancels only at `PENDING_MANAGER`; Manager confirms approve/reject; second-modal Cancel returns to the first modal without changing the request.
-4. Check duplicate rendering after creating a request and verify the request count in the UI matches `GET /api/drawing-requests`.
-5. Record actual browser/API/SQL Server test results here before claiming the workflow is complete.
+1. Hard-refresh DMS (Ctrl+F5), open Worklist, and verify comments appear under each request after a workflow action adds a comment.
+2. Test comment visibility with real accounts: VIEWER sees only requester/related-manager comments; Manager sees only requester/related-manager comments; Admin/DrawingSupervisor/DrawingExpert and other roles see all comments for requests they are authorized to view.
+3. Test every action button (assign, transfer, accept, expert reject, complete, return for correction, final approve/reject) uses the modal; assignment/transfer must validate a DrawingExpert username; canceling the second confirmation must return to the first modal with its comment preserved.
+4. Perform browser/API/SQL Server runtime tests and record actual results here. No database migration is needed for comments because `DrawingRequestHistory.Comment` already exists.
+5. If the target database uses a different role code for Viewer or Manager, inspect `dbo.Roles.RoleCode` and update the backend filter to match the real role codes before accepting the access-control test.
