@@ -1,6 +1,6 @@
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-10-08
+Last updated: 2026-10-11
 Repository: https://github.com/AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
@@ -719,10 +719,36 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - Backend commit: 1241787d05499d03252955c786916dadfacbc914
 - Frontend cache-buster commit: 93efd9e333698e0ccda345d7ce1e5fd4ca0daed2
 
+## Completed Workflow Status Colors and Transfer Handoff — 2026-10-11
+
+User-approved display rules:
+- Yellow = this user is the current responsible actor.
+- Orange = the request is waiting for an earlier/currently responsible workflow stage.
+- Green = the request passed this user's earlier stage or is positively completed.
+- Red = rejected; where `FINAL_REJECTED` allows a correction action, the responsible correction authority may see yellow.
+- Gray = the referring Expert's transferred request, work in progress for the Expert, or cancelled status. `CANCELLED` is excluded from the open Worklist.
+- Unread is independent of status background and is indicated by a red left border. Backend `HasWorkflowAction` continues to reflect whether the latest non-`REQUEST_CREATED` workflow history action was performed by the current user.
+
+Implemented:
+- `frontend/js/request-workflow.js`: completed role-aware color matrix. Requester and assigned Manager see `PENDING_MANAGER` in yellow; assignment/final approval turns yellow for the responsible permission holder; rejected states display red; `RETURNED_FOR_CORRECTION` is yellow for the assigned Expert and orange for other workflow participants; cancelled requests are filtered from open work.
+- `backend/server.js`: `GET /api/drawing-requests` returns `WasPreviouslyAssignedExpert` and includes the previous Expert's own `TRANSFERRED` request in that Expert's worklist, allowing it to display gray after referral. `accept` now allows the current assigned Expert to accept a request in either `ASSIGNED` or `TRANSFERRED`, aligned with the existing frontend action.
+- `frontend/css/request-workflow.css`: replaced red unread background and dark read background with the five workflow status backgrounds; unread now uses an independent red left border.
+- `frontend/index.html`: removed duplicated inline workflow color rules and updated cache-buster to `js/request-workflow.js?v=20261011-workflow-colors-final`.
+- No database schema changes.
+
+Commits:
+- `a7d89bc628168e856c54d5c014ce95f233a12c6e` — Complete role-aware request workflow color matrix
+- `129be110b46615c562c415d6994f788db5e89f41` — Complete transferred request handoff and prior expert visibility
+- `b29d12a75a05eeb84ba80b8ec818a1cff7e1eaa3` — Separate unread marker from workflow status backgrounds
+- `a36d7c37bc9f233e2cdf1494d8456f2ef536875e` — Use consolidated workflow styles and refresh frontend cache
+
+Validation: JavaScript parser checks passed for both `frontend/js/request-workflow.js` and `backend/server.js`. Source checks confirmed all five CSS colors, the separate unread border, cancelled filtering, the final cache-buster, backend acceptance of `TRANSFERRED`, and prior Expert visibility. No live browser, API, or SQL Server runtime test has been run; verify against the deployed database before declaring runtime completion.
+
 # NEXT ACTION
 
-1. Pull the latest main and restart the Node backend.
-2. Hard-refresh the browser with Ctrl+F5 and confirm request-workflow.js?v=20261011-worklist-latest-action loads.
-3. Test Viewer creates request -> Manager approves -> Admin/DrawingSupervisor sees red -> that user assigns to Expert -> Expert sees red.
-4. Test a request returning to a user who acted earlier; it must be red again when the latest workflow history action was performed by another user.
-5. Confirm the card turns to the normal background for the user who performs the latest workflow action. Record actual browser and SQL Server results.
+1. Pull the latest `main` and restart the Node.js backend.
+2. Hard-refresh the browser with Ctrl+F5 and confirm `request-workflow.js?v=20261011-workflow-colors-final` loads.
+3. Test the role/status matrix: new request (`PENDING_MANAGER`) for Viewer and Manager; Manager approval (`PENDING_DRAWING_APPROVAL`); assignment (`ASSIGNED`); Expert acceptance (`IN_PROGRESS`); completion (`PENDING_FINAL_APPROVAL`); rejection; correction return; and final approval.
+4. Test an Expert referring a request: the referring Expert must see the transferred card gray, the newly assigned Expert must see it yellow with the unread red border, and the new Expert must be able to accept it.
+5. Verify each action through the real API and SQL Server; check that `CANCELLED` is absent from open work and remains available only through any existing history view.
+6. Record actual browser/API/SQL Server results here. Only source-level syntax and structural checks have passed so far.
