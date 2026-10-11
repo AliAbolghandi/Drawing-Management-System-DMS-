@@ -791,6 +791,7 @@ app.get('/api/drawing-requests', async (req, res) => {
         CASE WHEN EXISTS (
           SELECT 1 FROM dbo.DrawingRequestHistory wh
           WHERE wh.RequestID=dr.RequestID
+            AND wh.ActionByUserID=@userId
             AND wh.ActionCode<>N'REQUEST_CREATED'
         ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS HasWorkflowAction
       FROM dbo.DrawingRequests dr
