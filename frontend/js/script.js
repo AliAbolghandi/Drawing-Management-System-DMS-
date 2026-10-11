@@ -562,6 +562,27 @@
     reloadSrscRoot: loadSrscFolders,
     refreshSrscStatus: (id) => loadSrscStatus([{ NodeID: id }], { refresh: true }),
     getCurrentSrscView: () => currentSrscView ? { ...currentSrscView } : null,
+    revealNodeLocation: async (nodeId, nodeCode) => {
+      const id = toId(nodeId);
+      if (id === null) throw new Error('Invalid NodeID.');
+      if (!state.nodeElements.size) await loadRoots();
+      const query = String(nodeCode || state.nodeCache.get(id)?.NodeCode || id).trim();
+      const data = await requestJson(`${API}/nodes/search?q=${encodeURIComponent(query)}`);
+      const visibleNodes = data.visibleNodes || [];
+      const matchIds = (data.matchIds || []).map(Number);
+      if (!matchIds.includes(id) && !visibleNodes.some(n => Number(n.NodeID) === id)) {
+        throw new Error('Could not find this Node in the tree.');
+      }
+      const entry = await revealSearchMatches(visibleNodes, [id]);
+      const target = state.nodeElements.get(id) || entry;
+      if (!target) throw new Error('Could not reveal this Node in the tree.');
+      document.querySelectorAll('.node-row.selected').forEach(row => row.classList.remove('selected'));
+      target.row.classList.add('selected');
+      state.currentSelectedNode = target.node;
+      showNodeDetails(target.node);
+      target.row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return true;
+    },
   };
 
   loadRoots();
