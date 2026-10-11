@@ -356,6 +356,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="rw-dialog-header"><h3 id="rwActionTitle">Request action</h3><button id="rwActionClose" type="button" class="rw-close" aria-label="Close">×</button></div>
       <div class="rw-dialog-body">
         <p id="rwActionPrompt"></p>
+        <div id="rwActionExpertField" class="rw-action-expert-field hidden">
+          <label for="rwActionExpertUsername">DrawingExpert username *</label>
+          <input id="rwActionExpertUsername" type="text" maxlength="100" autocomplete="off" placeholder="Enter active DrawingExpert username">
+        </div>
         <label for="rwActionComment">Comment (optional)</label>
         <textarea id="rwActionComment" maxlength="1000" placeholder="Add a comment if needed..."></textarea>
         <div id="rwActionError" class="rw-error"></div>
