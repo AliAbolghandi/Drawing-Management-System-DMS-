@@ -54,3 +54,18 @@
 #rwActionPrompt,#rwConfirmPrompt{line-height:1.6;margin:0 0 14px}
 #rwActionModal{z-index:3200}
 #rwConfirmModal{z-index:3300}
+
+/* Request comments are displayed inline beneath each request card. */
+.rw-comments{margin-top:12px;padding-top:10px;border-top:1px solid var(--rw-border,#334155)}
+.rw-comments h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:.88rem;color:var(--rw-text,#e2e8f0)}
+.rw-comments h4 span{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:rgba(148,163,184,.18);font-size:.75rem}
+.rw-comment-list{display:flex;flex-direction:column;gap:8px}
+.rw-comment{padding:9px 10px;border:1px solid rgba(148,163,184,.2);border-radius:8px;background:rgba(15,23,42,.45)}
+.rw-comment-meta{display:flex;flex-wrap:wrap;align-items:center;gap:7px;color:var(--rw-muted,#94a3b8);font-size:.75rem}
+.rw-comment-meta strong{color:var(--rw-text,#e2e8f0)}
+.rw-comment-meta time{margin-left:auto}
+.rw-comment p{margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.86rem;color:var(--rw-text,#e2e8f0)}
+.rw-no-comments{font-size:.8rem;color:var(--rw-muted,#94a3b8);padding:4px 0}
+.rw-action-expert-field{margin:0 0 12px}
+.rw-action-expert-field label{display:block;margin-bottom:6px}
+.rw-action-expert-field input{box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid var(--rw-border,#475569);border-radius:8px;background:var(--rw-input-bg,#0f172a);color:var(--rw-text,#e2e8f0);font:inherit}
