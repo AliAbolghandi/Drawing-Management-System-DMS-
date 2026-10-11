@@ -104,23 +104,28 @@
   function getRequestColorClass(r) {
     const status = String(r.StatusCode || '').toUpperCase();
     const userId = Number(window.DMS?.user?.userId || 0);
+    const isRequester = Number(r.RequesterUserID) === userId;
     const isManager = Number(r.ManagerUserID) === userId;
     const isAssignedExpert = Number(r.AssignedDrawingExpertID) === userId;
+    const wasReferringExpert = r.WasPreviouslyAssignedExpert === true || Number(r.WasPreviouslyAssignedExpert) === 1;
     const canAssign = hasPermission('REQUEST_DRAWING_ASSIGN');
     const canFinalApprove = hasPermission('REQUEST_DRAWING_FINAL_APPROVE');
     const canReturnCorrection = hasPermission('REQUEST_DRAWING_RETURN_CORRECTION');
+
     if (status === 'CANCELLED') return 'rw-status-gray';
     if (status === 'FINAL_APPROVED') return 'rw-status-green';
-    if (status === 'EXPERT_REJECTED' && canAssign) return 'rw-status-yellow';
     if (status === 'FINAL_REJECTED' && canReturnCorrection) return 'rw-status-yellow';
     if (['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','EXPERT_REJECTED','FINAL_REJECTED'].includes(status)) return 'rw-status-red';
-    if (status === 'PENDING_MANAGER') return isManager ? 'rw-status-yellow' : 'rw-status-orange';
+    if (status === 'PENDING_MANAGER') return (isRequester || isManager) ? 'rw-status-yellow' : 'rw-status-orange';
     if (status === 'PENDING_DRAWING_APPROVAL') return canAssign ? 'rw-status-yellow' : 'rw-status-green';
     if (status === 'ASSIGNED') return isAssignedExpert ? 'rw-status-yellow' : 'rw-status-green';
-    if (status === 'TRANSFERRED') return (isAssignedExpert || canAssign) ? 'rw-status-yellow' : 'rw-status-green';
+    if (status === 'TRANSFERRED') {
+      if (wasReferringExpert && !isAssignedExpert) return 'rw-status-gray';
+      return isAssignedExpert ? 'rw-status-yellow' : 'rw-status-green';
+    }
     if (status === 'IN_PROGRESS') return isAssignedExpert ? 'rw-status-gray' : 'rw-status-green';
     if (status === 'PENDING_FINAL_APPROVAL') return isAssignedExpert ? 'rw-status-green' : (canFinalApprove ? 'rw-status-yellow' : 'rw-status-green');
-    if (status === 'RETURNED_FOR_CORRECTION') return isAssignedExpert ? 'rw-status-yellow' : (canAssign ? 'rw-status-orange' : 'rw-status-green');
+    if (status === 'RETURNED_FOR_CORRECTION') return isAssignedExpert ? 'rw-status-yellow' : 'rw-status-orange';
     return 'rw-status-orange';
   }
 
