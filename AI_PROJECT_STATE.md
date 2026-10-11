@@ -685,9 +685,17 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
   - `5c9fbc365c7d2b921a167f1050d39ea3e0cce496` — Authorize own pending request cancellation by ownership and status
 - Verification: fetched and inspected the current source before applying exact replacements; the expected frontend/backend changes were confirmed in the updated source content returned by GitHub. Runtime browser/API/SQL Server tests have not been run in this environment.
 
+## Viewer Cancellation Cache Follow-up — 2026-10-11
+
+- User still sees `Permission denied: REQUEST_DRAWING_CANCEL` after the Cancel button became enabled.
+- Current `main` frontend click handlers bypass the PermissionCode check for `cancel`, and `backend/server.js` exempts `cancel` from the generic permission gate while requiring request ownership and `PENDING_MANAGER` status.
+- This exact frontend alert is consistent with an older cached/local `request-workflow.js`. Updated `frontend/index.html` to load `js/request-workflow.js?v=20261011-cancel-fix`.
+- Commit: `ef2507bf3500419c0ca33249e011dfd689a7468f`.
+- Runtime browser/API/SQL Server testing has not been performed.
+
 # NEXT ACTION
 
-1. Restart the DMS backend so the updated `backend/server.js` is loaded.
+1. Pull latest `main` locally, including `frontend/index.html`, `frontend/js/request-workflow.js`, and `backend/server.js`; restart the backend and reload the page with Ctrl+F5.
 2. Sign in as a Viewer and verify Cancel Request is enabled for the Viewer’s own request while status is `PENDING_MANAGER`; cancel it and confirm the status becomes `CANCELLED`.
 3. Submit another request and have its Manager approve it. Confirm Cancel Request is no longer offered and a direct cancel API call returns HTTP 403.
 4. Verify the Viewer cannot cancel another user’s request; confirm Manager approve/reject and other workflow actions still enforce their permissions.
