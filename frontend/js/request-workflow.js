@@ -111,11 +111,11 @@
       ? '<div class="rw-empty">No request number matches your search.</div>'
       : filtered.length ? filtered.map(r => {
           const acted = r.HasWorkflowAction === true || Number(r.HasWorkflowAction) === 1;
-          return `<button type="button" class="rw-request-card rw-request-list-item ${acted ? 'rw-request-read' : 'rw-request-unread'}" data-open-request-id="${Number(r.RequestID)}" aria-label="Open request ${escapeHtml(r.RequestNumber)}">
+          return `<article class="rw-request-card rw-request-list-item ${acted ? 'rw-request-read' : 'rw-request-unread'}" role="button" tabindex="0" data-open-request-id="${Number(r.RequestID)}" aria-label="Open request ${escapeHtml(r.RequestNumber)}">
             <div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName || r.StatusCode || '-')}</span></div>
             <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode || '-')}</strong> — ${escapeHtml(r.NodeName || '-')}</div>
             <div class="rw-request-meta">Requester: ${escapeHtml(r.RequesterUsername || '-')}<br>Manager: ${escapeHtml(r.ManagerUsername || '-')}<br>Assigned expert: ${escapeHtml(r.AssignedDrawingExpertUsername || '-')}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
-          </button>`;
+          </article>`;
         }).join('')
       : '<div class="rw-empty">No drawing requests.</div>';
   }
@@ -304,6 +304,13 @@
     $('rwContent')?.addEventListener('click', event => {
       const item = event.target.closest('[data-open-request-id]');
       if (item) openRequestDetailsModal(Number(item.dataset.openRequestId));
+    });
+    $('rwContent')?.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const item = event.target.closest('[data-open-request-id]');
+      if (!item) return;
+      event.preventDefault();
+      openRequestDetailsModal(Number(item.dataset.openRequestId));
     });
     $('rwDetailsClose')?.addEventListener('click', closeRequestDetailsModal);
     $('rwDetailsDone')?.addEventListener('click', closeRequestDetailsModal);
