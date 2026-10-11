@@ -4,6 +4,8 @@
   const host = window.location.hostname || 'localhost';
   const API = `http://${host}:3000/api`;
   let selectedNode = null;
+  let allRequests = [];
+  let pendingModalAction = null;
 
   const $ = id => document.getElementById(id);
 
@@ -73,31 +75,104 @@
   }
 
   function renderWorklist(requests) {
-    const box=$('rwContent');if(!box)return;
-    if(!requests.length){box.innerHTML='<div class="rw-empty">No requests are currently visible in your worklist.</div>';return;}
-    const userId=Number(window.DMS?.user?.userId||0);
-    const btn=(r,a,label,p)=>{
-      const allowed=hasPermission(p);
-      const permissionHint=allowed?'':` title="Permission required: ${escapeHtml(p)}"`;
-      return `<button type="button" class="rw-action-btn" data-request-action="${a}" data-request-id="${Number(r.RequestID)}" data-required-permission="${escapeHtml(p)}"${allowed?'':' disabled aria-disabled="true"'}${permissionHint}>${label}</button>`;
+    allRequests = Array.isArray(requests) ? requests : [];
+    const box = $('rwContent');
+    if (!box) return;
+    const search = ($('rwRequestSearch')?.value || '').trim().toLowerCase();
+    const filtered = allRequests.filter(r => String(r.RequestNumber || '').toLowerCase().includes(search));
+    const notApprovedStatuses = new Set(['PENDING_MANAGER','MANAGER_REJECTED','CANCELLED']);
+    const approved = filtered.filter(r => !notApprovedStatuses.has(String(r.StatusCode || '')));
+    const notApproved = filtered.filter(r => notApprovedStatuses.has(String(r.StatusCode || '')));
+    const userId = Number(window.DMS?.user?.userId || 0);
+    const btn = (r, action, label, permission) => {
+      const allowed = hasPermission(permission);
+      const hint = allowed ? '' : ` title="Permission required: ${escapeHtml(permission)}"`;
+      return `<button type="button" class="rw-action-btn" data-request-action="${action}" data-request-id="${Number(r.RequestID)}" data-required-permission="${escapeHtml(permission)}"${allowed ? '' : ' disabled aria-disabled="true"'}${hint}>${label}</button>`;
     };
-    box.innerHTML=requests.map(r=>{
-      const s=String(r.StatusCode||'');let actions='';
-      if(Number(r.RequesterUserID)===userId&&!['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','FINAL_APPROVED','FINAL_REJECTED','CANCELLED'].includes(s))actions+=btn(r,'cancel','Cancel Request','REQUEST_DRAWING_CANCEL');
-      if(Number(r.ManagerUserID)===userId&&s==='PENDING_MANAGER'){actions+=btn(r,'approve','Approve','REQUEST_DRAWING_APPROVE');actions+=btn(r,'reject','Reject','REQUEST_DRAWING_REJECT');}
-      if(['PENDING_DRAWING_APPROVAL','EXPERT_REJECTED','TRANSFERRED','RETURNED_FOR_CORRECTION'].includes(s)){actions+=btn(r,'assign','Refer to Expert','REQUEST_DRAWING_ASSIGN');actions+=btn(r,'final-reject','Reject Request','REQUEST_DRAWING_FINAL_REJECT');}
-      if(Number(r.AssignedDrawingExpertID)===userId){
-        if(s==='ASSIGNED')actions+=btn(r,'accept','Accept Work','REQUEST_DRAWING_ACCEPT');
-        if(['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s)){actions+=btn(r,'transfer','Refer to Another Expert','REQUEST_DRAWING_TRANSFER');actions+=btn(r,'expert-reject','Reject Work','REQUEST_DRAWING_EXPERT_REJECT');}
-        if(['IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s))actions+=btn(r,'complete','Complete Work','REQUEST_DRAWING_COMPLETE');
+    const card = r => {
+      const s = String(r.StatusCode || '');
+      let actions = '';
+      if (Number(r.RequesterUserID) === userId && s === 'PENDING_MANAGER') actions += btn(r,'cancel','Cancel Request','REQUEST_DRAWING_CANCEL');
+      if (Number(r.ManagerUserID) === userId && s === 'PENDING_MANAGER') {
+        actions += btn(r,'approve','Approve','REQUEST_DRAWING_APPROVE');
+        actions += btn(r,'reject','Reject','REQUEST_DRAWING_REJECT');
       }
-      if(['PENDING_FINAL_APPROVAL','FINAL_REJECTED'].includes(s))actions+=btn(r,'return-correction','Return for Correction','REQUEST_DRAWING_RETURN_CORRECTION');
-      if(s==='PENDING_FINAL_APPROVAL')actions+=btn(r,'final-approve','Final Approve','REQUEST_DRAWING_FINAL_APPROVE');
-      return `<article class="rw-request-card"><div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName||s||'-')}</span></div>
-        <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode||'-')}</strong> — ${escapeHtml(r.NodeName||'-')}</div>
-        <div class="rw-request-meta">Requester: ${escapeHtml(r.RequesterUsername||'-')}<br>Manager: ${escapeHtml(r.ManagerUsername||'-')}<br>Assigned expert: ${escapeHtml(r.AssignedDrawingExpertUsername||'-')}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
-        ${r.Description?`<div class="rw-request-description">${escapeHtml(r.Description)}</div>`:''}${actions?`<div class="rw-action-row">${actions}</div>`:''}</article>`;
-    }).join('');
+      if (['PENDING_DRAWING_APPROVAL','EXPERT_REJECTED','TRANSFERRED','RETURNED_FOR_CORRECTION'].includes(s)) {
+        actions += btn(r,'assign','Refer to Expert','REQUEST_DRAWING_ASSIGN');
+        actions += btn(r,'final-reject','Reject Request','REQUEST_DRAWING_FINAL_REJECT');
+      }
+      if (Number(r.AssignedDrawingExpertID) === userId) {
+        if (s === 'ASSIGNED') actions += btn(r,'accept','Accept Work','REQUEST_DRAWING_ACCEPT');
+        if (['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s)) {
+          actions += btn(r,'transfer','Refer to Another Expert','REQUEST_DRAWING_TRANSFER');
+          actions += btn(r,'expert-reject','Reject Work','REQUEST_DRAWING_EXPERT_REJECT');
+        }
+        if (['IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s)) actions += btn(r,'complete','Complete Work','REQUEST_DRAWING_COMPLETE');
+      }
+      if (['PENDING_FINAL_APPROVAL','FINAL_REJECTED'].includes(s)) actions += btn(r,'return-correction','Return for Correction','REQUEST_DRAWING_RETURN_CORRECTION');
+      if (s === 'PENDING_FINAL_APPROVAL') actions += btn(r,'final-approve','Final Approve','REQUEST_DRAWING_FINAL_APPROVE');
+      return `<article class="rw-request-card"><div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName || s || '-')}</span></div>
+        <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode || '-')}</strong> — ${escapeHtml(r.NodeName || '-')}</div>
+        <div class="rw-request-meta">Requester: ${escapeHtml(r.RequesterUsername || '-')}<br>Manager: ${escapeHtml(r.ManagerUsername || '-')}<br>Assigned expert: ${escapeHtml(r.AssignedDrawingExpertUsername || '-')}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
+        ${r.Description ? `<div class="rw-request-description">${escapeHtml(r.Description)}</div>` : ''}${actions ? `<div class="rw-action-row">${actions}</div>` : ''}</article>`;
+    };
+    const section = (title, items) => `<section class="rw-list-section"><h3>${title}<span>${items.length}</span></h3><div class="rw-list-items">${items.length ? items.map(card).join('') : '<div class="rw-empty rw-section-empty">No requests in this section.</div>'}</div></section>`;
+    box.innerHTML = search && filtered.length === 0
+      ? '<div class="rw-empty">No request number matches your search.</div>'
+      : section('Approved Requests', approved) + section('Unapproved Requests', notApproved);
+  }
+
+  function openActionModal(action, requestId) {
+    const request = allRequests.find(r => Number(r.RequestID) === Number(requestId));
+    if (!request) return;
+    pendingModalAction = { action, requestId: Number(requestId), requestNumber: request.RequestNumber };
+    $('rwActionTitle').textContent = action === 'cancel' ? 'Cancel Drawing Request' : action === 'approve' ? 'Approve Drawing Request' : 'Reject Drawing Request';
+    $('rwActionPrompt').textContent = action === 'cancel'
+      ? `Do you want to cancel request ${request.RequestNumber}?`
+      : `Request ${request.RequestNumber}. Add an optional comment, then continue.`;
+    $('rwActionComment').value = '';
+    $('rwActionError').textContent = '';
+    $('rwActionContinue').textContent = action === 'cancel' ? 'Confirm Cancel' : 'Continue';
+    $('rwActionModal').classList.remove('hidden');
+  }
+
+  function closeActionModal() {
+    $('rwActionModal')?.classList.add('hidden');
+    $('rwConfirmModal')?.classList.add('hidden');
+    pendingModalAction = null;
+  }
+
+  function openConfirmationModal() {
+    if (!pendingModalAction) return;
+    const action = pendingModalAction.action;
+    $('rwConfirmTitle').textContent = action === 'approve' ? 'Confirm Approval' : 'Confirm Rejection';
+    $('rwConfirmPrompt').textContent = action === 'approve'
+      ? `Are you sure you want to approve request ${pendingModalAction.requestNumber}?`
+      : `Are you sure you want to reject request ${pendingModalAction.requestNumber}?`;
+    $('rwConfirmError').textContent = '';
+    $('rwConfirmModal').classList.remove('hidden');
+  }
+
+  async function executePendingAction() {
+    if (!pendingModalAction) return;
+    const { action, requestId } = pendingModalAction;
+    const comment = $('rwActionComment')?.value.trim() || '';
+    const yes = $('rwConfirmYes');
+    yes.disabled = true;
+    $('rwConfirmError').textContent = '';
+    try {
+      await requestJson(`${API}/drawing-requests/${requestId}/action`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, comment })
+      });
+      closeActionModal();
+      await loadWorklist();
+      await loadNotifications();
+    } catch (e) {
+      $('rwConfirmError').textContent = e.message;
+    } finally {
+      yes.disabled = false;
+    }
   }
 
   async function loadWorklist() {
@@ -158,7 +233,7 @@
       });
       closeRequestModal();
       openSidebar();
-      renderWorklist([data.request, ...((await requestJson(`${API}/drawing-requests`)).requests || [])]);
+      await loadWorklist();
       alert(`Request ${data.request?.RequestNumber || ''} was submitted successfully.`);
     } catch (e) {
       $('rwRequestError').textContent = e.message;
@@ -178,18 +253,46 @@
     $('rwClose')?.addEventListener('click', closeSidebar);
     $('rwOverlay')?.addEventListener('click', closeSidebar);
     $('rwWorklistButton')?.addEventListener('click', loadWorklist);
+    $('rwRequestSearch')?.addEventListener('input', () => renderWorklist(allRequests));
     $('rwContent')?.addEventListener('click', async event => {
-      const b=event.target.closest('[data-request-action]');if(!b)return;
+      const b = event.target.closest('[data-request-action]');
+      if (!b) return;
       if (b.disabled || !hasPermission(b.dataset.requiredPermission)) {
         alert(`Permission denied: ${b.dataset.requiredPermission || 'required workflow permission'}.`);
         return;
       }
-      const action=b.dataset.requestAction;let expertUsername='';
-      if(action==='assign'||action==='transfer'){expertUsername=prompt('Enter the active DrawingExpert username:')?.trim()||'';if(!expertUsername)return;}
-      const comment=prompt('Comment (optional):')||'';b.disabled=true;
-      try{await requestJson(`${API}/drawing-requests/${Number(b.dataset.requestId)}/action`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,expertUsername,comment})});await loadWorklist();await loadNotifications();}
-      catch(e){alert(e.message);b.disabled=false;}
+      const action = b.dataset.requestAction;
+      const requestId = Number(b.dataset.requestId);
+      if (['cancel','approve','reject'].includes(action)) {
+        openActionModal(action, requestId);
+        return;
+      }
+      let expertUsername = '';
+      if (action === 'assign' || action === 'transfer') {
+        expertUsername = prompt('Enter the active DrawingExpert username:')?.trim() || '';
+        if (!expertUsername) return;
+      }
+      const comment = prompt('Comment (optional):') || '';
+      b.disabled = true;
+      try {
+        await requestJson(`${API}/drawing-requests/${requestId}/action`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({action,expertUsername,comment})
+        });
+        await loadWorklist();
+        await loadNotifications();
+      } catch (e) { alert(e.message); b.disabled = false; }
     });
+    $('rwActionClose')?.addEventListener('click', closeActionModal);
+    $('rwActionBack')?.addEventListener('click', closeActionModal);
+    $('rwActionContinue')?.addEventListener('click', () => {
+      if (!pendingModalAction) return;
+      if (pendingModalAction.action === 'cancel') executePendingAction();
+      else openConfirmationModal();
+    });
+    $('rwConfirmNo')?.addEventListener('click', () => $('rwConfirmModal')?.classList.add('hidden'));
+    $('rwConfirmClose')?.addEventListener('click', () => $('rwConfirmModal')?.classList.add('hidden'));
+    $('rwConfirmYes')?.addEventListener('click', executePendingAction);
     $('rwLogout')?.addEventListener('click', async () => {
       $('rwLogout').disabled = true;
       try { await fetch(`${API}/auth/logout`, {method:'POST',credentials:'include'}); } catch (_) {}
