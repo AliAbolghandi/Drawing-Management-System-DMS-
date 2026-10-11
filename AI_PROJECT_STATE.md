@@ -662,11 +662,21 @@ Previous task: Add an Admin-only in-app database management environment so an Ad
 - Syntax checks passed using JavaScript parser for `backend/server.js`, `frontend/js/request-workflow.js`, and `frontend/js/script.js`. Structural checks passed for the state field, details modal, action controls, tree-navigation hook, comments, modal IDs, and CSS.
 - Not yet performed: live browser testing, API integration test, SQL Server runtime test, or verification of real-world tree navigation for a nested Node. No database schema change is required.
 
+
+## Requester Cancellation Authorization Fix — 2026-10-11
+
+- User clarified the requester (including VIEWER) can cancel their own drawing request only until their Manager approves it; once the Manager has approved, cancellation must be denied.
+- Root cause in `backend/server.js`: the `cancel` action authorization excluded several terminal statuses but still allowed cancellation from post-approval states such as `PENDING_DRAWING_APPROVAL`, `ASSIGNED`, and later workflow states.
+- Updated the backend authorization condition to require both request ownership (`RequesterUserID === req.user.userId`) and exact status `PENDING_MANAGER`.
+- The frontend already renders Cancel Request only for the owner while status is `PENDING_MANAGER`; backend authorization is now aligned and remains authoritative.
+- No database/schema or permission mapping changes.
+- Commit: `f2a2a3187d731f6d634a8474eea2ce27f0b8f643` — Restrict requester cancellation to pre-manager approval
+- Verification: source condition was matched and replaced against the current `main` file. No live SQL Server/API/browser integration test was available/performed in this session.
+
 # NEXT ACTION
 
-1. Hard-refresh DMS with Ctrl+F5 and open My Worklist. Confirm a newly submitted request with only `REQUEST_CREATED` history is red; after approve/reject/assign/transfer/accept/complete/any workflow action, confirm it changes to the normal background style after refresh.
-2. Confirm each sidebar request displays only request number/status, node code/name, requester, manager, assigned expert, and created timestamp. Clicking a card should open its details modal.
-3. Test detail modal fields and role/permission-specific action buttons for requester, Manager, DrawingExpert, and other workflow roles. Verify action modals and comments still work after action, with updated request data shown when the details modal remains open.
-4. Click “Show location in tree” on a deeply nested request and verify the tree expands the ancestor chain, selects the correct Node, and scrolls it into view.
-5. Verify Viewer/Manager comment visibility restrictions and all-comments access for other roles using real accounts. Perform browser/API/SQL Server runtime tests and record results here.
-6. If the backend response fails with missing workflow table/column errors, inspect the actual SQL Server schema first; do not run the entire `SQL/Inserttable.sql` migration without review and approval.
+1. Restart the DMS backend so the updated `backend/server.js` is loaded.
+2. Sign in as a Viewer and submit a request; while it is `PENDING_MANAGER`, verify Cancel Request is visible and successfully cancels only that user's own request.
+3. As the Manager, approve a separate request. Verify the Viewer no longer sees Cancel Request and a direct `POST /api/drawing-requests/:requestId/action` with `{"action":"cancel"}` returns HTTP 403 after approval.
+4. Verify a Viewer cannot cancel another user's request, and check that Manager approve/reject and the rest of the workflow remain unchanged.
+5. Record results after browser/API testing against the actual SQL Server.
