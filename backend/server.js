@@ -798,7 +798,48 @@ app.get('/api/drawing-requests', async (req, res) => {
          OR (@canAssigned=1 AND dr.AssignedDrawingExpertID=@userId)
       ORDER BY dr.UpdatedAt DESC, dr.RequestID DESC;
     `);
-    res.json({ requests: result.recordset });
+    const requests = result.recordset;
+    if (requests.length) {
+      const commentsDb = new sql.Request();
+      const requestParams = requests.map((row, index) => {
+        const name = `requestId${index}`;
+        commentsDb.input(name, sql.Int, Number(row.RequestID));
+        return `@${name}`;
+      });
+      commentsDb.input('commentViewerUserId', sql.Int, req.user.userId);
+      const commentsResult = await commentsDb.query(`
+        SELECT h.RequestID, h.HistoryID, h.ActionCode, h.ActionByUserID,
+               h.ActionByUsername, h.Comment, h.CreatedAt
+        FROM dbo.DrawingRequestHistory h
+        INNER JOIN dbo.DrawingRequests dr ON dr.RequestID = h.RequestID
+        WHERE h.RequestID IN (${requestParams.join(',')})
+          AND NULLIF(LTRIM(RTRIM(h.Comment)), N'') IS NOT NULL
+          AND (
+            NOT EXISTS (
+              SELECT 1
+              FROM dbo.UserRoles ur
+              INNER JOIN dbo.Roles role ON role.RoleID = ur.RoleID
+              WHERE ur.UserID = @commentViewerUserId
+                AND role.IsActive = 1
+                AND role.RoleCode IN (N'VIEWER', N'Manager')
+            )
+            OR h.ActionByUserID IN (dr.RequesterUserID, dr.ManagerUserID)
+          )
+        ORDER BY h.CreatedAt ASC, h.HistoryID ASC;
+      `);
+      const commentsByRequest = new Map();
+      for (const comment of commentsResult.recordset) {
+        const key = Number(comment.RequestID);
+        if (!commentsByRequest.has(key)) commentsByRequest.set(key, []);
+        commentsByRequest.get(key).push(comment);
+      }
+      for (const request of requests) {
+        request.Comments = commentsByRequest.get(Number(request.RequestID)) || [];
+      }
+    } else {
+      for (const request of requests) request.Comments = [];
+    }
+    res.json({ requests });
   } catch (e) {
     console.error('Drawing worklist load failed:', e);
     sendServerError(res, 'Drawing worklist load failed', e);
