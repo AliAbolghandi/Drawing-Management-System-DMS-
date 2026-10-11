@@ -331,7 +331,7 @@
       if (actionButton) {
         const action = actionButton.dataset.detailsAction;
         const permission = actionButton.dataset.requiredPermission;
-        if (actionButton.disabled || !hasPermission(permission)) {
+        if (actionButton.disabled || (action !== 'cancel' && !hasPermission(permission))) {
           alert(`Permission denied: ${permission || 'required workflow permission'}.`);
           return;
         }
@@ -341,7 +341,7 @@
     $('rwContent')?.addEventListener('click', async event => {
       const b = event.target.closest('[data-request-action]');
       if (!b) return;
-      if (b.disabled || !hasPermission(b.dataset.requiredPermission)) {
+      if (b.disabled || (b.dataset.requestAction !== 'cancel' && !hasPermission(b.dataset.requiredPermission))) {
         alert(`Permission denied: ${b.dataset.requiredPermission || 'required workflow permission'}.`);
         return;
       }
