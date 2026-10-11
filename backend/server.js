@@ -904,7 +904,9 @@ app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
   if (!Number.isInteger(requestId) || requestId <= 0) return res.status(400).json({ error: 'Invalid Request ID.' });
   const permissions = {cancel:'REQUEST_DRAWING_CANCEL',approve:'REQUEST_DRAWING_APPROVE',reject:'REQUEST_DRAWING_REJECT',assign:'REQUEST_DRAWING_ASSIGN',transfer:'REQUEST_DRAWING_TRANSFER',accept:'REQUEST_DRAWING_ACCEPT','expert-reject':'REQUEST_DRAWING_EXPERT_REJECT',complete:'REQUEST_DRAWING_COMPLETE','return-correction':'REQUEST_DRAWING_RETURN_CORRECTION','final-approve':'REQUEST_DRAWING_FINAL_APPROVE','final-reject':'REQUEST_DRAWING_FINAL_REJECT'};
   if (!permissions[action]) return res.status(400).json({ error: 'Unsupported workflow action.' });
-  if (!req.user.permissions.has(permissions[action])) return res.status(403).json({ error: 'Permission denied.' });
+  // Cancellation is an ownership-and-state-bound requester action; do not require a separate role permission.
+  // The later cancel branch permits it only when the current user owns the request and status is PENDING_MANAGER.
+  if (action !== 'cancel' && !req.user.permissions.has(permissions[action])) return res.status(403).json({ error: 'Permission denied.' });
   if (['assign','transfer'].includes(action) && !expertUsername) return res.status(400).json({ error: 'DrawingExpert username is required.' });
   const db = new sql.Request();
   db.input('requestId',sql.Int,requestId); db.input('userId',sql.Int,req.user.userId);
