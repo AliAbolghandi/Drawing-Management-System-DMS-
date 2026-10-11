@@ -129,7 +129,7 @@
     const box = $('rwContent');
     if (!box) return;
     const search = ($('rwRequestSearch')?.value || '').trim().toLowerCase();
-    const filtered = allRequests.filter(r => String(r.RequestNumber || '').toLowerCase().includes(search));
+    const filtered = allRequests.filter(r => String(r.StatusCode || '').toUpperCase() !== 'CANCELLED' && String(r.RequestNumber || '').toLowerCase().includes(search));
     box.innerHTML = search && filtered.length === 0
       ? '<div class="rw-empty">No request number matches your search.</div>'
       : filtered.length ? filtered.map(r => {
