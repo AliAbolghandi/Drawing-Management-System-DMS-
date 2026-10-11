@@ -351,6 +351,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 \n
+  <div id="rwDetailsModal" class="rw-modal rw-details-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwDetailsTitle">
+    <div class="rw-dialog rw-details-dialog">
+      <div class="rw-dialog-header"><h3 id="rwDetailsTitle">Drawing Request Details</h3><button id="rwDetailsClose" type="button" class="rw-close" aria-label="Close">×</button></div>
+      <div id="rwDetailsBody" class="rw-dialog-body rw-details-body"></div>
+      <div class="rw-dialog-footer"><button id="rwDetailsDone" type="button">Close</button></div>
+    </div>
+  </div>
   <div id="rwActionModal" class="rw-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwActionTitle">
     <div class="rw-dialog">
       <div class="rw-dialog-header"><h3 id="rwActionTitle">Request action</h3><button id="rwActionClose" type="button" class="rw-close" aria-label="Close">×</button></div>
