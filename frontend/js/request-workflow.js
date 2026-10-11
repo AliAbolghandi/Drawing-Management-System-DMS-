@@ -89,7 +89,7 @@
       add('final-reject','Reject Request','REQUEST_DRAWING_FINAL_REJECT');
     }
     if (Number(r.AssignedDrawingExpertID) === userId) {
-      if (s === 'ASSIGNED') add('accept','Accept Work','REQUEST_DRAWING_ACCEPT');
+      if (['ASSIGNED','TRANSFERRED'].includes(s)) add('accept','Accept Work','REQUEST_DRAWING_ACCEPT');
       if (['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s)) {
         add('transfer','Refer to Another Expert','REQUEST_DRAWING_TRANSFER');
         add('expert-reject','Reject Work','REQUEST_DRAWING_EXPERT_REJECT');
