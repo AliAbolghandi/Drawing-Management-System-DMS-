@@ -23,7 +23,9 @@
 
   function format(value, dateOnly = false) {
     if (value === null || value === undefined || value === '') return '-';
-    const date = value instanceof Date ? value : new Date(value);
+    const date = value instanceof Date ? value : (dateOnly && /^\\d{4}-\\d{2}-\\d{2}/.test(String(value))
+      ? new Date(Number(String(value).slice(0, 4)), Number(String(value).slice(5, 7)) - 1, Number(String(value).slice(8, 10)), 12)
+      : new Date(value));
     if (!isValidDate(date)) return String(value);
     const p = parts(displayFormatter, date);
     const dateText = `${p.year}/${p.month}/${p.day}`;
@@ -32,7 +34,9 @@
 
   function toJalaliInput(value, dateOnly = false) {
     if (value === null || value === undefined || value === '') return '';
-    const date = value instanceof Date ? value : new Date(value);
+    const date = value instanceof Date ? value : (dateOnly && /^\\d{4}-\\d{2}-\\d{2}/.test(String(value))
+      ? new Date(Number(String(value).slice(0, 4)), Number(String(value).slice(5, 7)) - 1, Number(String(value).slice(8, 10)), 12)
+      : new Date(value));
     if (!isValidDate(date)) return String(value);
     const p = parts(inputFormatter, date);
     const dateText = `${p.year}/${p.month}/${p.day}`;
