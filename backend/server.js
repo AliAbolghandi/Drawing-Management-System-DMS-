@@ -744,9 +744,10 @@ app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE
       DECLARE @requestNumber nvarchar(8);
       DECLARE @nextSequence int;
       DECLARE @lockResult int;
+      DECLARE @lockResource nvarchar(255) = CONCAT(N'DMS-RequestNumber-', @requestYear);
 
       EXEC @lockResult = sys.sp_getapplock
-        @Resource = CONCAT(N'DMS-RequestNumber-', @requestYear),
+        @Resource = @lockResource,
         @LockMode = 'Exclusive',
         @LockOwner = 'Transaction',
         @LockTimeout = 10000;
