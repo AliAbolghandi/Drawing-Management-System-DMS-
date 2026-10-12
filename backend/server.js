@@ -691,7 +691,7 @@ app.post('/api/node-file-upload/:nodeId', auth.requirePermission('FILE_Edit'), a
 function getJalaliRequestYear() {
   return new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', {
     year: 'numeric'
-  }).format(new Date());
+  }).format(new Date()).replace(/\\D/g, '').slice(0, 4);
 }
 
 app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE'), async (req, res) => {
