@@ -881,6 +881,9 @@ app.get('/api/drawing-requests', async (req, res) => {
       }
       for (const request of requests) {
         request.WorkflowHistory = historyByRequest.get(Number(request.RequestID)) || [];
+        if (req.user.permissions.has('REQUEST_DRAWING_VIEW_OWN') && !req.user.permissions.has('REQUEST_DRAWING_VIEW_ALL') && !req.user.permissions.has('REQUEST_DRAWING_VIEW_ASSIGNED')) {
+          request.WorkflowHistory = request.WorkflowHistory.map(item => ({ ...item, Comment: [Number(request.RequesterUserID), Number(request.ManagerUserID)].includes(Number(item.ActionByUserID)) ? item.Comment : null }));
+        }
       }
     } else {
       for (const request of requests) {
