@@ -755,8 +755,8 @@ User requirements implemented:
 - Added a vertical workflow timeline ordered by `DrawingRequestHistory.CreatedAt, HistoryID`: each step shows stage, action, timestamp, and comment, with a down arrow to the next step. Request creation displays the requester reason/comment from the `REQUEST_CREATED` history row.
 - Existing Comments section remains in the modal; existing comment metadata still displays `ActionCode`.
 - `GET /api/drawing-requests` now includes `WorkflowHistory` for timeline events. Timeline comments reuse the same visible comment-history IDs as the existing `Comments` list to preserve the current Viewer/Manager comment visibility rule.
-- `GET /api/node-hierarchy/:nodeId` now returns the complete root-to-current chain instead of truncating to three nodes, and uses `NODE_VIEW` permission for this read-only node ancestry display.
-- Updated frontend cache-busters to `request-workflow.css?v=20261012-details-modal-final` and `request-workflow.js?v=20261012-details-modal-final`.
+- Preserved the existing `GET /api/node-hierarchy/:nodeId` contract and `FILE_VIEW` permission (three-level result); added `GET /api/node-hierarchy/:nodeId/full` with `NODE_VIEW` permission for the modal's complete root-to-current chain.
+- Updated frontend cache-busters to `request-workflow.css?v=20261012-details-modal-final2` and `request-workflow.js?v=20261012-details-modal-final2`.
 - No database schema changes.
 
 Commits:
@@ -768,7 +768,10 @@ Commits:
 - `4f4870990f740672fbc292f0b9f439ac74222aa3` — Reuse existing comment visibility rules in workflow timeline
 - `4a67276c9d898df678c66f75e81b5c4ec1d5a17e` — Preserve existing comment metadata display in request details
 - `90f7777c9099373c0e5f0016c95f98b338eda963` — Initial workflow asset refresh
-- `553180c70a87c5f6b0fb20d949c1249cf60739d6` — Refresh cache for final request details modal layout
+- `553180c70a87c5f6b0fb20d949c1249cf60739d6` — Initial refresh cache for request details modal
+- `ec04c2da6ec5bdbdf1573573bfb6858f7f240052` — Preserve existing node hierarchy contract and add full ancestry route
+- `24ca7234e6fbc22d29401fcb3c461fb2e78ce8a0` — Load full node ancestry for request details modal
+- `ffd686bdca4be4de62e1b88aef35fdc19d749190` — Refresh assets after full ancestry endpoint adjustment
 
 Validation performed:
 - JavaScript parser checks passed for `frontend/js/request-workflow.js` and `backend/server.js`.
@@ -777,7 +780,7 @@ Validation performed:
 
 # NEXT ACTION
 
-1. Pull the latest `main`, restart the Node.js backend, and hard-refresh the browser with Ctrl+F5; verify `request-workflow.css?v=20261012-details-modal-final` and `request-workflow.js?v=20261012-details-modal-final` load.
+1. Pull the latest `main`, restart the Node.js backend, and hard-refresh the browser with Ctrl+F5; verify `request-workflow.css?v=20261012-details-modal-final2` and `request-workflow.js?v=20261012-details-modal-final2` load.
 2. Open a request on a deeply nested Node and verify the modal shows the full root-to-selected-node path only (no siblings), with STATUS first, then Show location in tree, then node path, then available action buttons.
 3. Verify the dark-slate theme on desktop and narrow/mobile widths.
 4. Test a request with Manager approve/reject and Expert referral/accept/complete events; confirm timeline order, arrows, timestamps, stage labels, and per-event comments.
