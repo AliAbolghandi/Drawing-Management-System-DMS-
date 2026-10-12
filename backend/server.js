@@ -755,7 +755,7 @@ app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE
       IF @lockResult < 0
         THROW 51001, 'Could not lock drawing request numbering sequence.', 1;
 
-      SELECT @nextSequence = ISNULL(MAX(TRY_CONVERT(int, RIGHT(RequestNumber, 4))) + 1, 0)
+      SELECT @nextSequence = ISNULL(MAX(TRY_CONVERT(int, RIGHT(RequestNumber, 4))) + 1, 1)
       FROM dbo.DrawingRequests WITH (UPDLOCK, HOLDLOCK)
       WHERE RequestNumber LIKE @requestYear + N'%'
         AND LEN(RequestNumber) = 8
