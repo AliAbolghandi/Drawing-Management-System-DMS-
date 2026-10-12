@@ -230,7 +230,7 @@
     $('rwDetailsTitle').textContent = 'Drawing Request Details';
     $('rwDetailsModal')?.classList.remove('hidden');
 
-    requestJson(`${API}/node-hierarchy/${Number(r.NodeID)}`)
+    requestJson(`${API}/node-hierarchy/${Number(r.NodeID)}/full`)
       .then(data => {
         const pathBox = $('rwRequestNodePath');
         if (!pathBox || !data || !Array.isArray(data.hierarchy)) return;
