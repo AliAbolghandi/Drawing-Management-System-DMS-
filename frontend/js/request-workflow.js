@@ -16,9 +16,7 @@
   }
 
   function formatDate(value) {
-    if (!value) return '-';
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+    return window.DMSDate ? window.DMSDate.format(value) : (value ? String(value) : '-');
   }
 
   function hasPermission(code) {
