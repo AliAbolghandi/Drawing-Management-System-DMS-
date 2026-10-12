@@ -837,10 +837,29 @@ Validation:
 - Structural checks confirmed the shared utility loads before application scripts and the final `# NEXT ACTION` section is present.
 - No browser or live SQL Server integration test has been run yet.
 
+## Jalali Date Display: English Numerals and Clear Date-Time Separation — 2026-10-12
+
+User requested date/time values to display using English (Latin) numerals and for the space between date and time to be more noticeable. The Jalali calendar requirement remains unchanged.
+
+Implemented:
+- `frontend/js/date-utils.js`: display formatter now uses `en-US-u-ca-persian-nu-latn`, retaining Jalali year/month/day while displaying Latin digits.
+- Date-time output now separates the date and time with three non-breaking spaces so the gap remains visible in HTML-rendered text. Date-only output is unchanged.
+- Updated `frontend/index.html` and `frontend/management.html` date utility cache-busters to `20261012-jalali-en`.
+- Jalali input conversion, Persian/Arabic digit normalization on entry, API contracts, and database timestamp storage are unchanged.
+
+Commits:
+- `3352d056482ced837503782c33d2f8f30797aefe` — Display Jalali dates with English numerals and clearer spacing
+- `2cf89f615568f8f101ee90a0648447767a036a45` — Refresh DMS date formatter asset cache
+- `85bc5964ce846c752d646d38e3e4a71bb2d03ee5` — Refresh Management date formatter asset cache
+
+Validation:
+- Source-level assertions verified the formatter locale, Latin-digit numbering system, non-breaking-space separator, and updated cache-busters.
+- Browser rendering and live SQL Server integration were not tested in this environment.
+
 # NEXT ACTION
 
-1. Pull latest `main` and hard-refresh both DMS and Management pages; confirm `date-utils.js?v=20261012-jalali` loads before app scripts.
-2. Verify request Created time and each workflow timeline timestamp use Jalali year/month/day.
-3. In Management, open a table containing `date`, `datetime`, `datetime2`, `smalldatetime`, or `datetimeoffset` columns; confirm cells and editable values display in Jalali format.
-4. Test a Jalali date and date-time edit (including Persian digits) and verify the saved Gregorian database value corresponds to the same Jalali date/time.
-5. Inspect remaining frontend views for any date rendered outside the shared formatter; record real browser/API/SQL Server test results.
+1. Pull latest `main` and hard-refresh DMS and Management pages (Ctrl+F5).
+2. Verify displayed dates remain Jalali but use Latin digits, e.g. `1405/07/20   14:30:15`.
+3. Confirm the visible gap between date and time is clear in the request worklist, workflow timeline, and Management date/datetime cells.
+4. Re-test Jalali date/date-time editing and verify saved Gregorian values still correspond to the entered Jalali date/time.
+5. Record any browser-specific rendering issue and perform live SQL Server verification when available.
