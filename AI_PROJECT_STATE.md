@@ -1,6 +1,6 @@
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-10-11
+Last updated: 2026-10-12
 Repository: https://github.com/AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
@@ -744,11 +744,43 @@ Commits:
 
 Validation: JavaScript parser checks passed for both `frontend/js/request-workflow.js` and `backend/server.js`. An isolated test of `getRequestColorClass()` passed 11 cases: Viewer/Manager pending Manager, Admin waiting and acting, assigned/new/prior Expert on transfer, rejection, correction, and final approval. Source checks confirmed all five CSS colors, the separate unread border, cancelled filtering, the final cache-buster, backend acceptance of `TRANSFERRED`, and prior Expert visibility. No live browser, API, or SQL Server runtime test has been run; verify against the deployed database before declaring runtime completion.
 
+## Request Details Modal Layout — 2026-10-12
+
+User requirements implemented:
+- `rwDetailsModal` now uses the DMS dark-slate theme consistent with the request sidebar.
+- The STATUS row appears immediately below the request number; `Show location in tree` is directly under STATUS.
+- Under the location button, the modal shows only the selected node's root-to-current ancestry chain (NodeCode + NodeName per ancestor), not sibling nodes or unrelated branches.
+- Available action buttons are below the location button and node path.
+- Removed the standalone `Description / Reason` and separate ManagerComment detail fields to avoid duplicating comments.
+- Added a vertical workflow timeline ordered by `DrawingRequestHistory.CreatedAt, HistoryID`: each step shows stage, action, timestamp, and comment, with a down arrow to the next step. Request creation displays the requester reason/comment from the `REQUEST_CREATED` history row.
+- Existing Comments section remains in the modal; existing comment metadata still displays `ActionCode`.
+- `GET /api/drawing-requests` now includes `WorkflowHistory` for timeline events. Timeline comments reuse the same visible comment-history IDs as the existing `Comments` list to preserve the current Viewer/Manager comment visibility rule.
+- `GET /api/node-hierarchy/:nodeId` now returns the complete root-to-current chain instead of truncating to three nodes, and uses `NODE_VIEW` permission for this read-only node ancestry display.
+- Updated frontend cache-busters to `request-workflow.css?v=20261012-details-modal-final` and `request-workflow.js?v=20261012-details-modal-final`.
+- No database schema changes.
+
+Commits:
+- `ad1343e6be2044d4b143ac36d84d7d7b78882953` — Redesign request details modal with node path and workflow timeline
+- `52292a64186f0c390fc7bc0424d10c014d38105d` — Style request details modal to match DMS theme
+- `e808a590ba13d2bc565d460d85f2898589442bfb` — Expose complete node ancestry and workflow history for request details
+- `92e92082ee633bdc96a9f036a25f24594ae3aaf5` — Authorize node ancestry display with NODE_VIEW
+- `443b8f4ba3098639cadfd3f5be3dbd6376ad8e0e` — Intermediate workflow comment visibility implementation, subsequently refined
+- `4f4870990f740672fbc292f0b9f439ac74222aa3` — Reuse existing comment visibility rules in workflow timeline
+- `4a67276c9d898df678c66f75e81b5c4ec1d5a17e` — Preserve existing comment metadata display in request details
+- `90f7777c9099373c0e5f0016c95f98b338eda963` — Initial workflow asset refresh
+- `553180c70a87c5f6b0fb20d949c1249cf60739d6` — Refresh cache for final request details modal layout
+
+Validation performed:
+- JavaScript parser checks passed for `frontend/js/request-workflow.js` and `backend/server.js`.
+- Structural assertions passed for STATUS placement, Show location placement, actions below location/path, timeline below actions, removal of standalone Description / Reason, full hierarchy, comment section preservation, dark modal theme, privacy filtering, and both cache-busters.
+- Browser interaction and live API/SQL Server integration tests have not been run in this environment.
+
 # NEXT ACTION
 
-1. Pull the latest `main` and restart the Node.js backend.
-2. Hard-refresh the browser with Ctrl+F5 and confirm `request-workflow.js?v=20261011-workflow-colors-final` loads.
-3. Test the role/status matrix: new request (`PENDING_MANAGER`) for Viewer and Manager; Manager approval (`PENDING_DRAWING_APPROVAL`); assignment (`ASSIGNED`); Expert acceptance (`IN_PROGRESS`); completion (`PENDING_FINAL_APPROVAL`); rejection; correction return; and final approval.
-4. Test an Expert referring a request: the referring Expert must see the transferred card gray, the newly assigned Expert must see it yellow with the unread red border, and the new Expert must be able to accept it.
-5. Verify each action through the real API and SQL Server; check that `CANCELLED` is absent from open work and remains available only through any existing history view.
-6. Record actual browser/API/SQL Server results here. Only source-level syntax and structural checks have passed so far.
+1. Pull the latest `main`, restart the Node.js backend, and hard-refresh the browser with Ctrl+F5; verify `request-workflow.css?v=20261012-details-modal-final` and `request-workflow.js?v=20261012-details-modal-final` load.
+2. Open a request on a deeply nested Node and verify the modal shows the full root-to-selected-node path only (no siblings), with STATUS first, then Show location in tree, then node path, then available action buttons.
+3. Verify the dark-slate theme on desktop and narrow/mobile widths.
+4. Test a request with Manager approve/reject and Expert referral/accept/complete events; confirm timeline order, arrows, timestamps, stage labels, and per-event comments.
+5. Test as Viewer and Manager that the workflow timeline does not reveal comments hidden in the existing Comments section; verify requester/manager comments remain visible under the established rule.
+6. Verify the separate Comments section is unchanged in behavior and no standalone Description / Reason or ManagerComment duplicate appears.
+7. Record real browser/API/SQL Server test results here; only syntax and structural checks have passed so far.
