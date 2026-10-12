@@ -744,6 +744,25 @@ Commits:
 
 Validation: JavaScript parser checks passed for both `frontend/js/request-workflow.js` and `backend/server.js`. An isolated test of `getRequestColorClass()` passed 11 cases: Viewer/Manager pending Manager, Admin waiting and acting, assigned/new/prior Expert on transfer, rejection, correction, and final approval. Source checks confirmed all five CSS colors, the separate unread border, cancelled filtering, the final cache-buster, backend acceptance of `TRANSFERRED`, and prior Expert visibility. No live browser, API, or SQL Server runtime test has been run; verify against the deployed database before declaring runtime completion.
 
+## Request Details Workflow — Single Box Update — 2026-10-12
+
+User follow-up implemented:
+- The step-by-step workflow is presented inside one unified dark-slate bordered panel with a heading and step count.
+- Each stage remains inside the panel with actor/stage, action, timestamp, comment, and a connector arrow to the next stage.
+- Removed the separate Comments section from the request details modal. Comments are shown only within their corresponding workflow steps, retaining the existing authorized comment visibility filtering.
+- Preserved request status, node path, action buttons, API contracts, and database schema.
+- Updated frontend cache-busters to `request-workflow.css?v=20261012-workflow-single-box` and `request-workflow.js?v=20261012-workflow-single-box`.
+
+Commits:
+- `f7e1f176fb9c3da32ed9493c00aacd0e933e33f9` — Show request workflow in one unified panel
+- `1450f1094832f77ba4f4fbbe28a6d16ba2d993f5` — Style workflow as a unified dark panel
+- `a0ee7e10eec9fb66c14c29612c33a98f5f1e1d9f` — Refresh workflow panel frontend assets
+
+Validation:
+- JavaScript parser check passed.
+- Structural checks passed: standalone Comments section removed from the modal, workflow renderer retained, unified panel CSS present, asset cache-busters updated.
+- Browser interaction and live API/SQL Server integration tests have not been run in this environment.
+
 ## Request Details Modal Layout — 2026-10-12
 
 User requirements implemented:
@@ -780,10 +799,8 @@ Validation performed:
 
 # NEXT ACTION
 
-1. Pull the latest `main`, restart the Node.js backend, and hard-refresh the browser with Ctrl+F5; verify `request-workflow.css?v=20261012-details-modal-final2` and `request-workflow.js?v=20261012-details-modal-final2` load.
-2. Open a request on a deeply nested Node and verify the modal shows the full root-to-selected-node path only (no siblings), with STATUS first, then Show location in tree, then node path, then available action buttons.
-3. Verify the dark-slate theme on desktop and narrow/mobile widths.
-4. Test a request with Manager approve/reject and Expert referral/accept/complete events; confirm timeline order, arrows, timestamps, stage labels, and per-event comments.
-5. Test as Viewer and Manager that the workflow timeline does not reveal comments hidden in the existing Comments section; verify requester/manager comments remain visible under the established rule.
-6. Verify the separate Comments section is unchanged in behavior and no standalone Description / Reason or ManagerComment duplicate appears.
-7. Record real browser/API/SQL Server test results here; only syntax and structural checks have passed so far.
+1. Pull the latest `main`, restart the Node.js backend, and hard-refresh the browser with Ctrl+F5; verify the `20261012-workflow-single-box` JS/CSS assets load.
+2. Open a request and confirm the full step-by-step workflow appears inside one unified dark-slate box, with arrows, timestamps, stage/action labels, and comments under their matching steps.
+3. Confirm the separate Comments section no longer appears, while comments are still shown only when permitted by the existing comment-visibility rules.
+4. Verify STATUS, Show location in tree, the full root-to-selected-node path, and action buttons remain in their established order.
+5. Test desktop/mobile layout and live Manager/Expert workflow transitions; record actual results because browser/API/SQL Server runtime tests have not yet been run.
