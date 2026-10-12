@@ -856,10 +856,32 @@ Validation:
 - Source-level assertions verified the formatter locale, Latin-digit numbering system, non-breaking-space separator, and updated cache-busters.
 - Browser rendering and live SQL Server integration were not tested in this environment.
 
+## Drawing Request Numbering by Jalali Year — 2026-10-12
+
+User requirement: Drawing Request numbers must be exactly eight digits. The first four digits are the current Jalali year; the final four digits are a per-year sequence beginning at 0000 (examples: `14050000`, `14050001`, ...). The old `DR-<UTC timestamp>-<random hex>` format is removed.
+
+Implemented in `backend/server.js`:
+- `getJalaliRequestYear()` derives the Jalali year using `Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn')` and strips the calendar era suffix so only four numeric year digits are used (for example, `1405`, not `1405 AP`).
+- Request creation generates `YYYYNNNN` inside the same SQL transaction as the insert, using existing `dbo.DrawingRequests.RequestNumber` values to determine the next suffix. No new table, column, or schema change.
+- Uses a transaction-owned SQL Server application lock `DMS-RequestNumber-<JalaliYear>` plus a locked lookup to serialize concurrent creations for the same year and avoid duplicate sequence allocation.
+- First suffix is `0000`; subsequent requests increment it. If suffix 9999 has already been used, creation fails explicitly rather than generating a malformed number.
+- The generated number is reused for `DrawingRequests`, `DrawingRequestHistory`, and `Notifications`, preserving existing relationships.
+
+Commits:
+- `eaeb6c9a8700ea7c0bf4c78b247ef3d6d7c4f7a9` — Use Jalali year and sequential request numbers
+- `f398dce6edc91844a2243963e3f4ad6498b295ac` — Ensure SQL Server application lock uses a variable
+- `50f9c53e915e2f1c8f809036848880c61f8dcd45` — Normalize Jalali year to four digits
+
+Validation performed:
+- JavaScript parser check passed for the full `backend/server.js` source.
+- Source assertions passed for Jalali-year formatting, starting suffix `0000`, eight-digit output, transaction-owned application lock, and removal of the old timestamp/random format.
+- Calendar check confirmed Gregorian date `2026-10-12` maps to Jalali year `1405` with the backend formatter.
+- Live SQL Server concurrency/integration tests have not been run; actual database compatibility and sequence behavior must be verified against the configured SQL Server.
+
 # NEXT ACTION
 
-1. Pull latest `main` and hard-refresh DMS and Management pages (Ctrl+F5).
-2. Verify displayed dates remain Jalali but use Latin digits, e.g. `1405/07/20   14:30:15`.
-3. Confirm the visible gap between date and time is clear in the request worklist, workflow timeline, and Management date/datetime cells.
-4. Re-test Jalali date/date-time editing and verify saved Gregorian values still correspond to the entered Jalali date/time.
-5. Record any browser-specific rendering issue and perform live SQL Server verification when available.
+1. Pull latest `main` and restart the backend service so the new request-number generator is loaded.
+2. Create a test request and verify `RequestNumber` is exactly eight digits, e.g. `14050000` when no 1405-prefixed request exists, or the next suffix based on existing requests.
+3. Verify the same number is stored in `dbo.DrawingRequests`, `dbo.DrawingRequestHistory`, and `dbo.Notifications` for the created request.
+4. Create two requests concurrently and confirm they receive distinct, sequential numbers under the same Jalali year.
+5. Verify numbering increments from existing 8-digit records and does not reset if requests are deleted; record live SQL Server/API test results.
