@@ -188,7 +188,7 @@
       CreatedAt: request.CreatedAt
     }];
     return `<section class="rw-workflow-timeline">
-      <h4>Workflow</h4>
+      <div class="rw-workflow-timeline-header"><h4>Step-by-step workflow</h4><span class="rw-workflow-step-count">${events.length} ${events.length === 1 ? 'step' : 'steps'}</span></div>
       <div class="rw-timeline-list">${events.map((item, index) => {
         const code = String(item.ActionCode || '').toUpperCase();
         const title = workflowStageTitle(item, request);
@@ -215,7 +215,7 @@
     const actionsHtml = actions.length
       ? `<section class="rw-details-actions"><h4>Available Actions</h4><div class="rw-action-row">${actions.map(a => `<button type="button" class="rw-action-btn" data-details-action="${a.action}" data-request-id="${Number(r.RequestID)}" data-required-permission="${escapeHtml(a.permission)}"${a.allowed ? '' : ' disabled aria-disabled="true"'}${a.allowed ? '' : ` title="Permission required: ${escapeHtml(a.permission)}"`}>${escapeHtml(a.label)}</button>`).join('')}</div></section>`
       : '<div class="rw-details-no-actions">No actions are available for your account at this workflow stage.</div>';
-    const commentsHtml = `<section class="rw-comments rw-details-comments"><h4>Comments <span>${comments.length}</span></h4>${comments.length ? `<div class="rw-comment-list">${comments.map(comment => `<div class="rw-comment"><div class="rw-comment-meta"><strong>${escapeHtml(comment.ActionByUsername || '-')}</strong><span>${escapeHtml(comment.ActionCode || '')}</span><time>${escapeHtml(formatDate(comment.CreatedAt))}</time></div><p>${escapeHtml(comment.Comment || '')}</p></div>`).join('')}</div>` : '<div class="rw-no-comments">No comments yet.</div>'}</section>`;
+
 
     box.innerHTML = `
       <div class="rw-details-request-number">${escapeHtml(r.RequestNumber || '-')}</div>
@@ -225,8 +225,7 @@
         <div class="rw-node-path" id="rwRequestNodePath"><div class="rw-node-path-loading">Loading node path…</div></div>
       </section>
       ${actionsHtml}
-      ${buildWorkflowTimeline(r)}
-      ${commentsHtml}`;
+      ${buildWorkflowTimeline(r)}`;
     $('rwDetailsTitle').textContent = 'Drawing Request Details';
     $('rwDetailsModal')?.classList.remove('hidden');
 
