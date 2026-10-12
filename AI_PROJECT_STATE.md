@@ -797,10 +797,32 @@ Validation performed:
 - Structural assertions passed for STATUS placement, Show location placement, actions below location/path, timeline below actions, removal of standalone Description / Reason, full hierarchy, comment section preservation, dark modal theme, privacy filtering, and both cache-busters.
 - Browser interaction and live API/SQL Server integration tests have not been run in this environment.
 
+## Request Workflow Colors and Final-Approval Marker — 2026-10-12
+
+User-approved behavior implemented:
+- Removed the old read/unread styling concept from request cards. The left-side marker is now a workflow completion marker: red for every request that has not reached `FINAL_APPROVED`, green only after final approval.
+- The request background color remains independent of that marker.
+- Rejected states (`MANAGER_REJECTED`, `DRAWING_APPROVAL_REJECTED`, `EXPERT_REJECTED`, `FINAL_REJECTED`) display red for all relevant worklist viewers; `FINAL_REJECTED` no longer changes to yellow based on permission.
+- The assigned Expert sees `IN_PROGRESS` in blue after accepting work.
+- On `RETURNED_FOR_CORRECTION`, the assigned Expert sees yellow; other workflow participants see green to preserve their completed/previous-stage color.
+- A user with `REQUEST_DRAWING_VIEW_ALL` sees yellow at `PENDING_FINAL_APPROVAL`, because final approval is the outstanding action. The permission does not make every request yellow.
+- Preserved existing stage behavior for Manager, assignment, transferred requests, prior Expert gray state, and final approval green.
+- No backend API contract, RBAC mapping, or database schema was changed. The backend's `HasWorkflowAction` field remains available for compatibility but no longer controls the request marker.
+- Updated cache-busters in `frontend/index.html` to `20261012-workflow-color-marker`.
+
+Commits:
+- 5c573e62bd7bc6efd10a67c346a4050b70b57b69 — Apply updated drawing request workflow colors
+- 2165dddc0807abb4ed45da8828dbf70f8102767c — Show final approval marker and expert progress color
+- 041650bf9b7513fc743164eff78b3c315429e22c — Refresh request workflow color assets
+
+Validation:
+- Source-level assertions confirmed the old unread/read classes are no longer used for rendering, the final-approval marker is applied only to `FINAL_APPROVED`, blue status CSS exists, the `REQUEST_DRAWING_VIEW_ALL` final-approval condition exists, and both asset cache-busters were updated.
+- No live browser, API, or SQL Server integration test was run in this environment.
+
 # NEXT ACTION
 
-1. Pull the latest `main`, restart the Node.js backend, and hard-refresh the browser with Ctrl+F5; verify the `20261012-workflow-single-box` JS/CSS assets load.
-2. Open a request and confirm the full step-by-step workflow appears inside one unified dark-slate box, with arrows, timestamps, stage/action labels, and comments under their matching steps.
-3. Confirm the separate Comments section no longer appears, while comments are still shown only when permitted by the existing comment-visibility rules.
-4. Verify STATUS, Show location in tree, the full root-to-selected-node path, and action buttons remain in their established order.
-5. Test desktop/mobile layout and live Manager/Expert workflow transitions; record actual results because browser/API/SQL Server runtime tests have not yet been run.
+1. Pull the latest `main`, restart the Node.js backend if needed, and hard-refresh the browser with Ctrl+F5; confirm the JS/CSS URLs include `v=20261012-workflow-color-marker`.
+2. Verify the left marker is red for a newly created request and remains red after Manager approval, assignment, Expert acceptance/completion, rejection, and correction return; it should turn green only after `Final Approve`.
+3. Verify workflow backgrounds independently: assigned Expert sees `IN_PROGRESS` blue; all rejected statuses remain red; the assigned Expert sees `RETURNED_FOR_CORRECTION` yellow while other prior participants see green.
+4. Sign in with a user granted `REQUEST_DRAWING_VIEW_ALL` and verify yellow appears only for requests in `PENDING_FINAL_APPROVAL`, not for every request in the worklist.
+5. Run the workflow with real accounts and SQL Server, then record actual browser/API results; runtime integration testing has not yet been performed.
