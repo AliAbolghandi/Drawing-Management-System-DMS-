@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const displayFormatter = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+  const displayFormatter = new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
     hourCycle: 'h23'
@@ -29,7 +29,7 @@
     if (!isValidDate(date)) return String(value);
     const p = parts(displayFormatter, date);
     const dateText = `${p.year}/${p.month}/${p.day}`;
-    return dateOnly ? dateText : `${dateText} ${p.hour}:${p.minute}:${p.second}`;
+    return dateOnly ? dateText : `${dateText}\u00A0\u00A0\u00A0${p.hour}:${p.minute}:${p.second}`;
   }
 
   function toJalaliInput(value, dateOnly = false) {
