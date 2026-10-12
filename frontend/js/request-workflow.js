@@ -152,6 +152,59 @@
     });
   }
 
+  function workflowActionTitle(actionCode) {
+    const labels = {
+      REQUEST_CREATED: 'Request created',
+      REQUEST_CANCELLED: 'Request cancelled',
+      MANAGER_APPROVED: 'Approved',
+      MANAGER_REJECTED: 'Rejected',
+      ASSIGNED_TO_EXPERT: 'Referred to Drawing Expert',
+      EXPERT_TRANSFERRED: 'Referred to another Expert',
+      EXPERT_ACCEPTED: 'Accepted work',
+      EXPERT_REJECTED: 'Rejected work',
+      WORK_COMPLETED: 'Work completed',
+      RETURN_FOR_CORRECTION: 'Returned for correction',
+      FINAL_APPROVED: 'Final approval',
+      DRAWING_REJECTED: 'Drawing rejected'
+    };
+    return labels[String(actionCode || '').toUpperCase()] || String(actionCode || 'Workflow action').replaceAll('_', ' ');
+  }
+
+  function workflowStageTitle(item, request) {
+    const code = String(item.ActionCode || '').toUpperCase();
+    if (code === 'REQUEST_CREATED' || code === 'REQUEST_CANCELLED') return 'Requester';
+    if (code.startsWith('MANAGER_')) return 'Manager';
+    if (['ASSIGNED_TO_EXPERT','RETURN_FOR_CORRECTION','FINAL_APPROVED','DRAWING_REJECTED'].includes(code)) return 'Drawing Supervisor / Admin';
+    if (code.startsWith('EXPERT_') || code === 'WORK_COMPLETED') return 'Drawing Expert';
+    return item.ActionByUsername || request.RequesterUsername || 'Workflow';
+  }
+
+  function buildWorkflowTimeline(request) {
+    const history = Array.isArray(request.WorkflowHistory) ? request.WorkflowHistory : [];
+    const events = history.length ? history : [{
+      ActionCode: 'REQUEST_CREATED',
+      ActionByUsername: request.RequesterUsername,
+      Comment: request.Description,
+      CreatedAt: request.CreatedAt
+    }];
+    return `<section class="rw-workflow-timeline">
+      <h4>Workflow</h4>
+      <div class="rw-timeline-list">${events.map((item, index) => {
+        const code = String(item.ActionCode || '').toUpperCase();
+        const title = workflowStageTitle(item, request);
+        const comment = String(item.Comment || '').trim();
+        const isRejected = code.includes('REJECT');
+        const isApproved = code.includes('APPROVED') || code === 'WORK_COMPLETED' || code === 'ASSIGNED_TO_EXPERT';
+        const stateClass = isRejected ? 'is-rejected' : (isApproved ? 'is-approved' : '');
+        return `<article class="rw-timeline-step ${stateClass}">
+          <div class="rw-timeline-heading"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(workflowActionTitle(code))}</span></div>
+          <time>${escapeHtml(formatDate(item.CreatedAt))}</time>
+          ${comment ? `<p class="rw-timeline-comment">${escapeHtml(comment)}</p>` : '<p class="rw-timeline-no-comment">No comment provided</p>'}
+        </article>${index < events.length - 1 ? '<div class="rw-timeline-arrow" aria-hidden="true">↓</div>' : ''}`;
+      }).join('')}</div>
+    </section>`;
+  }
+
   function openRequestDetailsModal(requestId) {
     const r = allRequests.find(item => Number(item.RequestID) === Number(requestId));
     if (!r) return;
@@ -160,30 +213,35 @@
     const actions = getRequestActions(r);
     const comments = Array.isArray(r.Comments) ? r.Comments : [];
     const actionsHtml = actions.length
-      ? `<div class="rw-details-actions"><h4>Available Actions</h4><div class="rw-action-row">${actions.map(a => `<button type="button" class="rw-action-btn" data-details-action="${a.action}" data-request-id="${Number(r.RequestID)}" data-required-permission="${escapeHtml(a.permission)}"${a.allowed ? '' : ' disabled aria-disabled="true"'}${a.allowed ? '' : ` title="Permission required: ${escapeHtml(a.permission)}"`}>${escapeHtml(a.label)}</button>`).join('')}</div></div>`
+      ? `<section class="rw-details-actions"><h4>Available Actions</h4><div class="rw-action-row">${actions.map(a => `<button type="button" class="rw-action-btn" data-details-action="${a.action}" data-request-id="${Number(r.RequestID)}" data-required-permission="${escapeHtml(a.permission)}"${a.allowed ? '' : ' disabled aria-disabled="true"'}${a.allowed ? '' : ` title="Permission required: ${escapeHtml(a.permission)}"`}>${escapeHtml(a.label)}</button>`).join('')}</div></section>`
       : '<div class="rw-details-no-actions">No actions are available for your account at this workflow stage.</div>';
-    const commentsHtml = `<section class="rw-comments rw-details-comments"><h4>Comments <span>${comments.length}</span></h4>${comments.length ? `<div class="rw-comment-list">${comments.map(comment => `<div class="rw-comment"><div class="rw-comment-meta"><strong>${escapeHtml(comment.ActionByUsername || '-')}</strong><span>${escapeHtml(comment.ActionCode || '')}</span><time>${escapeHtml(formatDate(comment.CreatedAt))}</time></div><p>${escapeHtml(comment.Comment || '')}</p></div>`).join('')}</div>` : '<div class="rw-no-comments">No comments yet.</div>'}</section>`;
+    const commentsHtml = `<section class="rw-comments rw-details-comments"><h4>Comments <span>${comments.length}</span></h4>${comments.length ? `<div class="rw-comment-list">${comments.map(comment => `<div class="rw-comment"><div class="rw-comment-meta"><strong>${escapeHtml(comment.ActionByUsername || '-')}</strong><span>${escapeHtml(workflowActionTitle(comment.ActionCode))}</span><time>${escapeHtml(formatDate(comment.CreatedAt))}</time></div><p>${escapeHtml(comment.Comment || '')}</p></div>`).join('')}</div>` : '<div class="rw-no-comments">No comments yet.</div>'}</section>`;
+
     box.innerHTML = `
       <div class="rw-details-request-number">${escapeHtml(r.RequestNumber || '-')}</div>
-      <div class="rw-details-status">${escapeHtml(r.StatusName || r.StatusCode || '-')}</div>
-      <dl class="rw-details-grid">
-        <div><dt>Node Code</dt><dd>${escapeHtml(r.NodeCode || '-')}</dd></div>
-        <div><dt>Node Name</dt><dd>${escapeHtml(r.NodeName || '-')}</dd></div>
-        <div><dt>Requester</dt><dd>${escapeHtml(r.RequesterUsername || '-')}</dd></div>
-        <div><dt>Manager</dt><dd>${escapeHtml(r.ManagerUsername || '-')}</dd></div>
-        <div><dt>Assigned expert</dt><dd>${escapeHtml(r.AssignedDrawingExpertUsername || '-')}</dd></div>
-        <div><dt>Created</dt><dd>${escapeHtml(formatDate(r.CreatedAt))}</dd></div>
-        <div><dt>Last updated</dt><dd>${escapeHtml(formatDate(r.UpdatedAt))}</dd></div>
-        <div class="rw-details-description"><dt>Description / Reason</dt><dd>${escapeHtml(r.Description || '-')}</dd></div>
-        ${r.ManagerDecisionAt ? `<div><dt>Manager decision</dt><dd>${escapeHtml(formatDate(r.ManagerDecisionAt))}</dd></div>` : ''}
-        ${r.ManagerComment ? `<div class="rw-details-description"><dt>Manager comment</dt><dd>${escapeHtml(r.ManagerComment)}</dd></div>` : ''}
-        ${r.AssignedAt ? `<div><dt>Assigned at</dt><dd>${escapeHtml(formatDate(r.AssignedAt))}</dd></div>` : ''}
-      </dl>
-      <div class="rw-details-location"><button type="button" class="rw-submit" id="rwShowNodeLocation" data-node-id="${Number(r.NodeID)}" data-node-code="${escapeHtml(r.NodeCode || '')}">Show location in tree</button><span id="rwNodeLocationMessage" role="status"></span></div>
+      <div class="rw-details-status-row"><span class="rw-details-status-label">STATUS</span><span class="rw-details-status">${escapeHtml(r.StatusName || r.StatusCode || '-')}</span></div>
+      <section class="rw-details-location-section">
+        <div class="rw-details-location"><button type="button" class="rw-submit" id="rwShowNodeLocation" data-node-id="${Number(r.NodeID)}" data-node-code="${escapeHtml(r.NodeCode || '')}">Show location in tree</button><span id="rwNodeLocationMessage" role="status"></span></div>
+        <div class="rw-node-path" id="rwRequestNodePath"><div class="rw-node-path-loading">Loading node path…</div></div>
+      </section>
       ${actionsHtml}
+      ${buildWorkflowTimeline(r)}
       ${commentsHtml}`;
     $('rwDetailsTitle').textContent = 'Drawing Request Details';
     $('rwDetailsModal')?.classList.remove('hidden');
+
+    requestJson(`${API}/node-hierarchy/${Number(r.NodeID)}`)
+      .then(data => {
+        const pathBox = $('rwRequestNodePath');
+        if (!pathBox || !data || !Array.isArray(data.hierarchy)) return;
+        pathBox.innerHTML = data.hierarchy.length
+          ? `<div class="rw-node-path-title">Node path</div><div class="rw-node-path-tree">${data.hierarchy.map((node, index) => `<div class="rw-node-path-item ${index === data.hierarchy.length - 1 ? 'is-current' : ''}" style="--node-depth:${index}"><span class="rw-node-path-branch" aria-hidden="true">${index === data.hierarchy.length - 1 ? '└' : '├'}</span><span class="rw-node-path-label"><strong>${escapeHtml(node.nodeCode || '-')}</strong><span>${escapeHtml(node.nodeName || '-')}</span></span></div>`).join('')}</div>`
+          : '<div class="rw-node-path-loading">Node path is unavailable.</div>';
+      })
+      .catch(() => {
+        const pathBox = $('rwRequestNodePath');
+        if (pathBox) pathBox.innerHTML = `<div class="rw-node-path-title">Node path</div><div class="rw-node-path-item is-current"><span class="rw-node-path-label"><strong>${escapeHtml(r.NodeCode || '-')}</strong><span>${escapeHtml(r.NodeName || '-')}</span></span></div>`;
+      });
   }
 
   function closeRequestDetailsModal() {
