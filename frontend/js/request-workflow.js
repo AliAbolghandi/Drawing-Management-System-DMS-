@@ -110,25 +110,38 @@
     const wasReferringExpert = r.WasPreviouslyAssignedExpert === true || Number(r.WasPreviouslyAssignedExpert) === 1;
     const canAssign = hasPermission('REQUEST_DRAWING_ASSIGN');
     const canFinalApprove = hasPermission('REQUEST_DRAWING_FINAL_APPROVE');
-    const canReturnCorrection = hasPermission('REQUEST_DRAWING_RETURN_CORRECTION');
+    const canViewAll = hasPermission('REQUEST_DRAWING_VIEW_ALL');
 
     if (status === 'CANCELLED') return 'rw-status-gray';
     if (status === 'FINAL_APPROVED') return 'rw-status-green';
-    if (status === 'FINAL_REJECTED' && canReturnCorrection) return 'rw-status-yellow';
     if (['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','EXPERT_REJECTED','FINAL_REJECTED'].includes(status)) return 'rw-status-red';
-    if (status === 'PENDING_MANAGER') return (isRequester || isManager) ? 'rw-status-yellow' : 'rw-status-orange';
-    if (status === 'PENDING_DRAWING_APPROVAL') return canAssign ? 'rw-status-yellow' : 'rw-status-green';
-    if (status === 'ASSIGNED') return isAssignedExpert ? 'rw-status-yellow' : 'rw-status-green';
+
+    if (status === 'PENDING_MANAGER') {
+      return (isRequester || isManager) ? 'rw-status-yellow' : 'rw-status-orange';
+    }
+    if (status === 'PENDING_DRAWING_APPROVAL') {
+      return canAssign ? 'rw-status-yellow' : 'rw-status-green';
+    }
+    if (status === 'ASSIGNED') {
+      return isAssignedExpert ? 'rw-status-yellow' : 'rw-status-green';
+    }
     if (status === 'TRANSFERRED') {
       if (wasReferringExpert && !isAssignedExpert) return 'rw-status-gray';
       return isAssignedExpert ? 'rw-status-yellow' : 'rw-status-green';
     }
-    if (status === 'IN_PROGRESS') return isAssignedExpert ? 'rw-status-gray' : 'rw-status-green';
-    if (status === 'PENDING_FINAL_APPROVAL') return isAssignedExpert ? 'rw-status-green' : (canFinalApprove ? 'rw-status-yellow' : 'rw-status-green');
-    if (status === 'RETURNED_FOR_CORRECTION') return isAssignedExpert ? 'rw-status-yellow' : 'rw-status-orange';
+    if (status === 'IN_PROGRESS') {
+      return isAssignedExpert ? 'rw-status-blue' : 'rw-status-green';
+    }
+    if (status === 'PENDING_FINAL_APPROVAL') {
+      if (isAssignedExpert) return 'rw-status-green';
+      // VIEW_ALL users see yellow only while final approval is the pending action.
+      return (canFinalApprove || canViewAll) ? 'rw-status-yellow' : 'rw-status-green';
+    }
+    if (status === 'RETURNED_FOR_CORRECTION') {
+      return isAssignedExpert ? 'rw-status-yellow' : 'rw-status-green';
+    }
     return 'rw-status-orange';
   }
-
   function renderWorklist(requests) {
     allRequests = Array.isArray(requests) ? requests : [];
     const box = $('rwContent');
@@ -138,8 +151,8 @@
     box.innerHTML = search && filtered.length === 0
       ? '<div class="rw-empty">No request number matches your search.</div>'
       : filtered.length ? filtered.map(r => {
-          const acted = r.HasWorkflowAction === true || Number(r.HasWorkflowAction) === 1;
-          return `<article class="rw-request-card rw-request-list-item ${acted ? 'rw-request-read' : 'rw-request-unread'}" role="button" tabindex="0" data-open-request-id="${Number(r.RequestID)}" aria-label="Open request ${escapeHtml(r.RequestNumber)}">
+          const isFinalApproved = String(r.StatusCode || '').toUpperCase() === 'FINAL_APPROVED';
+          return `<article class="rw-request-card rw-request-list-item ${isFinalApproved ? 'rw-request-final-approved' : ''}" role="button" tabindex="0" data-open-request-id="${Number(r.RequestID)}" aria-label="Open request ${escapeHtml(r.RequestNumber)}">
             <div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName || r.StatusCode || '-')}</span></div>
             <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode || '-')}</strong> — ${escapeHtml(r.NodeName || '-')}</div>
             <div class="rw-request-meta">Requester: ${escapeHtml(r.RequesterUsername || '-')}<br>Manager: ${escapeHtml(r.ManagerUsername || '-')}<br>Assigned expert: ${escapeHtml(r.AssignedDrawingExpertUsername || '-')}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
