@@ -880,10 +880,12 @@ app.get('/api/drawing-requests', async (req, res) => {
         historyByRequest.get(key).push(item);
       }
       for (const request of requests) {
-        request.WorkflowHistory = historyByRequest.get(Number(request.RequestID)) || [];
-        if (req.user.permissions.has('REQUEST_DRAWING_VIEW_OWN') && !req.user.permissions.has('REQUEST_DRAWING_VIEW_ALL') && !req.user.permissions.has('REQUEST_DRAWING_VIEW_ASSIGNED')) {
-          request.WorkflowHistory = request.WorkflowHistory.map(item => ({ ...item, Comment: [Number(request.RequesterUserID), Number(request.ManagerUserID)].includes(Number(item.ActionByUserID)) ? item.Comment : null }));
-        }
+        const workflowHistory = historyByRequest.get(Number(request.RequestID)) || [];
+        const visibleCommentHistoryIds = new Set((request.Comments || []).map(comment => Number(comment.HistoryID)));
+        request.WorkflowHistory = workflowHistory.map(item => ({
+          ...item,
+          Comment: item.Comment && !visibleCommentHistoryIds.has(Number(item.HistoryID)) ? null : item.Comment
+        }));
       }
     } else {
       for (const request of requests) {
