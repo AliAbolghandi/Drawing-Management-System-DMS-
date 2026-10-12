@@ -485,7 +485,7 @@ async function getNodeHierarchy(id) {
   return chain;
 }
 
-app.get('/api/node-hierarchy/:nodeId', auth.requirePermission('NODE_VIEW'), async (req, res) => {
+app.get('/api/node-hierarchy/:nodeId', auth.requirePermission('FILE_VIEW'), async (req, res) => {
   const id = Number(req.params.nodeId);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: 'Invalid Node ID' });
@@ -497,7 +497,7 @@ app.get('/api/node-hierarchy/:nodeId', auth.requirePermission('NODE_VIEW'), asyn
 
     res.json({
       nodeId: id,
-      hierarchy: chain.map((node, index) => ({
+      hierarchy: chain.slice(0, 3).map((node, index) => ({
         level: index,
         nodeId: Number(node.NodeID),
         nodeCode: node.NodeCode || '',
@@ -506,6 +506,26 @@ app.get('/api/node-hierarchy/:nodeId', auth.requirePermission('NODE_VIEW'), asyn
     });
   } catch (e) {
     sendServerError(res, 'Node hierarchy request failed', e);
+  }
+});
+
+app.get('/api/node-hierarchy/:nodeId/full', auth.requirePermission('NODE_VIEW'), async (req, res) => {
+  const id = Number(req.params.nodeId);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid Node ID' });
+  try {
+    const chain = await getNodeHierarchy(id);
+    if (!chain.length) return res.status(404).json({ error: 'Node not found' });
+    res.json({
+      nodeId: id,
+      hierarchy: chain.map((node, index) => ({
+        level: index,
+        nodeId: Number(node.NodeID),
+        nodeCode: node.NodeCode || '',
+        nodeName: node.NodeName || '',
+      })),
+    });
+  } catch (e) {
+    sendServerError(res, 'Full node hierarchy request failed', e);
   }
 });
 
