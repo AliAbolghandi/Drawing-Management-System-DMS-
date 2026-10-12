@@ -819,10 +819,26 @@ Validation:
 - Source-level assertions confirmed the old unread/read classes are no longer used for rendering, the final-approval marker is applied only to `FINAL_APPROVED`, blue status CSS exists, the `REQUEST_DRAWING_VIEW_ALL` final-approval condition exists, and both asset cache-busters were updated.
 - No live browser, API, or SQL Server integration test was run in this environment.
 
+## Jalali Calendar as the Application Date Standard — 2026-10-12
+
+User requirement: all dates shown and entered in DMS must use the Jalali (Shamsi/Persian) calendar as the application-wide standard. Database timestamps and API contracts remain unchanged; conversion happens in the frontend.
+
+Implemented:
+- Added `frontend/js/date-utils.js` exposing `window.DMSDate.format()`, `toJalaliInput()`, and `fromJalaliInput()`. Display uses the browser's standard `Intl.DateTimeFormat` Persian calendar; date/time values preserve local display time. Jalali entry accepts `YYYY/MM/DD` and `YYYY/MM/DD HH:mm:ss`, including Persian/Arabic digits.
+- Loaded the shared date utility on `frontend/index.html` and `frontend/management.html` before application scripts.
+- `frontend/js/request-workflow.js`: request creation time and workflow timeline timestamps now display in Jalali date/time format.
+- `frontend/js/management.js`: SQL date/datetime columns display as Jalali dates; date/datetime values in the admin editor use Jalali input and convert back to Gregorian date/ISO values on save. Date-only columns are parsed without a timezone-induced day shift.
+- Updated frontend cache-busters to `20261012-jalali`.
+- No SQL schema, persisted timestamp, or API response shape changes.
+
+Validation:
+- JavaScript syntax checks and conversion round-trip tests are required before marking complete.
+- No browser or live SQL Server integration test has been run yet.
+
 # NEXT ACTION
 
-1. Pull the latest `main`, restart the Node.js backend if needed, and hard-refresh the browser with Ctrl+F5; confirm the JS/CSS URLs include `v=20261012-workflow-color-marker`.
-2. Verify the left marker is red for a newly created request and remains red after Manager approval, assignment, Expert acceptance/completion, rejection, and correction return; it should turn green only after `Final Approve`.
-3. Verify workflow backgrounds independently: assigned Expert sees `IN_PROGRESS` blue; all rejected statuses remain red; the assigned Expert sees `RETURNED_FOR_CORRECTION` yellow while other prior participants see green.
-4. Sign in with a user granted `REQUEST_DRAWING_VIEW_ALL` and verify yellow appears only for requests in `PENDING_FINAL_APPROVAL`, not for every request in the worklist.
-5. Run the workflow with real accounts and SQL Server, then record actual browser/API results; runtime integration testing has not yet been performed.
+1. Pull latest `main` and hard-refresh both DMS and Management pages; confirm `date-utils.js?v=20261012-jalali` loads before app scripts.
+2. Verify request Created time and each workflow timeline timestamp use Jalali year/month/day.
+3. In Management, open a table containing `date`, `datetime`, `datetime2`, `smalldatetime`, or `datetimeoffset` columns; confirm cells and editable values display in Jalali format.
+4. Test a Jalali date and date-time edit (including Persian digits) and verify the saved Gregorian database value corresponds to the same Jalali date/time.
+5. Inspect remaining frontend views for any date rendered outside the shared formatter; record real browser/API/SQL Server test results.
