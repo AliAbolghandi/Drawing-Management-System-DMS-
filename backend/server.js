@@ -497,7 +497,7 @@ app.get('/api/node-hierarchy/:nodeId', auth.requirePermission('FILE_VIEW'), asyn
 
     res.json({
       nodeId: id,
-      hierarchy: chain.slice(0, 3).map((node, index) => ({
+      hierarchy: chain.map((node, index) => ({
         level: index,
         nodeId: Number(node.NodeID),
         nodeCode: node.NodeCode || '',
@@ -857,8 +857,36 @@ app.get('/api/drawing-requests', async (req, res) => {
       for (const request of requests) {
         request.Comments = commentsByRequest.get(Number(request.RequestID)) || [];
       }
+
+      const historyDb = new sql.Request();
+      const historyParams = requests.map((row, index) => {
+        const name = `historyRequestId${index}`;
+        historyDb.input(name, sql.Int, Number(row.RequestID));
+        return `@${name}`;
+      });
+      const historyResult = await historyDb.query(`
+        SELECT h.RequestID, h.HistoryID, h.ActionCode, h.ActionByUserID,
+               h.ActionByUsername, h.Comment, h.CreatedAt,
+               s.StatusCode AS ToStatusCode, s.StatusName AS ToStatusName
+        FROM dbo.DrawingRequestHistory h
+        LEFT JOIN dbo.DrawingRequestStatuses s ON s.StatusID=h.ToStatusID
+        WHERE h.RequestID IN (${historyParams.join(',')})
+        ORDER BY h.CreatedAt ASC, h.HistoryID ASC;
+      `);
+      const historyByRequest = new Map();
+      for (const item of historyResult.recordset) {
+        const key = Number(item.RequestID);
+        if (!historyByRequest.has(key)) historyByRequest.set(key, []);
+        historyByRequest.get(key).push(item);
+      }
+      for (const request of requests) {
+        request.WorkflowHistory = historyByRequest.get(Number(request.RequestID)) || [];
+      }
     } else {
-      for (const request of requests) request.Comments = [];
+      for (const request of requests) {
+        request.Comments = [];
+        request.WorkflowHistory = [];
+      }
     }
     res.json({ requests });
   } catch (e) {
