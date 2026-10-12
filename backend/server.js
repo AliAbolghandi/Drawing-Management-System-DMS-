@@ -688,10 +688,10 @@ app.post('/api/node-file-upload/:nodeId', auth.requirePermission('FILE_Edit'), a
    is enforced in SQL and is never inferred from RoleID.
    ============================================================ */
 
-function getRequestNumber() {
-  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
-  const suffix = crypto.randomBytes(4).toString('hex').toUpperCase();
-  return 'DR-' + stamp + '-' + suffix;
+function getJalaliRequestYear() {
+  return new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', {
+    year: 'numeric'
+  }).format(new Date());
 }
 
 app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE'), async (req, res) => {
@@ -725,9 +725,9 @@ app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE
       return res.status(409).json({ error: 'No active Manager is assigned to the current user. The request cannot be submitted.' });
     }
 
-    const requestNumber = getRequestNumber();
+    const requestYear = getJalaliRequestYear();
     const insertRequest = new sql.Request();
-    insertRequest.input('requestNumber', sql.NVarChar(30), requestNumber);
+    insertRequest.input('requestYear', sql.Char(4), requestYear);
     insertRequest.input('nodeId', sql.Int, node.NodeID);
     insertRequest.input('nodeCode', sql.NVarChar(100), node.NodeCode || null);
     insertRequest.input('requesterUserId', sql.Int, req.user.userId);
@@ -737,7 +737,34 @@ app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE
     insertRequest.input('description', sql.NVarChar(1000), description || null);
 
     const result = await insertRequest.query(`
+      SET XACT_ABORT ON;
+      BEGIN TRANSACTION;
+
       DECLARE @requestID int;
+      DECLARE @requestNumber nvarchar(8);
+      DECLARE @nextSequence int;
+      DECLARE @lockResult int;
+
+      EXEC @lockResult = sys.sp_getapplock
+        @Resource = CONCAT(N'DMS-RequestNumber-', @requestYear),
+        @LockMode = 'Exclusive',
+        @LockOwner = 'Transaction',
+        @LockTimeout = 10000;
+
+      IF @lockResult < 0
+        THROW 51001, 'Could not lock drawing request numbering sequence.', 1;
+
+      SELECT @nextSequence = ISNULL(MAX(TRY_CONVERT(int, RIGHT(RequestNumber, 4))) + 1, 0)
+      FROM dbo.DrawingRequests WITH (UPDLOCK, HOLDLOCK)
+      WHERE RequestNumber LIKE @requestYear + N'%'
+        AND LEN(RequestNumber) = 8
+        AND RIGHT(RequestNumber, 4) NOT LIKE N'%[^0-9]%';
+
+      IF @nextSequence > 9999
+        THROW 51002, 'Drawing request number sequence exceeded 9999 for this Jalali year.', 1;
+
+      SET @requestNumber = @requestYear + RIGHT(N'0000' + CONVERT(nvarchar(4), @nextSequence), 4);
+
       INSERT INTO dbo.DrawingRequests
         (RequestNumber, NodeID, NodeCode, RequesterUserID, RequesterUsername,
          ManagerUserID, ManagerUsername, [Description], StatusID, CreatedAt, UpdatedAt)
@@ -775,6 +802,8 @@ app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE
       INNER JOIN dbo.Nodes n ON n.NodeID=dr.NodeID
       INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID
       WHERE dr.RequestID=@requestID;
+
+      COMMIT TRANSACTION;
     `);
 
     res.status(201).json({ success: true, request: result.recordset[0] });
