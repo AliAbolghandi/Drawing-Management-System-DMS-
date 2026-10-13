@@ -174,7 +174,7 @@
           return `<article class="rw-request-card rw-request-list-item ${isFinalApproved ? 'rw-request-final-approved' : ''}" role="button" tabindex="0" data-open-request-id="${Number(r.RequestID)}" aria-label="Open request ${escapeHtml(r.RequestNumber)}">
             <div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName || r.StatusCode || '-')}</span></div>
             <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode || '-')}</strong> — ${escapeHtml(r.NodeName || '-')}</div>
-            <div class="rw-request-meta">Requester: ${escapeHtml(r.RequesterUsername || '-')}<br>Manager: ${escapeHtml(r.ManagerUsername || '-')}<br>Assigned expert: ${escapeHtml(r.AssignedDrawingExpertUsername || '-')}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
+            <div class="rw-request-meta">Requester: ${escapeHtml(displayUserName(r.RequesterName, r.RequesterFamily, r.RequesterUsername))}<br>Manager: ${escapeHtml(displayUserName(r.ManagerName, r.ManagerFamily, r.ManagerUsername))}<br>Assigned expert: ${escapeHtml(displayUserName(r.AssignedDrawingExpertName, r.AssignedDrawingExpertFamily, r.AssignedDrawingExpertUsername))}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
           </article>`;
         }).join('')
       : '<div class="rw-empty">No drawing requests.</div>';
