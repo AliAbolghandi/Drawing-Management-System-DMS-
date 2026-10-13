@@ -879,10 +879,26 @@ Validation performed:
 - Calendar check confirmed Gregorian date `2026-10-12` maps to Jalali year `1405` with the backend formatter.
 - Live SQL Server concurrency/integration tests have not been run; actual database compatibility and sequence behavior must be verified against the configured SQL Server.
 
+## Workflow User Full Names — 2026-10-13
+- Workflow timeline events now display the acting user's first name and family name directly below the role heading (Requester, Manager, Drawing Supervisor / Admin, Drawing Expert).
+- The worklist request cards also display full names for Requester, Manager, and Assigned Expert instead of usernames when the name fields are available; usernames remain the fallback for missing name data.
+- Backend `GET /api/drawing-requests` now returns `RequesterName`, `RequesterFamily`, `ManagerName`, `ManagerFamily`, `AssignedDrawingExpertName`, and `AssignedDrawingExpertFamily` using joins to existing `dbo.Users`.
+- `WorkflowHistory` items now include `ActionByName` and `ActionByFamily` from `dbo.Users`, so each timeline entry identifies the actual actor.
+- Added CSS for the full-name line beneath each timeline role.
+- No database schema or workflow permissions were changed.
+- Files changed: `backend/server.js`, `frontend/js/request-workflow.js`, `frontend/css/request-workflow.css`.
+- Code commits:
+  - `960c366f2a653893751a2d7175e7c79134efc42f` — Include user names in drawing request workflow
+  - `099a4dc03c7ddcfac6574e7668464a36838e9d88` — Include user names in drawing request workflow
+  - `0b90b0b43447875a6135e4aaba1036475a1c56ad` — Include workflow actor full names
+  - `34e0aa2ecfd10277cc5b350835960985050bb7a2`, `3c06eedf14aeb3135c884f655c32a96d1fae08c3`, `86ee040434ea85b34e7a962df045b9df52283093`, `15907da14ccdb9103fefedbafb9adec0260edec0`, `bf074ab543989a76a689962cccbb5070436fb569` — Display workflow user full names
+  - `6bd67d76306b5c9256f2e878c591bb2e1d25c3b0` — Style workflow actor full names
+- Verification: fetched the latest versions of all three changed files from `main` and passed source assertions for the user joins, history actor fields, timeline name rendering, request-card names, and CSS selector. Live browser and SQL Server integration tests have not been run.
+
 # NEXT ACTION
 
-1. Pull latest `main` and restart the backend service so the request-number generator starting at `0001` is loaded.
-2. Create a test request and verify `RequestNumber` is exactly eight digits, e.g. `14050001` when no 1405-prefixed request exists, or the next suffix based on existing requests.
-3. Verify the same number is stored in `dbo.DrawingRequests`, `dbo.DrawingRequestHistory`, and `dbo.Notifications` for the created request.
-4. Create two requests concurrently and confirm they receive distinct, sequential numbers under the same Jalali year.
-5. Verify numbering increments from existing 8-digit records and does not reset if requests are deleted; record live SQL Server/API test results.
+1. Pull the latest `main` branch and restart the backend/frontend as needed.
+2. Open a request with existing Requester, Manager, and Assigned Expert users; verify each workflow event shows the acting user's Name and Family below the role title.
+3. Verify the worklist card shows full names for Requester, Manager, and Assigned Expert, and falls back to Username when Name/Family are empty.
+4. Check workflow history for manager approval/rejection, assignment, expert acceptance/completion, and cancellation; confirm each event shows the correct actor rather than the assigned user by mistake.
+5. Record live browser and SQL Server/API test results.
