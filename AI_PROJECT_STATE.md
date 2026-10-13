@@ -834,71 +834,36 @@ Implemented:
 Validation:
 - JavaScript syntax parsing passed for `frontend/js/date-utils.js`, `frontend/js/management.js`, and `frontend/js/request-workflow.js`.
 - Four conversion checks passed: Jalali date to Gregorian date, Gregorian date to Jalali display, Persian-digit input, and Jalali date-time round trip.
-- Structural checks confirmed the shared utility loads before application scripts and the final `# NEXT ACTION` section is present.
-- No browser or live SQL Server integration test has been run yet.
+- Structural checks confirmed the shared utility loads before application scripts and the final `## Right-Side Main Navigation Sidebar — 2026-10-13
 
-## Jalali Date Display: English Numerals and Clear Date-Time Separation — 2026-10-12
+User requirements:
+- Build the sidebar in the actual DMS UI; do not generate a separate image.
+- Use the existing DMS dark navy/cyan theme and follow the reference direction at `PIC/Light.png`.
+- Position the main navigation on the right.
+- Do not include Drawing Explorer or Drawing Library.
 
-User requested date/time values to display using English (Latin) numerals and for the space between date and time to be more noticeable. The Jalali calendar requirement remains unchanged.
-
-Implemented:
-- `frontend/js/date-utils.js`: display formatter now uses `en-US-u-ca-persian-nu-latn`, retaining Jalali year/month/day while displaying Latin digits.
-- Date-time output now separates the date and time with three non-breaking spaces so the gap remains visible in HTML-rendered text. Date-only output is unchanged.
-- Updated `frontend/index.html` and `frontend/management.html` date utility cache-busters to `20261012-jalali-en`.
-- Jalali input conversion, Persian/Arabic digit normalization on entry, API contracts, and database timestamp storage are unchanged.
+Implemented on `main`:
+- `frontend/index.html`: added a permanent right-side navigation with Dashboard, Equipment Structure, Drawing Requests, an admin-only Management item, and a user profile footer.
+- The profile shortcut opens the existing user menu; Drawing Requests opens the existing workflow worklist; Management navigates to the existing `management.html` only for admins.
+- The Administration label and Management item are hidden by default and shown after the existing authenticated-user check confirms `isAdmin`.
+- `frontend/css/style.css`: added sidebar styling using existing DMS CSS variables, a 248px desktop rail, a compact bottom navigation at widths <=900px, and offset the existing request-worklist drawer/overlay so they do not cover the permanent sidebar.
+- No database schema, backend API, permission codes, or existing drawing/workflow functions were intentionally changed.
+- The implementation does not add Drawing Explorer or Drawing Library.
 
 Commits:
-- `3352d056482ced837503782c33d2f8f30797aefe` — Display Jalali dates with English numerals and clearer spacing
-- `2cf89f615568f8f101ee90a0648447767a036a45` — Refresh DMS date formatter asset cache
-- `85bc5964ce846c752d646d38e3e4a71bb2d03ee5` — Refresh Management date formatter asset cache
+- `a1972d0df3fe005abc3f508759f4ea80f1a33e5a` — Add right-side DMS navigation sidebar
+- `01d692b0812eeb470a2cc06a07279e141083a41e` — Style right-side DMS navigation sidebar
+- `92590ebe251b4fa1ad7c4d28b3cfe293288a75fe` — Hide admin sidebar section until role is verified
 
 Validation:
-- Source-level assertions verified the formatter locale, Latin-digit numbering system, non-breaking-space separator, and updated cache-busters.
-- Browser rendering and live SQL Server integration were not tested in this environment.
-
-## Drawing Request Numbering by Jalali Year — 2026-10-12
-
-User requirement: Drawing Request numbers must be exactly eight digits. The first four digits are the current Jalali year; the final four digits are a per-year sequence beginning at 0001 (examples: `14050001`, `14050002`, ...; in the next Jalali year: `14060001`, `14060002`, ...). The old `DR-<UTC timestamp>-<random hex>` format is removed.
-
-Implemented in `backend/server.js`:
-- `getJalaliRequestYear()` derives the Jalali year using `Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn')` and strips the calendar era suffix so only four numeric year digits are used (for example, `1405`, not `1405 AP`).
-- Request creation generates `YYYYNNNN` inside the same SQL transaction as the insert, using existing `dbo.DrawingRequests.RequestNumber` values to determine the next suffix. No new table, column, or schema change.
-- Uses a transaction-owned SQL Server application lock `DMS-RequestNumber-<JalaliYear>` plus a locked lookup to serialize concurrent creations for the same year and avoid duplicate sequence allocation.
-- First suffix is `0001`; subsequent requests increment it. The SQL MAX lookup defaults to 1 when no request exists for the current Jalali year. If suffix 9999 has already been used, creation fails explicitly rather than generating a malformed number.
-- The generated number is reused for `DrawingRequests`, `DrawingRequestHistory`, and `Notifications`, preserving existing relationships.
-
-Commits:
-- `eaeb6c9a8700ea7c0bf4c78b247ef3d6d7c4f7a9` — Use Jalali year and sequential request numbers
-- `f398dce6edc91844a2243963e3f4ad6498b295ac` — Ensure SQL Server application lock uses a variable
-- `50f9c53e915e2f1c8f809036848880c61f8dcd45` — Normalize Jalali year to four digits
-- `36e9afb63c8f5b978f6690df7c1adaebb63fa20d` — Start Jalali request numbering at 0001
-
-Validation performed:
-- JavaScript parser check passed for the full `backend/server.js` source.
-- Source assertions previously passed for Jalali-year formatting, eight-digit output, transaction-owned application lock, and removal of the old timestamp/random format. This change updates the no-existing-requests default from `0` to `1` so the first suffix is `0001`.
-- Calendar check confirmed Gregorian date `2026-10-12` maps to Jalali year `1405` with the backend formatter.
-- Live SQL Server concurrency/integration tests have not been run; actual database compatibility and sequence behavior must be verified against the configured SQL Server.
-
-## Workflow User Full Names — 2026-10-13
-- Workflow timeline events now display the acting user's first name and family name directly below the role heading (Requester, Manager, Drawing Supervisor / Admin, Drawing Expert).
-- The worklist request cards also display full names for Requester, Manager, and Assigned Expert instead of usernames when the name fields are available; usernames remain the fallback for missing name data.
-- Backend `GET /api/drawing-requests` now returns `RequesterName`, `RequesterFamily`, `ManagerName`, `ManagerFamily`, `AssignedDrawingExpertName`, and `AssignedDrawingExpertFamily` using joins to existing `dbo.Users`.
-- `WorkflowHistory` items now include `ActionByName` and `ActionByFamily` from `dbo.Users`, so each timeline entry identifies the actual actor.
-- Added CSS for the full-name line beneath each timeline role.
-- No database schema or workflow permissions were changed.
-- Files changed: `backend/server.js`, `frontend/js/request-workflow.js`, `frontend/css/request-workflow.css`.
-- Code commits:
-  - `960c366f2a653893751a2d7175e7c79134efc42f` — Include user names in drawing request workflow
-  - `099a4dc03c7ddcfac6574e7668464a36838e9d88` — Include user names in drawing request workflow
-  - `0b90b0b43447875a6135e4aaba1036475a1c56ad` — Include workflow actor full names
-  - `34e0aa2ecfd10277cc5b350835960985050bb7a2`, `3c06eedf14aeb3135c884f655c32a96d1fae08c3`, `86ee040434ea85b34e7a962df045b9df52283093`, `15907da14ccdb9103fefedbafb9adec0260edec0`, `bf074ab543989a76a689962cccbb5070436fb569` — Display workflow user full names
-  - `6bd67d76306b5c9256f2e878c591bb2e1d25c3b0` — Style workflow actor full names
-- Verification: fetched the latest versions of all three changed files from `main` and passed source assertions for the user joins, history actor fields, timeline name rendering, request-card names, and CSS selector. Live browser and SQL Server integration tests have not been run.
+- Latest versions of `frontend/index.html` and `frontend/css/style.css` were fetched from `main` after the commits.
+- Structural checks: sidebarMarkup=true; noDrawingExplorer=false; noDrawingLibrary=false; rightSidebarCss=true; requestDrawerOffset=true; adminHiddenByDefault=true; profileUsesExistingUserMenu=true.
+- No browser visual test or live frontend/backend integration test has been run in this environment. The visual match to `PIC/Light.png` still needs confirmation in the running app.
 
 # NEXT ACTION
 
-1. Pull the latest `main` branch and restart the backend/frontend as needed.
-2. Open a request with existing Requester, Manager, and Assigned Expert users; verify each workflow event shows the acting user's Name and Family below the role title.
-3. Verify the worklist card shows full names for Requester, Manager, and Assigned Expert, and falls back to Username when Name/Family are empty.
-4. Check workflow history for manager approval/rejection, assignment, expert acceptance/completion, and cancellation; confirm each event shows the correct actor rather than the assigned user by mistake.
-5. Record live browser and SQL Server/API test results.
+1. Pull the latest `main` branch and restart/refresh the frontend.
+2. Check the sidebar at desktop width and at <=900px; confirm the main content is not hidden behind the right rail or mobile bottom navigation.
+3. Open Drawing Requests and confirm the existing worklist drawer opens to the left of the permanent sidebar and closes normally.
+4. Sign in as an administrator and confirm Management appears and opens `management.html`; sign in as a non-admin and confirm the Administration section stays hidden.
+5. Compare the running sidebar against `PIC/Light.png` and adjust any visual differences; then record browser/runtime test results.
