@@ -888,11 +888,40 @@ Validation:
 - Structural checks passed: modal exists; old sidebar, overlay, “My Worklist”, and separate details modal are removed; all three category controls and search exist; Drawing Requests navigation opens the modal; no stale old-sidebar/detail-modal references remain in workflow JS.
 - No live browser, API, or SQL Server integration test has been run. Visual layout and live workflow actions still need verification in the running app.
 
+
+## Sidebar User Menu and Outside-Click Collapse — 2026-10-13
+
+User requirements:
+- Remove the header `userMenuButton`.
+- Put the three-dot user menu beside the username/profile at the bottom of the right sidebar; its menu displays Name, Family, Username, and Logout.
+- Clicking outside the sidebar collapses it to the right; keep a visible edge toggle so the sidebar can be reopened.
+
+Implemented on `main`:
+- `frontend/index.html`:
+  - Removed the header user dropdown and all `userMenuButton` references.
+  - Moved the existing Name / Family / Username / Logout panel into the sidebar footer's three-dot menu (`#dmsProfileMenu`).
+  - Preserved authenticated logout via `POST /api/auth/logout`, credentials, and redirect to `login.html`.
+  - Added `#dmsSidebarToggle` to reopen the sidebar after it slides out.
+  - Added outside-click and Escape handling for the user menu and desktop sidebar; mobile bottom navigation remains unchanged.
+- `frontend/css/style.css`:
+  - Styled the profile menu to match the existing DMS theme.
+  - Added a rightward slide transition, zeroed header/main right margins while collapsed, and styled the always-visible edge toggle.
+- No backend/API/RBAC or database changes.
+
+Commits:
+- `e7597a45332b597a06f6f6de4a33f221ee1be32d` — Move logout menu to sidebar and add outside-click collapse
+- `b61b83679330a0c6752148362ba7fc9b31ee81f0` — Style sidebar profile logout menu and collapse animation
+- `c04241d861278764f7ed08ec71f2471aebdb0891` — Remove obsolete header user menu handler
+
+Validation:
+- Re-fetched `frontend/index.html` and confirmed no `userMenuButton` references remain.
+- Confirmed the Logout markup is inside `#dmsMainSidebar` and the sidebar toggle markup exists.
+- Browser interaction, visual, and live authentication tests were not run in this environment.
+
 # NEXT ACTION
 
-1. Pull the latest `main` branch and refresh/restart the frontend.
-2. Click Drawing Requests in the right navigation; verify the modal opens and the old “My Worklist” drawer/header button no longer appears.
-3. Verify Request, Final Request, and Rejected Request filter statuses correctly; cancelled requests should appear in none of these categories.
-4. Search using a full or partial request number and confirm the results update.
-5. Select a request and verify its workflow timeline, available action buttons, comments, and “Show location in tree” button all work inside the right-side workflow panel.
-6. Test approve/reject/refer/cancel actions with suitable roles; record runtime results and fix any issues found.
+1. Pull the latest `main` branch and hard-refresh the DMS page.
+2. Verify the header no longer contains the user dropdown and the three-dot menu at the bottom of the right sidebar shows Name, Family, Username, and Logout.
+3. Click Logout and confirm the session is invalidated and the app redirects to `login.html`.
+4. On desktop, click outside the sidebar and confirm it slides to the right; click the edge toggle to reopen it.
+5. Verify the Drawing Requests modal, Management navigation for Admin, and the mobile bottom navigation still behave as before.
