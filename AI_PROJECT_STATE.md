@@ -860,10 +860,39 @@ Validation:
 - Structural checks: sidebarMarkup=true; noDrawingExplorer=false; noDrawingLibrary=false; rightSidebarCss=true; requestDrawerOffset=true; adminHiddenByDefault=true; profileUsesExistingUserMenu=true.
 - No browser visual test or live frontend/backend integration test has been run in this environment. The visual match to `PIC/Light.png` still needs confirmation in the running app.
 
+## Drawing Requests Categorized Modal — 2026-10-13
+
+User requirements:
+- Remove the old “My Worklist” drawer/panel.
+- Clicking Drawing Requests in the right navigation opens a modal.
+- Modal has a left category column: Request (current/open), Final Request (FINAL_APPROVED), Rejected Request (MANAGER_REJECTED, DRAWING_APPROVAL_REJECTED, EXPERT_REJECTED, FINAL_REJECTED).
+- The right area has request-number search, a list for the selected category, and an inline workflow panel that updates when a request is selected.
+- Cancelled requests are excluded from all three categories, consistent with the prior rule that cancelled requests are removed from open work.
+- Preserve existing request actions, workflow timeline, node-tree location button, and backend authorization.
+
+Implemented on `main`:
+- `frontend/index.html`: removed old `rwSidebar`, overlay, separate `rwDetailsModal`, and the header Worklist toggle; added `rwWorklistModal` with three categories, request-number search form, selectable request results, and inline workflow panel. Drawing Requests navigation calls `window.DMS.openDrawingWorklistModal()`.
+- `frontend/js/request-workflow.js`: added category filtering/counts and selected-request workflow rendering within the same modal. Search filters by request number. Existing workflow action handlers remain delegated from the modal. `openDrawingWorklistModal` is exported on `window.DMS`.
+- `frontend/css/request-workflow.css`: styled the modal and responsive two-pane workflow layout; narrow screens stack the request list and workflow.
+- Updated cache-busters in `frontend/index.html` to `20261013-request-modal-layout`.
+- No backend routes, permission codes, database tables, or database schema changed.
+
+Commits:
+- `2123afada1f92867f100a022e4bd1dfccf85f724` — Replace My Worklist drawer with Drawing Requests modal
+- `628ef24ef920febee224617f7b5109ac4ab54f5c` — Style categorized Drawing Requests modal
+- `9e0ffb0807b1ee27296aa418226998965ccd1f8b` — Add request categories search and inline workflow
+
+Validation:
+- Re-fetched latest files from `main`.
+- JavaScript syntax parse via `new Function(...)`: passed for `frontend/js/request-workflow.js`.
+- Structural checks passed: modal exists; old sidebar, overlay, “My Worklist”, and separate details modal are removed; all three category controls and search exist; Drawing Requests navigation opens the modal; no stale old-sidebar/detail-modal references remain in workflow JS.
+- No live browser, API, or SQL Server integration test has been run. Visual layout and live workflow actions still need verification in the running app.
+
 # NEXT ACTION
 
-1. Pull the latest `main` branch and restart/refresh the frontend.
-2. Check the sidebar at desktop width and at <=900px; confirm the main content is not hidden behind the right rail or mobile bottom navigation.
-3. Open Drawing Requests and confirm the existing worklist drawer opens to the left of the permanent sidebar and closes normally.
-4. Sign in as an administrator and confirm Management appears and opens `management.html`; sign in as a non-admin and confirm the Administration section stays hidden.
-5. Compare the running sidebar against `PIC/Light.png` and adjust any visual differences; then record browser/runtime test results.
+1. Pull the latest `main` branch and refresh/restart the frontend.
+2. Click Drawing Requests in the right navigation; verify the modal opens and the old “My Worklist” drawer/header button no longer appears.
+3. Verify Request, Final Request, and Rejected Request filter statuses correctly; cancelled requests should appear in none of these categories.
+4. Search using a full or partial request number and confirm the results update.
+5. Select a request and verify its workflow timeline, available action buttons, comments, and “Show location in tree” button all work inside the right-side workflow panel.
+6. Test approve/reject/refer/cancel actions with suitable roles; record runtime results and fix any issues found.
