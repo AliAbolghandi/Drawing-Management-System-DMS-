@@ -77,6 +77,28 @@
       </div>
     </div></div>
   </header>
+  <aside id="dmsMainSidebar" class="dms-main-sidebar" aria-label="Main navigation">
+    <div class="dms-sidebar-brand">
+      <div class="dms-sidebar-logo">DMS</div>
+      <div><strong>Drawing System</strong><span>Management portal</span></div>
+    </div>
+    <div class="dms-sidebar-section-label">WORKSPACE</div>
+    <nav class="dms-sidebar-nav" aria-label="Workspace">
+      <button type="button" class="dms-nav-item active" data-dms-nav="home"><span class="dms-nav-icon">⌂</span><span>Dashboard</span></button>
+      <button type="button" class="dms-nav-item" data-dms-nav="structure"><span class="dms-nav-icon">▦</span><span>Equipment Structure</span></button>
+      <button type="button" class="dms-nav-item" data-dms-nav="requests"><span class="dms-nav-icon">▤</span><span>Drawing Requests</span><span id="dmsRequestsBadge" class="dms-nav-badge" hidden></span></button>
+    </nav>
+    <div class="dms-sidebar-section-label dms-sidebar-admin-label">ADMINISTRATION</div>
+    <nav class="dms-sidebar-nav dms-sidebar-admin-nav" aria-label="Administration">
+      <button type="button" class="dms-nav-item" data-dms-nav="management"><span class="dms-nav-icon">⚙</span><span>Management</span></button>
+    </nav>
+    <div class="dms-sidebar-spacer"></div>
+    <div class="dms-sidebar-footer">
+      <div class="dms-profile-avatar" id="dmsProfileAvatar">U</div>
+      <div class="dms-profile-copy"><strong id="dmsProfileName">User</strong><span id="dmsProfileRole">Signed in</span></div>
+      <button type="button" id="dmsProfileMenu" class="dms-profile-menu" aria-label="Open user menu">⋯</button>
+    </div>
+  </aside>
   <main class="main-container">
     <section class="tree-panel">
       <div class="panel-header">
@@ -246,6 +268,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('userFamilyValue').textContent=u.family||'-';
     document.getElementById('userUsernameValue').textContent=u.username||'-';
     document.getElementById('userMenuLabel').textContent=(u.name||u.username||'User');
+    const profileName = [u.name, u.family].filter(Boolean).join(' ') || u.username || 'User';
+    document.getElementById('dmsProfileName').textContent = profileName;
+    document.getElementById('dmsProfileAvatar').textContent = (u.name || u.username || 'U').slice(0, 1).toUpperCase();
+    document.querySelector('.dms-sidebar-admin-label')?.classList.toggle('hidden', !d.user?.isAdmin);
+    document.querySelector('.dms-sidebar-admin-nav')?.classList.toggle('hidden', !d.user?.isAdmin);
     const managementButton=document.getElementById('managementButton');
     if (managementButton && d.user?.isAdmin) {
       managementButton.classList.remove('hidden');
@@ -311,6 +338,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     })
     .catch(() => {});
 
+  // Main right-hand navigation. Keep existing workflow and permission behavior intact.
+  document.querySelectorAll('[data-dms-nav]').forEach(item => {
+    item.addEventListener('click', () => {
+      const target = item.dataset.dmsNav;
+      if (target === 'management') {
+        if (!document.getElementById('managementButton')?.classList.contains('hidden')) {
+          window.location.href = 'management.html';
+        }
+        return;
+      }
+      document.querySelectorAll('[data-dms-nav]').forEach(node => node.classList.toggle('active', node === item));
+      if (target === 'requests') {
+        document.getElementById('rwSidebarToggle')?.click();
+        return;
+      }
+      if (target === 'structure') {
+        document.querySelector('.tree-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      document.querySelector('.tree-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  document.getElementById('dmsProfileMenu')?.addEventListener('click', () => {
+    const userButton = document.getElementById('userMenuButton');
+    if (userButton) userButton.click();
+  });
   // node-actions.js uses a MutationObserver, so re-apply visibility whenever
   // new node action buttons are added to the tree.
   const observer = new MutationObserver(() => {
