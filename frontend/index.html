@@ -404,10 +404,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelector('.tree-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
-  document.getElementById('dmsProfileMenu')?.addEventListener('click', () => {
-    const userButton = document.getElementById('userMenuButton');
-    if (userButton) userButton.click();
-  });
   // node-actions.js uses a MutationObserver, so re-apply visibility whenever
   // new node action buttons are added to the tree.
   const observer = new MutationObserver(() => {
