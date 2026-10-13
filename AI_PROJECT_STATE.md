@@ -943,10 +943,29 @@ Validation:
 - Structural checks confirmed toggle markup/styles are removed, hover handlers exist, dark dialog overrides are present, and search groups results across all three categories.
 - Live browser/visual interaction tests have not been run in this environment.
 
+
+## Sidebar Navigation Vertical Alignment — 2026-10-13
+
+User requirement:
+- Sidebar navigation buttons must remain at the same vertical positions when the desktop sidebar is expanded or collapsed on hover.
+
+Implemented on `main`:
+- `frontend/css/style.css`: kept the collapsed brand block at the same vertical height as expanded mode; made section labels visually hidden while preserving their layout space; kept the flex spacer active so the profile footer remains anchored to the bottom; matched collapsed navigation gap and button minimum height to expanded mode.
+- `frontend/index.html`: refreshed the `style.css` cache-buster to `20261013-sidebar-aligned-buttons`.
+- No backend, API, RBAC, or database changes.
+
+Commits:
+- `b29954a0db9f5d66ec803138ebb5218afba1ebad` — Keep sidebar navigation buttons vertically aligned when collapsed
+- `ba152a458dec91a6237fc168b9f354e2bab91833` — Refresh sidebar alignment CSS asset
+
+Validation:
+- Source changes were committed on `main`; re-fetch and structural checks are still required.
+- Browser visual testing has not been run in this environment.
+
 # NEXT ACTION
 
 1. Pull latest `main` and hard-refresh DMS.
-2. Verify desktop sidebar remains a 76px icon rail when pointer is outside and expands on hover, with no toggle button present.
-3. Open Add Request and workflow action dialogs and verify the dark navy/cyan theme is consistent with DMS.
-4. Search for a request number that exists in Current, Final, or Rejected Requests while another category is selected; verify results from all three categories appear grouped inside `rw-request-results`.
-5. Clear the search and confirm the selected category filter resumes; test mobile navigation separately.
+2. Verify the Dashboard, Equipment Structure, Drawing Requests, and Management icons remain at the same vertical coordinates while hovering the sidebar to expand/collapse it.
+3. Confirm the profile footer remains anchored at the bottom and that the admin-only Management item remains hidden for non-admin users.
+4. Re-test the Drawing Requests modal theme and cross-category request-number search after refreshing assets.
+5. Test mobile navigation separately; desktop collapsed-sidebar spacing changes should not alter the mobile bottom bar.
