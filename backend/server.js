@@ -834,8 +834,12 @@ app.get('/api/drawing-requests', async (req, res) => {
     const result = await db.query(`
       SELECT DISTINCT
         dr.RequestID, dr.RequestNumber, dr.NodeID, dr.NodeCode, n.NodeName,
-        dr.RequesterUserID, dr.RequesterUsername, dr.ManagerUserID, dr.ManagerUsername,
+        dr.RequesterUserID, dr.RequesterUsername,
+        requesterUser.Name AS RequesterName, requesterUser.Family AS RequesterFamily,
+        dr.ManagerUserID, dr.ManagerUsername,
+        managerUser.Name AS ManagerName, managerUser.Family AS ManagerFamily,
         dr.AssignedDrawingExpertID, au.Username AS AssignedDrawingExpertUsername,
+        au.Name AS AssignedDrawingExpertName, au.Family AS AssignedDrawingExpertFamily,
         s.StatusCode, s.StatusName, dr.[Description], dr.CreatedAt,
         dr.ManagerDecisionAt, dr.ManagerComment, dr.AssignedAt, dr.UpdatedAt,
         CASE WHEN (
