@@ -175,11 +175,33 @@
   function renderWorklist(requests){
     allRequests=Array.isArray(requests)?requests:[];const box=$('rwContent');if(!box)return;updateRequestCategoryCounts(allRequests);
     const search=($('rwRequestSearch')?.value||'').trim().toLowerCase();
-    const filtered=allRequests.filter(r=>requestCategoryForStatus(r.StatusCode)===activeRequestCategory&&String(r.RequestNumber||'').toLowerCase().includes(search));
-    box.innerHTML=search&&!filtered.length?'<div class="rw-empty">No matching request numbers in this category.</div>':filtered.length?filtered.map(r=>{
+    const matchesSearch=r=>String(r.RequestNumber||'').toLowerCase().includes(search);
+    const renderCards=items=>items.length?items.map(r=>{
       const approved=String(r.StatusCode||'').toUpperCase()==='FINAL_APPROVED',selected=Number(r.RequestID)===Number(selectedWorkflowRequestId);
       return `<button type="button" class="rw-request-card rw-request-list-item ${approved?'rw-request-final-approved':''} ${selected?'rw-request-selected':''}" data-open-request-id="${Number(r.RequestID)}" aria-label="Open request ${escapeHtml(r.RequestNumber)}" aria-pressed="${selected}"><div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName||r.StatusCode||'-')}</span></div><div class="rw-request-node"><strong>${escapeHtml(r.NodeCode||'-')}</strong> — ${escapeHtml(r.NodeName||'-')}</div><div class="rw-request-meta">Requester: ${escapeHtml(displayUserName(r.RequesterName,r.RequesterFamily,r.RequesterUsername))}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div></button>`;
-    }).join(''):'<div class="rw-empty">No requests in this category.</div>';
+    }).join(''):'<div class="rw-empty">No matching requests.</div>';
+    let filtered=[];
+    if(search){
+      const categories=[
+        {key:'current',label:'Current Requests'},
+        {key:'final',label:'Final Requests'},
+        {key:'rejected',label:'Rejected Requests'}
+      ];
+      const grouped=categories.map(category=>({
+        ...category,
+        requests:allRequests.filter(r=>requestCategoryForStatus(r.StatusCode)===category.key&&matchesSearch(r))
+      }));
+      filtered=grouped.flatMap(group=>group.requests);
+      const total=filtered.length;
+      box.innerHTML=total?grouped.filter(group=>group.requests.length).map(group=>
+        `<section class="rw-search-result-group" data-search-category="${group.key}"><h4>${group.label}<span>${group.requests.length}</span></h4>${renderCards(group.requests)}</section>`
+      ).join(''):'<div class="rw-empty">No matching requests found in Current, Final, or Rejected Requests.</div>';
+      if($('rwCategoryHeading'))$('rwCategoryHeading').textContent='Search Results';
+      if($('rwCategoryDescription'))$('rwCategoryDescription').textContent=`${total} matching request${total===1?'':'s'} across all request categories`;
+    }else{
+      filtered=allRequests.filter(r=>requestCategoryForStatus(r.StatusCode)===activeRequestCategory);
+      box.innerHTML=renderCards(filtered);
+    }
     box.querySelectorAll('.rw-request-list-item').forEach(card=>{const r=allRequests.find(q=>Number(q.RequestID)===Number(card.dataset.openRequestId));if(r)card.classList.add(getRequestColorClass(r));});
     if(selectedWorkflowRequestId&&!filtered.some(r=>Number(r.RequestID)===Number(selectedWorkflowRequestId))){selectedWorkflowRequestId=null;clearInlineWorkflow();}
     else if(selectedWorkflowRequestId){const r=filtered.find(q=>Number(q.RequestID)===Number(selectedWorkflowRequestId));if(r&&$('rwSelectedStatus'))$('rwSelectedStatus').textContent=r.StatusName||r.StatusCode||'-';}
@@ -450,7 +472,7 @@
 
     $('rwWorklistClose')?.addEventListener('click',closeSidebar);
     $('rwWorklistModal')?.addEventListener('click',event=>{if(event.target===$('rwWorklistModal'))closeSidebar();});
-    document.querySelectorAll('[data-request-category]').forEach(b=>b.addEventListener('click',()=>setRequestCategory(b.dataset.requestCategory)));
+    document.querySelectorAll('[data-request-category]').forEach(b=>b.addEventListener('click',()=>{if($('rwRequestSearch'))$('rwRequestSearch').value='';setRequestCategory(b.dataset.requestCategory);}));
     $('rwSearchForm')?.addEventListener('submit',event=>{event.preventDefault();renderWorklist(allRequests);});
     $('rwRequestSearch')?.addEventListener('input',()=>renderWorklist(allRequests));
     $('rwContent')?.addEventListener('click',event=>{const item=event.target.closest('[data-open-request-id]');if(item)openRequestDetailsModal(Number(item.dataset.openRequestId));});
