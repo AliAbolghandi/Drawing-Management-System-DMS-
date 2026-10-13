@@ -216,6 +216,8 @@
     const events = history.length ? history : [{
       ActionCode: 'REQUEST_CREATED',
       ActionByUsername: request.RequesterUsername,
+      ActionByName: request.RequesterName,
+      ActionByFamily: request.RequesterFamily,
       Comment: request.Description,
       CreatedAt: request.CreatedAt
     }];
