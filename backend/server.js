@@ -1003,6 +1003,27 @@ app.patch('/api/drawing-requests/notifications/:notificationId/read', async (req
 
 
 
+app.get('/api/drawing-experts', async (req, res) => {
+  const permissions = req.user.permissions;
+  if (!permissions.has('REQUEST_DRAWING_ASSIGN') && !permissions.has('REQUEST_DRAWING_TRANSFER')) {
+    return res.status(403).json({ error: 'Permission denied.' });
+  }
+  try {
+    const result = await new sql.Request().query(`
+      SELECT DISTINCT u.UserID, u.Username, u.Name, u.Family
+      FROM dbo.Users u
+      INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID
+      INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID
+      WHERE u.IsActive=1 AND r.IsActive=1 AND r.RoleCode=N'DrawingExpert'
+      ORDER BY u.Name, u.Family, u.Username;
+    `);
+    res.json({ experts: result.recordset });
+  } catch (e) {
+    console.error('Drawing Expert list load failed:', e);
+    sendServerError(res, 'Drawing Expert list load failed', e);
+  }
+});
+
 app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
   const requestId = Number(req.params.requestId);
   const action = typeof req.body?.action === 'string' ? req.body.action.trim().toLowerCase() : '';
