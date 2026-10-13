@@ -233,6 +233,7 @@
         const stateClass = isRejected ? 'is-rejected' : (isApproved ? 'is-approved' : '');
         return `<article class="rw-timeline-step ${stateClass}">
           <div class="rw-timeline-heading"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(workflowActionTitle(code))}</span></div>
+          <div class="rw-timeline-actor">${escapeHtml(actorName)}</div>
           <time>${escapeHtml(formatDate(item.CreatedAt))}</time>
           ${comment ? `<p class="rw-timeline-comment">${escapeHtml(comment)}</p>` : '<p class="rw-timeline-no-comment">No comment provided</p>'}
         </article>${index < events.length - 1 ? '<div class="rw-timeline-arrow" aria-hidden="true">↓</div>' : ''}`;
