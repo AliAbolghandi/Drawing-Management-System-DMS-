@@ -860,6 +860,8 @@ app.get('/api/drawing-requests', async (req, res) => {
       INNER JOIN dbo.Nodes n ON n.NodeID=dr.NodeID
       INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID
       LEFT JOIN dbo.Users au ON au.UserID=dr.AssignedDrawingExpertID
+      LEFT JOIN dbo.Users requesterUser ON requesterUser.UserID=dr.RequesterUserID
+      LEFT JOIN dbo.Users managerUser ON managerUser.UserID=dr.ManagerUserID
       WHERE (@canAll=1)
          OR (@canOwn=1 AND dr.RequesterUserID=@userId)
          OR (@canManager=1 AND dr.ManagerUserID=@userId)
