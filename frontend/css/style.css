@@ -1139,23 +1139,28 @@ body.dms-sidebar-collapsed .dms-main-sidebar {
 }
 body.dms-sidebar-collapsed .dms-sidebar-brand {
     justify-content: center;
-    padding: 0 0 18px;
+    /* Keep the brand block the same height as expanded mode so navigation
+       buttons below it do not jump vertically when the sidebar collapses. */
+    padding: 2px 8px 25px;
     border-bottom: 1px solid var(--line);
     width: 100%;
 }
+/* Hide labels visually but preserve their layout space. */
+body.dms-sidebar-collapsed .dms-sidebar-section-label {
+    visibility: hidden;
+}
 body.dms-sidebar-collapsed .dms-sidebar-brand > div:last-child,
-body.dms-sidebar-collapsed .dms-sidebar-section-label,
 body.dms-sidebar-collapsed .dms-nav-item > span:not(.dms-nav-icon):not(.dms-nav-badge),
-body.dms-sidebar-collapsed .dms-sidebar-spacer,
 body.dms-sidebar-collapsed .dms-profile-copy,
 body.dms-sidebar-collapsed .dms-profile-menu {
     display: none !important;
 }
-body.dms-sidebar-collapsed .dms-sidebar-nav { width: 100%; gap: 8px; }
+/* Keep the spacer active so the profile footer remains anchored at the bottom. */
+body.dms-sidebar-collapsed .dms-sidebar-nav { width: 100%; gap: 5px; }
 body.dms-sidebar-collapsed .dms-nav-item {
     justify-content: center;
     gap: 0;
-    min-height: 44px;
+    min-height: 43px;
     padding: 0;
 }
 body.dms-sidebar-collapsed .dms-nav-icon { width: 100%; font-size: 19px; }
