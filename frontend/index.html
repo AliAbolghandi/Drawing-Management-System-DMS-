@@ -52,9 +52,6 @@
       color: var(--ok) !important
     }
   </style>
-<style>
-.user-menu{position:relative;margin-left:12px}.user-menu-button{border:1px solid #475569;background:#1e293b;color:#e2e8f0;border-radius:8px;padding:8px 12px;cursor:pointer}.user-menu-button:hover{background:#334155}.user-menu-chevron{margin-left:8px}.user-menu-panel{position:absolute;right:0;top:calc(100% + 8px);min-width:250px;background:#0f172a;border:1px solid #475569;border-radius:10px;padding:14px;box-shadow:0 12px 30px rgba(0,0,0,.35);z-index:1000}.user-info-row{display:flex;justify-content:space-between;gap:20px;padding:7px 0;color:#cbd5e1}.user-info-row strong{color:#f8fafc;font-weight:600}.logout-button{width:100%;margin-top:10px;padding:9px;border:0;border-radius:7px;background:#b91c1c;color:white;cursor:pointer}.logout-button:hover{background:#dc2626}
-</style>
 </head>
 
 <body>
@@ -65,17 +62,7 @@
         <h1>Drawing Management System</h1><span>Equipment structure and drawing management</span>
       </div>
     </div>
-    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span><button id="managementButton" type="button" class="management-button hidden">Management</button><div id="userMenu" class="user-menu">
-      <button id="userMenuButton" type="button" class="user-menu-button" aria-expanded="false">
-        <span id="userMenuLabel">User</span><span class="user-menu-chevron">▾</span>
-      </button>
-      <div id="userMenuPanel" class="user-menu-panel" hidden>
-        <div class="user-info-row"><span>Name</span><strong id="userNameValue">-</strong></div>
-        <div class="user-info-row"><span>Family</span><strong id="userFamilyValue">-</strong></div>
-        <div class="user-info-row"><span>Username</span><strong id="userUsernameValue">-</strong></div>
-        <button id="logoutButton" type="button" class="logout-button">Logout</button>
-      </div>
-    </div></div>
+    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span><button id="managementButton" type="button" class="management-button hidden">Management</button></div>
   </header>
   <aside id="dmsMainSidebar" class="dms-main-sidebar" aria-label="Main navigation">
     <div class="dms-sidebar-brand">
@@ -96,9 +83,18 @@
     <div class="dms-sidebar-footer">
       <div class="dms-profile-avatar" id="dmsProfileAvatar">U</div>
       <div class="dms-profile-copy"><strong id="dmsProfileName">User</strong><span id="dmsProfileRole">Signed in</span></div>
-      <button type="button" id="dmsProfileMenu" class="dms-profile-menu" aria-label="Open user menu">⋯</button>
+      <div id="userMenu" class="user-menu">
+        <button type="button" id="dmsProfileMenu" class="dms-profile-menu" aria-label="Open user menu" aria-expanded="false">⋯</button>
+        <div id="userMenuPanel" class="user-menu-panel" hidden>
+          <div class="user-info-row"><span>Name</span><strong id="userNameValue">-</strong></div>
+          <div class="user-info-row"><span>Family</span><strong id="userFamilyValue">-</strong></div>
+          <div class="user-info-row"><span>Username</span><strong id="userUsernameValue">-</strong></div>
+          <button id="logoutButton" type="button" class="logout-button">Logout</button>
+        </div>
+      </div>
     </div>
   </aside>
+  <button type="button" id="dmsSidebarToggle" class="dms-sidebar-toggle" aria-label="Toggle navigation sidebar" aria-expanded="true">›</button>
   <main class="main-container">
     <section class="tree-panel">
       <div class="panel-header">
@@ -256,41 +252,89 @@
   <script src="js/request-workflow.js?v=20261013-request-modal-layout"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
-  const btn=document.getElementById('userMenuButton'), panel=document.getElementById('userMenuPanel');
-  const logout=document.getElementById('logoutButton');
-  const host=location.hostname;
-  const apiBase='http://'+host+':3000/api';
+  const profileMenu = document.getElementById('dmsProfileMenu');
+  const userMenu = document.getElementById('userMenu');
+  const panel = document.getElementById('userMenuPanel');
+  const logout = document.getElementById('logoutButton');
+  const sidebar = document.getElementById('dmsMainSidebar');
+  const sidebarToggle = document.getElementById('dmsSidebarToggle');
+  const host = location.hostname || 'localhost';
+  const apiBase = 'http://' + host + ':3000/api';
+
   try {
-    const r=await fetch(apiBase+'/auth/me',{credentials:'include'});
-    if(!r.ok) return;
-    const d=await r.json(), u=d.user||{};
-    document.getElementById('userNameValue').textContent=u.name||'-';
-    document.getElementById('userFamilyValue').textContent=u.family||'-';
-    document.getElementById('userUsernameValue').textContent=u.username||'-';
-    document.getElementById('userMenuLabel').textContent=(u.name||u.username||'User');
-    const profileName = [u.name, u.family].filter(Boolean).join(' ') || u.username || 'User';
+    const response = await fetch(apiBase + '/auth/me', { credentials: 'include', cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json();
+    const user = data.user || {};
+    document.getElementById('userNameValue').textContent = user.name || '-';
+    document.getElementById('userFamilyValue').textContent = user.family || '-';
+    document.getElementById('userUsernameValue').textContent = user.username || '-';
+    const profileName = [user.name, user.family].filter(Boolean).join(' ') || user.username || 'User';
     document.getElementById('dmsProfileName').textContent = profileName;
-    document.getElementById('dmsProfileAvatar').textContent = (u.name || u.username || 'U').slice(0, 1).toUpperCase();
-    document.querySelector('.dms-sidebar-admin-label')?.classList.toggle('hidden', !d.user?.isAdmin);
-    document.querySelector('.dms-sidebar-admin-nav')?.classList.toggle('hidden', !d.user?.isAdmin);
-    const managementButton=document.getElementById('managementButton');
-    if (managementButton && d.user?.isAdmin) {
+    document.getElementById('dmsProfileAvatar').textContent = (user.name || user.username || 'U').slice(0, 1).toUpperCase();
+    document.getElementById('dmsProfileRole').textContent = user.username || 'Signed in';
+    document.querySelector('.dms-sidebar-admin-label')?.classList.toggle('hidden', !user.isAdmin);
+    document.querySelector('.dms-sidebar-admin-nav')?.classList.toggle('hidden', !user.isAdmin);
+    const managementButton = document.getElementById('managementButton');
+    if (managementButton && user.isAdmin) {
       managementButton.classList.remove('hidden');
-      managementButton.addEventListener('click',()=>{ window.location.href='management.html'; });
+      managementButton.addEventListener('click', () => { window.location.href = 'management.html'; });
     }
-  } catch(e) {}
-  btn.addEventListener('click',()=>{const open=panel.hidden;panel.hidden=!open;btn.setAttribute('aria-expanded',String(open));});
-  document.addEventListener('click',(e)=>{if(!e.target.closest('#userMenu')){panel.hidden=true;btn.setAttribute('aria-expanded','false');}});
-  logout.addEventListener('click',async()=>{
-    logout.disabled=true;
-    logout.textContent='Logging out...';
+  } catch (error) {
+    console.error('Unable to load user profile:', error);
+  }
+
+  profileMenu?.addEventListener('click', event => {
+    event.stopPropagation();
+    const open = panel.hidden;
+    panel.hidden = !open;
+    profileMenu.setAttribute('aria-expanded', String(open));
+  });
+
+  function closeSidebar() {
+    document.body.classList.add('dms-sidebar-collapsed');
+    sidebarToggle?.setAttribute('aria-expanded', 'false');
+  }
+  function openSidebar() {
+    document.body.classList.remove('dms-sidebar-collapsed');
+    sidebarToggle?.setAttribute('aria-expanded', 'true');
+  }
+  sidebarToggle?.addEventListener('click', event => {
+    event.stopPropagation();
+    document.body.classList.contains('dms-sidebar-collapsed') ? openSidebar() : closeSidebar();
+  });
+
+  document.addEventListener('click', event => {
+    if (!event.target.closest('#userMenu')) {
+      panel.hidden = true;
+      profileMenu?.setAttribute('aria-expanded', 'false');
+    }
+    if (window.matchMedia('(min-width: 901px)').matches &&
+        !event.target.closest('#dmsMainSidebar') &&
+        !event.target.closest('#dmsSidebarToggle')) {
+      closeSidebar();
+    }
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      panel.hidden = true;
+      profileMenu?.setAttribute('aria-expanded', 'false');
+      if (window.matchMedia('(min-width: 901px)').matches) closeSidebar();
+    }
+  });
+
+  logout?.addEventListener('click', async event => {
+    event.stopPropagation();
+    logout.disabled = true;
+    logout.textContent = 'Logging out...';
     try {
-      await fetch(apiBase+'/auth/logout',{
-        method:'POST',
-        credentials:'include',
-        cache:'no-store'
+      await fetch(apiBase + '/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store'
       });
-    } catch(e) {}
+    } catch (error) {}
     window.location.replace('login.html');
   });
 });
