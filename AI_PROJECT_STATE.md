@@ -918,10 +918,22 @@ Validation:
 - Confirmed the Logout markup is inside `#dmsMainSidebar` and the sidebar toggle markup exists.
 - Browser interaction, visual, and live authentication tests were not run in this environment.
 
+## UI Refinements — 2026-10-13
+
+User-requested changes implemented on `main`:
+- The desktop navigation sidebar now collapses to a 76px icon rail instead of sliding completely off-screen. Navigation icons, the profile avatar, and the visible rail toggle remain available; labels/profile text are hidden while compact. Main content retains a 76px right offset.
+- Removed the header-level `Management` button. Admin navigation continues to use the Management item in the right sidebar and its existing admin visibility check.
+- Drawing workflow `assign` and `transfer` actions now show a dropdown of active users assigned to an active `DrawingExpert` role. New authenticated endpoint `GET /api/drawing-experts` requires `REQUEST_DRAWING_ASSIGN` or `REQUEST_DRAWING_TRANSFER`; it returns UserID, Username, Name, and Family. Existing action API still validates the selected username against active DrawingExpert membership.
+- No database schema or permission mappings changed.
+
+Validation status:
+- Source-level checks and JavaScript syntax checks must be run after commit.
+- Live browser, SQL Server, and end-to-end assignment tests have not been run in this environment.
+
 # NEXT ACTION
 
-1. Pull the latest `main` branch and hard-refresh the DMS page.
-2. Verify the header no longer contains the user dropdown and the three-dot menu at the bottom of the right sidebar shows Name, Family, Username, and Logout.
-3. Click Logout and confirm the session is invalidated and the app redirects to `login.html`.
-4. On desktop, click outside the sidebar and confirm it slides to the right; click the edge toggle to reopen it.
-5. Verify the Drawing Requests modal, Management navigation for Admin, and the mobile bottom navigation still behave as before.
+1. Pull latest `main` and hard-refresh DMS.
+2. Verify collapsing the sidebar leaves the 76px icon rail and clicking the toggle expands it.
+3. Confirm no header Management button appears; admin users can still open Management from the sidebar.
+4. As a user with `REQUEST_DRAWING_ASSIGN` or `REQUEST_DRAWING_TRANSFER`, open a request action and confirm the dropdown lists active DrawingExpert users and submits the selected Username.
+5. Verify non-authorized users receive 403 from `GET /api/drawing-experts`, and test assignment/transfer with the live SQL Server.
