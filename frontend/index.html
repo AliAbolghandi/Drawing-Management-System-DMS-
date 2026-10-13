@@ -11,7 +11,7 @@
     href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/request-workflow.css?v=20261012-workflow-color-marker">
+  <link rel="stylesheet" href="css/request-workflow.css?v=20261013-request-modal-layout">
   <link rel="stylesheet" href="css/tree-fix.css">
   <link rel="stylesheet" href="css/node-create.css">
   <link rel="stylesheet" href="css/node-actions.css">
@@ -65,7 +65,7 @@
         <h1>Drawing Management System</h1><span>Equipment structure and drawing management</span>
       </div>
     </div>
-    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span><button id="managementButton" type="button" class="management-button hidden">Management</button><button id="rwSidebarToggle" type="button" class="rw-sidebar-toggle" aria-expanded="false">Worklist</button><div id="userMenu" class="user-menu">
+    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span><button id="managementButton" type="button" class="management-button hidden">Management</button><div id="userMenu" class="user-menu">
       <button id="userMenuButton" type="button" class="user-menu-button" aria-expanded="false">
         <span id="userMenuLabel">User</span><span class="user-menu-chevron">▾</span>
       </button>
@@ -253,7 +253,7 @@
   <script src="js/node-actions.js"></script>
   <script src="js/node-create.js"></script>
   <script src="js/node-upload.js"></script>
-  <script src="js/request-workflow.js?v=20261012-workflow-color-marker"></script>
+  <script src="js/request-workflow.js?v=20261013-request-modal-layout"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   const btn=document.getElementById('userMenuButton'), panel=document.getElementById('userMenuPanel');
@@ -350,7 +350,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       document.querySelectorAll('[data-dms-nav]').forEach(node => node.classList.toggle('active', node === item));
       if (target === 'requests') {
-        document.getElementById('rwSidebarToggle')?.click();
+        window.DMS?.openDrawingWorklistModal?.();
         return;
       }
       if (target === 'structure') {
@@ -379,19 +379,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 
 
-  <div id="rwOverlay" class="request-workflow-overlay"></div>
-  <aside id="rwSidebar" class="request-workflow-sidebar" aria-label="User worklist">
-    <div class="rw-sidebar-header"><h2>My Worklist</h2><button id="rwClose" type="button" class="rw-close" aria-label="Close">×</button></div>
-    <div class="rw-user-card">
-      <div id="rwUserName" class="rw-user-name">-</div>
-      <div id="rwUserUsername" class="rw-user-meta"></div>
-      <button id="rwLogout" type="button" class="rw-logout">Logout</button>
-    </div>
-    <label class="rw-search-label" for="rwRequestSearch">Search by request number</label>
-    <input id="rwRequestSearch" class="rw-request-search" type="search" placeholder="Enter request number..." autocomplete="off">
-    <button id="rwWorklistButton" type="button" class="rw-worklist-button">Refresh Worklist <span id="rwNotificationBadge" class="rw-badge" hidden>0</span></button>
-    <div id="rwContent" class="rw-content"><div class="rw-loading">Loading worklist...</div></div>
-  </aside>
+  <div id="rwWorklistModal" class="rw-worklist-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwWorklistTitle"><div class="rw-worklist-dialog"><header class="rw-worklist-modal-header"><div><span class="rw-worklist-eyebrow">DRAWING MANAGEMENT</span><h2 id="rwWorklistTitle">Drawing Requests</h2></div><button type="button" id="rwWorklistClose" class="rw-close" aria-label="Close Drawing Requests">×</button></header><div class="rw-worklist-layout"><nav class="rw-category-nav" aria-label="Request categories"><button type="button" class="rw-category-button active" data-request-category="current"><span class="rw-category-icon">◷</span><span>Request</span><small>Current requests</small><span id="rwCurrentCount" class="rw-category-count">0</span></button><button type="button" class="rw-category-button" data-request-category="final"><span class="rw-category-icon">✓</span><span>Final Request</span><small>Finally approved</small><span id="rwFinalCount" class="rw-category-count">0</span></button><button type="button" class="rw-category-button" data-request-category="rejected"><span class="rw-category-icon">×</span><span>Rejected Request</span><small>Rejected requests</small><span id="rwRejectedCount" class="rw-category-count">0</span></button></nav><section class="rw-worklist-main" aria-label="Requests and workflow"><div class="rw-worklist-toolbar"><div><h3 id="rwCategoryHeading">Current Requests</h3><p id="rwCategoryDescription">Requests still moving through the workflow</p></div><form id="rwSearchForm" class="rw-modal-search" role="search"><input id="rwRequestSearch" type="search" placeholder="Search request number..." aria-label="Search by request number" autocomplete="off"><button type="submit" aria-label="Search requests"><span aria-hidden="true">⌕</span> Search</button></form></div><div class="rw-worklist-columns"><section class="rw-request-results" aria-label="Request list"><div id="rwContent" class="rw-content"><div class="rw-loading">Loading requests...</div></div></section><section class="rw-inline-workflow" aria-label="Selected request workflow"><div class="rw-inline-workflow-heading"><h3 id="rwDetailsTitle">Request Workflow</h3><span id="rwSelectedStatus" class="rw-selected-status">Select a request</span></div><div id="rwDetailsBody" class="rw-dialog-body rw-details-body"><div class="rw-workflow-placeholder"><span>↖</span><strong>Select a request</strong><p>The request workflow and available actions will appear here.</p></div></div></section></div></section></div></div></div>
   <div id="rwRequestModal" class="rw-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwRequestTitle">
     <div class="rw-dialog">
       <div class="rw-dialog-header"><h3 id="rwRequestTitle">Add Drawing Request</h3><button id="rwRequestClose" type="button" class="rw-close" aria-label="Close">×</button></div>
@@ -405,13 +393,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 \n
-  <div id="rwDetailsModal" class="rw-modal rw-details-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwDetailsTitle">
-    <div class="rw-dialog rw-details-dialog">
-      <div class="rw-dialog-header"><h3 id="rwDetailsTitle">Drawing Request Details</h3><button id="rwDetailsClose" type="button" class="rw-close" aria-label="Close">×</button></div>
-      <div id="rwDetailsBody" class="rw-dialog-body rw-details-body"></div>
-      <div class="rw-dialog-footer"><button id="rwDetailsDone" type="button">Close</button></div>
-    </div>
-  </div>
   <div id="rwActionModal" class="rw-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rwActionTitle">
     <div class="rw-dialog">
       <div class="rw-dialog-header"><h3 id="rwActionTitle">Request action</h3><button id="rwActionClose" type="button" class="rw-close" aria-label="Close">×</button></div>
