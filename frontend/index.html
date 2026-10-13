@@ -10,8 +10,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261013-icon-rail">
-  <link rel="stylesheet" href="css/request-workflow.css?v=20261013-request-modal-layout">
+  <link rel="stylesheet" href="css/style.css?v=20261013-hover-sidebar">
+  <link rel="stylesheet" href="css/request-workflow.css?v=20261013-dark-dialog-search-all">
   <link rel="stylesheet" href="css/tree-fix.css">
   <link rel="stylesheet" href="css/node-create.css">
   <link rel="stylesheet" href="css/node-actions.css">
@@ -94,7 +94,6 @@
       </div>
     </div>
   </aside>
-  <button type="button" id="dmsSidebarToggle" class="dms-sidebar-toggle" aria-label="Toggle navigation sidebar" aria-expanded="true">›</button>
   <main class="main-container">
     <section class="tree-panel">
       <div class="panel-header">
@@ -257,7 +256,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const panel = document.getElementById('userMenuPanel');
   const logout = document.getElementById('logoutButton');
   const sidebar = document.getElementById('dmsMainSidebar');
-  const sidebarToggle = document.getElementById('dmsSidebarToggle');
   const host = location.hostname || 'localhost';
   const apiBase = 'http://' + host + ':3000/api';
 
@@ -288,15 +286,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function closeSidebar() {
     document.body.classList.add('dms-sidebar-collapsed');
-    sidebarToggle?.setAttribute('aria-expanded', 'false');
   }
   function openSidebar() {
     document.body.classList.remove('dms-sidebar-collapsed');
-    sidebarToggle?.setAttribute('aria-expanded', 'true');
   }
-  sidebarToggle?.addEventListener('click', event => {
-    event.stopPropagation();
-    document.body.classList.contains('dms-sidebar-collapsed') ? openSidebar() : closeSidebar();
+
+  sidebar?.addEventListener('mouseenter', () => {
+    if (window.matchMedia('(min-width: 901px)').matches) openSidebar();
+  });
+  sidebar?.addEventListener('mouseleave', () => {
+    if (window.matchMedia('(min-width: 901px)').matches) closeSidebar();
   });
 
   document.addEventListener('click', event => {
@@ -305,8 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       profileMenu?.setAttribute('aria-expanded', 'false');
     }
     if (window.matchMedia('(min-width: 901px)').matches &&
-        !event.target.closest('#dmsMainSidebar') &&
-        !event.target.closest('#dmsSidebarToggle')) {
+        !event.target.closest('#dmsMainSidebar')) {
       closeSidebar();
     }
   });
