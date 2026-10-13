@@ -66,8 +66,7 @@
     try {
       const data = await requestJson(`${API}/auth/me`);
       const u = data.user || {};
-      $('rwUserName').textContent = [u.name, u.family].filter(Boolean).join(' ') || u.username || '-';
-      $('rwUserUsername').textContent = u.username ? `Username: ${u.username}` : '';
+
       window.DMS = window.DMS || {};
       window.DMS.permissions = new Set(data.permissions || []);
       window.DMS.user = u;
@@ -79,18 +78,18 @@
     }
   }
 
-  function openSidebar() {
-    $('rwSidebar')?.classList.add('open');
-    $('rwOverlay')?.classList.add('open');
-    $('rwSidebarToggle')?.setAttribute('aria-expanded','true');
-    loadWorklist();
-    loadNotifications();
-  }
-
-  function closeSidebar() {
-    $('rwSidebar')?.classList.remove('open');
-    $('rwOverlay')?.classList.remove('open');
-    $('rwSidebarToggle')?.setAttribute('aria-expanded','false');
+  let activeRequestCategory='current';
+  let selectedWorkflowRequestId=null;
+  function openSidebar(){ $('rwWorklistModal')?.classList.remove('hidden');document.body.classList.add('rw-worklist-open');loadWorklist();loadNotifications(); }
+  function closeSidebar(){ $('rwWorklistModal')?.classList.add('hidden');document.body.classList.remove('rw-worklist-open'); }
+  function setRequestCategory(category){
+    activeRequestCategory=category;
+    document.querySelectorAll('[data-request-category]').forEach(b=>b.classList.toggle('active',b.dataset.requestCategory===category));
+    const titles={current:['Current Requests','Requests still moving through the workflow'],final:['Final Requests','Requests with final approval completed'],rejected:['Rejected Requests','Requests rejected during the workflow']};
+    const [title,description]=titles[category]||titles.current;
+    if($('rwCategoryHeading'))$('rwCategoryHeading').textContent=title;
+    if($('rwCategoryDescription'))$('rwCategoryDescription').textContent=description;
+    renderWorklist(allRequests);
   }
 
   function getRequestActions(r) {
@@ -161,27 +160,35 @@
     }
     return 'rw-status-orange';
   }
-  function renderWorklist(requests) {
-    allRequests = Array.isArray(requests) ? requests : [];
-    const box = $('rwContent');
-    if (!box) return;
-    const search = ($('rwRequestSearch')?.value || '').trim().toLowerCase();
-    const filtered = allRequests.filter(r => String(r.StatusCode || '').toUpperCase() !== 'CANCELLED' && String(r.RequestNumber || '').toLowerCase().includes(search));
-    box.innerHTML = search && filtered.length === 0
-      ? '<div class="rw-empty">No request number matches your search.</div>'
-      : filtered.length ? filtered.map(r => {
-          const isFinalApproved = String(r.StatusCode || '').toUpperCase() === 'FINAL_APPROVED';
-          return `<article class="rw-request-card rw-request-list-item ${isFinalApproved ? 'rw-request-final-approved' : ''}" role="button" tabindex="0" data-open-request-id="${Number(r.RequestID)}" aria-label="Open request ${escapeHtml(r.RequestNumber)}">
-            <div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName || r.StatusCode || '-')}</span></div>
-            <div class="rw-request-node"><strong>${escapeHtml(r.NodeCode || '-')}</strong> — ${escapeHtml(r.NodeName || '-')}</div>
-            <div class="rw-request-meta">Requester: ${escapeHtml(displayUserName(r.RequesterName, r.RequesterFamily, r.RequesterUsername))}<br>Manager: ${escapeHtml(displayUserName(r.ManagerName, r.ManagerFamily, r.ManagerUsername))}<br>Assigned expert: ${escapeHtml(displayUserName(r.AssignedDrawingExpertName, r.AssignedDrawingExpertFamily, r.AssignedDrawingExpertUsername))}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div>
-          </article>`;
-        }).join('')
-      : '<div class="rw-empty">No drawing requests.</div>';
-    box.querySelectorAll('.rw-request-list-item').forEach(card => {
-      const request = allRequests.find(item => Number(item.RequestID) === Number(card.dataset.openRequestId));
-      if (request) card.classList.add(getRequestColorClass(request));
-    });
+  function requestCategoryForStatus(status){
+    const code=String(status||'').toUpperCase();
+    if(code==='FINAL_APPROVED')return 'final';
+    if(['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','EXPERT_REJECTED','FINAL_REJECTED'].includes(code))return 'rejected';
+    if(code==='CANCELLED')return 'excluded';
+    return 'current';
+  }
+  function updateRequestCategoryCounts(requests){
+    const counts={current:0,final:0,rejected:0};
+    requests.forEach(r=>{const cat=requestCategoryForStatus(r.StatusCode);if(Object.prototype.hasOwnProperty.call(counts,cat))counts[cat]++;});
+    [['rwCurrentCount',counts.current],['rwFinalCount',counts.final],['rwRejectedCount',counts.rejected]].forEach(([id,n])=>{if($(id))$(id).textContent=String(n);});
+  }
+  function renderWorklist(requests){
+    allRequests=Array.isArray(requests)?requests:[];const box=$('rwContent');if(!box)return;updateRequestCategoryCounts(allRequests);
+    const search=($('rwRequestSearch')?.value||'').trim().toLowerCase();
+    const filtered=allRequests.filter(r=>requestCategoryForStatus(r.StatusCode)===activeRequestCategory&&String(r.RequestNumber||'').toLowerCase().includes(search));
+    box.innerHTML=search&&!filtered.length?'<div class="rw-empty">No matching request numbers in this category.</div>':filtered.length?filtered.map(r=>{
+      const approved=String(r.StatusCode||'').toUpperCase()==='FINAL_APPROVED',selected=Number(r.RequestID)===Number(selectedWorkflowRequestId);
+      return `<button type="button" class="rw-request-card rw-request-list-item ${approved?'rw-request-final-approved':''} ${selected?'rw-request-selected':''}" data-open-request-id="${Number(r.RequestID)}" aria-label="Open request ${escapeHtml(r.RequestNumber)}" aria-pressed="${selected}"><div class="rw-request-top"><span class="rw-request-number">${escapeHtml(r.RequestNumber)}</span><span class="rw-status">${escapeHtml(r.StatusName||r.StatusCode||'-')}</span></div><div class="rw-request-node"><strong>${escapeHtml(r.NodeCode||'-')}</strong> — ${escapeHtml(r.NodeName||'-')}</div><div class="rw-request-meta">Requester: ${escapeHtml(displayUserName(r.RequesterName,r.RequesterFamily,r.RequesterUsername))}<br>Created: ${escapeHtml(formatDate(r.CreatedAt))}</div></button>`;
+    }).join(''):'<div class="rw-empty">No requests in this category.</div>';
+    box.querySelectorAll('.rw-request-list-item').forEach(card=>{const r=allRequests.find(q=>Number(q.RequestID)===Number(card.dataset.openRequestId));if(r)card.classList.add(getRequestColorClass(r));});
+    if(selectedWorkflowRequestId&&!filtered.some(r=>Number(r.RequestID)===Number(selectedWorkflowRequestId))){selectedWorkflowRequestId=null;clearInlineWorkflow();}
+    else if(selectedWorkflowRequestId){const r=filtered.find(q=>Number(q.RequestID)===Number(selectedWorkflowRequestId));if(r&&$('rwSelectedStatus'))$('rwSelectedStatus').textContent=r.StatusName||r.StatusCode||'-';}
+  }
+  function clearInlineWorkflow(){
+    const body=$('rwDetailsBody');
+    if(body)body.innerHTML='<div class="rw-workflow-placeholder"><span>↖</span><strong>Select a request</strong><p>The request workflow and available actions will appear here.</p></div>';
+    if($('rwDetailsTitle'))$('rwDetailsTitle').textContent='Request Workflow';
+    if($('rwSelectedStatus'))$('rwSelectedStatus').textContent='Select a request';
   }
 
   function workflowActionTitle(actionCode) {
@@ -244,6 +251,8 @@
   function openRequestDetailsModal(requestId) {
     const r = allRequests.find(item => Number(item.RequestID) === Number(requestId));
     if (!r) return;
+    selectedWorkflowRequestId = Number(requestId);
+    renderWorklist(allRequests);
     const box = $('rwDetailsBody');
     if (!box) return;
     const actions = getRequestActions(r);
@@ -262,8 +271,8 @@
       </section>
       ${actionsHtml}
       ${buildWorkflowTimeline(r)}`;
-    $('rwDetailsTitle').textContent = 'Drawing Request Details';
-    $('rwDetailsModal')?.classList.remove('hidden');
+    $('rwDetailsTitle').textContent = r.RequestNumber || 'Request Workflow';
+    if ($('rwSelectedStatus')) $('rwSelectedStatus').textContent = r.StatusName || r.StatusCode || '-';
 
     requestJson(`${API}/node-hierarchy/${Number(r.NodeID)}/full`)
       .then(data => {
@@ -279,9 +288,7 @@
       });
   }
 
-  function closeRequestDetailsModal() {
-    $('rwDetailsModal')?.classList.add('hidden');
-  }
+  function closeRequestDetailsModal(){selectedWorkflowRequestId=null;renderWorklist(allRequests);clearInlineWorkflow();}
 
   const actionLabels = {
     cancel: 'Cancel Drawing Request', approve: 'Approve Drawing Request', reject: 'Reject Drawing Request',
@@ -339,7 +346,7 @@
       closeActionModal();
       await loadWorklist();
       await loadNotifications();
-      if ($('rwDetailsModal') && !$('rwDetailsModal').classList.contains('hidden')) openRequestDetailsModal(requestId);
+      if (selectedWorkflowRequestId === Number(requestId)) openRequestDetailsModal(requestId);
     } catch (e) {
       errorBox.textContent = e.message;
     } finally {
@@ -356,6 +363,7 @@
       renderWorklist(data.requests || []);
     } catch (e) {
       box.innerHTML = `<div class="rw-empty">${escapeHtml(e.message)}</div>`;
+      clearInlineWorkflow();
     }
   }
 
@@ -419,28 +427,15 @@
     await loadCurrentUser();
     setRequestButtonVisibility();
 
-    $('rwSidebarToggle')?.addEventListener('click', () => {
-      if ($('rwSidebar')?.classList.contains('open')) closeSidebar(); else openSidebar();
-    });
-    $('rwClose')?.addEventListener('click', closeSidebar);
-    $('rwOverlay')?.addEventListener('click', closeSidebar);
-    $('rwWorklistButton')?.addEventListener('click', loadWorklist);
-    $('rwRequestSearch')?.addEventListener('input', () => renderWorklist(allRequests));
-    $('rwContent')?.addEventListener('click', event => {
-      const item = event.target.closest('[data-open-request-id]');
-      if (item) openRequestDetailsModal(Number(item.dataset.openRequestId));
-    });
-    $('rwContent')?.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      const item = event.target.closest('[data-open-request-id]');
-      if (!item) return;
-      event.preventDefault();
-      openRequestDetailsModal(Number(item.dataset.openRequestId));
-    });
-    $('rwDetailsClose')?.addEventListener('click', closeRequestDetailsModal);
-    $('rwDetailsDone')?.addEventListener('click', closeRequestDetailsModal);
-    $('rwDetailsModal')?.addEventListener('click', async event => {
-      if (event.target === $('rwDetailsModal')) closeRequestDetailsModal();
+    $('rwWorklistClose')?.addEventListener('click',closeSidebar);
+    $('rwWorklistModal')?.addEventListener('click',event=>{if(event.target===$('rwWorklistModal'))closeSidebar();});
+    document.querySelectorAll('[data-request-category]').forEach(b=>b.addEventListener('click',()=>setRequestCategory(b.dataset.requestCategory)));
+    $('rwSearchForm')?.addEventListener('submit',event=>{event.preventDefault();renderWorklist(allRequests);});
+    $('rwRequestSearch')?.addEventListener('input',()=>renderWorklist(allRequests));
+    $('rwContent')?.addEventListener('click',event=>{const item=event.target.closest('[data-open-request-id]');if(item)openRequestDetailsModal(Number(item.dataset.openRequestId));});
+    $('rwDetailsClose')?.addEventListener('click',closeRequestDetailsModal);
+    $('rwDetailsDone')?.addEventListener('click',closeRequestDetailsModal);
+    $('rwWorklistModal')?.addEventListener('click',async event=>{
       const locationButton = event.target.closest('#rwShowNodeLocation');
       if (locationButton) {
         const message = $('rwNodeLocationMessage');
@@ -448,6 +443,7 @@
         try {
           if (typeof window.DMS?.revealNodeLocation !== 'function') throw new Error('Tree navigation is unavailable.');
           await window.DMS.revealNodeLocation(Number(locationButton.dataset.nodeId), locationButton.dataset.nodeCode || '');
+          closeSidebar();
           closeRequestDetailsModal();
         } catch (e) { if (message) message.textContent = e.message; }
         return;
@@ -502,6 +498,7 @@
   window.DMS = window.DMS || {};
   window.DMS.openDrawingRequestModal = openRequestModal;
   window.DMS.loadDrawingWorklist = loadWorklist;
+  window.DMS.openDrawingWorklistModal = openSidebar;
 
   const observer = new MutationObserver(setRequestButtonVisibility);
   observer.observe(document.documentElement, {subtree:true, childList:true});
