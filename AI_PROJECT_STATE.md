@@ -930,10 +930,23 @@ Validation status:
 - Source-level checks and JavaScript syntax checks must be run after commit.
 - Live browser, SQL Server, and end-to-end assignment tests have not been run in this environment.
 
+## UI Refinements — 2026-10-13 (Hover Sidebar, Themed Dialogs, Global Search)
+
+Implemented on `main`:
+- Removed the desktop sidebar toggle button entirely. On desktop the sidebar stays in its compact 76px icon-rail state when the pointer is outside it; `mouseenter` expands it and `mouseleave` collapses it. Outside-click collapse remains, and mobile bottom navigation is unaffected.
+- Restyled `.rw-dialog` and its header, inputs/selects/textareas, context panel, buttons, close control, and errors using the existing DMS navy/cyan theme variables in `frontend/css/request-workflow.css`.
+- Updated worklist search: when a request-number search term is present, it ignores the currently selected category and searches Current, Final, and Rejected Requests together. Matching requests render inside `#rwContent` within `.rw-request-results`, grouped under category headings. Empty search returns to the currently selected category. Clicking a category clears the search term.
+- No backend/API/RBAC or database schema changes.
+
+Validation:
+- `frontend/js/request-workflow.js` passed JavaScript syntax parsing with `new Function(...)`.
+- Structural checks confirmed toggle markup/styles are removed, hover handlers exist, dark dialog overrides are present, and search groups results across all three categories.
+- Live browser/visual interaction tests have not been run in this environment.
+
 # NEXT ACTION
 
 1. Pull latest `main` and hard-refresh DMS.
-2. Verify collapsing the sidebar leaves the 76px icon rail and clicking the toggle expands it.
-3. Confirm no header Management button appears; admin users can still open Management from the sidebar.
-4. As a user with `REQUEST_DRAWING_ASSIGN` or `REQUEST_DRAWING_TRANSFER`, open a request action and confirm the dropdown lists active DrawingExpert users and submits the selected Username.
-5. Verify non-authorized users receive 403 from `GET /api/drawing-experts`, and test assignment/transfer with the live SQL Server.
+2. Verify desktop sidebar remains a 76px icon rail when pointer is outside and expands on hover, with no toggle button present.
+3. Open Add Request and workflow action dialogs and verify the dark navy/cyan theme is consistent with DMS.
+4. Search for a request number that exists in Current, Final, or Rejected Requests while another category is selected; verify results from all three categories appear grouped inside `rw-request-results`.
+5. Clear the search and confirm the selected category filter resumes; test mobile navigation separately.
