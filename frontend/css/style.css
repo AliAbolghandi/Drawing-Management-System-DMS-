@@ -1004,10 +1004,6 @@ mark {
 }
 
 
-.management-button{border:1px solid rgba(111,227,255,.45);background:rgba(111,227,255,.08);color:var(--cyan);border-radius:8px;padding:8px 12px;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px}
-.management-button:hover{background:rgba(111,227,255,.16);border-color:var(--cyan)}
-
-
 /* ---- Permanent right navigation sidebar (DMS theme) ---- */
 :root { --dms-sidebar-width: 248px; }
 .top-header { margin-right: var(--dms-sidebar-width); }
@@ -1152,19 +1148,54 @@ mark {
 .dms-sidebar-toggle:hover {
     background: var(--panel-2);
 }
+body.dms-sidebar-collapsed { --dms-sidebar-width: 76px; }
 body.dms-sidebar-collapsed .dms-main-sidebar {
-    transform: translateX(100%);
-    pointer-events: none;
+    transform: none;
+    width: 76px;
+    padding: 18px 8px 12px;
+    pointer-events: auto;
+    align-items: center;
 }
-body.dms-sidebar-collapsed .top-header,
-body.dms-sidebar-collapsed .main-container {
-    margin-right: 0;
+body.dms-sidebar-collapsed .dms-sidebar-brand {
+    justify-content: center;
+    padding: 0 0 18px;
+    border-bottom: 1px solid var(--line);
+    width: 100%;
 }
+body.dms-sidebar-collapsed .dms-sidebar-brand > div:last-child,
+body.dms-sidebar-collapsed .dms-sidebar-section-label,
+body.dms-sidebar-collapsed .dms-nav-item > span:not(.dms-nav-icon):not(.dms-nav-badge),
+body.dms-sidebar-collapsed .dms-sidebar-spacer,
+body.dms-sidebar-collapsed .dms-profile-copy,
+body.dms-sidebar-collapsed .dms-profile-menu {
+    display: none !important;
+}
+body.dms-sidebar-collapsed .dms-sidebar-nav { width: 100%; gap: 8px; }
+body.dms-sidebar-collapsed .dms-nav-item {
+    justify-content: center;
+    gap: 0;
+    min-height: 44px;
+    padding: 0;
+}
+body.dms-sidebar-collapsed .dms-nav-icon { width: 100%; font-size: 19px; }
+body.dms-sidebar-collapsed .dms-nav-badge {
+    position: absolute;
+    margin: 0;
+    top: 5px;
+    right: 7px;
+}
+body.dms-sidebar-collapsed .dms-sidebar-footer {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 0 4px;
+}
+body.dms-sidebar-collapsed .dms-profile-avatar { width: 36px; height: 36px; }
 body.dms-sidebar-collapsed .dms-sidebar-toggle {
-    right: 0;
-    border-right: 1px solid var(--line-strong);
+    right: 58px;
+    border-right: 0;
     border-radius: 8px 0 0 8px;
 }
+
 body.dms-sidebar-collapsed .dms-sidebar-toggle::before {
     content: "";
     position: fixed;
