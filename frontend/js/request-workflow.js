@@ -226,6 +226,7 @@
       <div class="rw-timeline-list">${events.map((item, index) => {
         const code = String(item.ActionCode || '').toUpperCase();
         const title = workflowStageTitle(item, request);
+        const actorName = workflowActorName(item, request);
         const comment = String(item.Comment || '').trim();
         const isRejected = code.includes('REJECT');
         const isApproved = code.includes('APPROVED') || code === 'WORK_COMPLETED' || code === 'ASSIGNED_TO_EXPERT';
