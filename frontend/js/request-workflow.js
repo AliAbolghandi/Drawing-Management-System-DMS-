@@ -307,7 +307,28 @@
     $('rwActionError').textContent = '';
     const expertField = $('rwActionExpertField');
     if (expertField) expertField.classList.toggle('hidden', !['assign', 'transfer'].includes(action));
-    if ($('rwActionExpertUsername')) $('rwActionExpertUsername').value = '';
+    if ($('rwActionExpertUsername')) {
+      const expertSelect = $('rwActionExpertUsername');
+      expertSelect.innerHTML = '<option value="">Loading available experts…</option>';
+      if (['assign', 'transfer'].includes(action)) {
+        requestJson(`${API}/drawing-experts`)
+          .then(data => {
+            if (!pendingModalAction || pendingModalAction.action !== action || !expertSelect.isConnected) return;
+            const experts = Array.isArray(data.experts) ? data.experts : [];
+            expertSelect.innerHTML = '<option value="">Select an expert…</option>' +
+              experts.map(expert => `<option value="${escapeHtml(expert.Username)}">${escapeHtml([expert.Name, expert.Family].filter(Boolean).join(' ') || expert.Username)} (${escapeHtml(expert.Username)})</option>`).join('');
+            if (!experts.length) $('rwActionError').textContent = 'No active Drawing Experts are available.';
+          })
+          .catch(error => {
+            if (expertSelect.isConnected) {
+              expertSelect.innerHTML = '<option value="">Unable to load experts</option>';
+              $('rwActionError').textContent = error.message || 'Unable to load Drawing Experts.';
+            }
+          });
+      } else {
+        expertSelect.innerHTML = '<option value="">Select an expert…</option>';
+      }
+    }
     $('rwActionContinue').textContent = action === 'cancel' ? 'Confirm Cancel' : 'Continue';
     $('rwActionModal').classList.remove('hidden');
   }
@@ -475,7 +496,7 @@
     $('rwActionContinue')?.addEventListener('click', () => {
       if (!pendingModalAction) return;
       if (['assign','transfer'].includes(pendingModalAction.action) && !$('rwActionExpertUsername')?.value.trim()) {
-        $('rwActionError').textContent = 'Enter the active DrawingExpert username.';
+        $('rwActionError').textContent = 'Select a Drawing Expert from the list.';
         return;
       }
       if (pendingModalAction.action === 'cancel') executePendingAction();
