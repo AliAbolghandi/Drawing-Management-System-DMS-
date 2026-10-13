@@ -10,7 +10,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20261013-icon-rail">
   <link rel="stylesheet" href="css/request-workflow.css?v=20261013-request-modal-layout">
   <link rel="stylesheet" href="css/tree-fix.css">
   <link rel="stylesheet" href="css/node-create.css">
@@ -62,11 +62,11 @@
         <h1>Drawing Management System</h1><span>Equipment structure and drawing management</span>
       </div>
     </div>
-    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span><button id="managementButton" type="button" class="management-button hidden">Management</button></div>
+    <div class="header-status"><span id="connectionStatus" class="status disconnected">Connecting...</span></div>
   </header>
   <aside id="dmsMainSidebar" class="dms-main-sidebar" aria-label="Main navigation">
     <div class="dms-sidebar-brand">
-      <div class="dms-sidebar-logo">DMS</div>
+      <div class="dms-sidebar-logo" title="Drawing Management System" aria-label="Drawing Management System">DMS</div>
       <div><strong>Drawing System</strong><span>Management portal</span></div>
     </div>
     <div class="dms-sidebar-section-label">WORKSPACE</div>
@@ -249,7 +249,7 @@
   <script src="js/node-actions.js"></script>
   <script src="js/node-create.js"></script>
   <script src="js/node-upload.js"></script>
-  <script src="js/request-workflow.js?v=20261013-request-modal-layout"></script>
+  <script src="js/request-workflow.js?v=20261013-expert-select"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   const profileMenu = document.getElementById('dmsProfileMenu');
@@ -275,11 +275,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('dmsProfileRole').textContent = user.username || 'Signed in';
     document.querySelector('.dms-sidebar-admin-label')?.classList.toggle('hidden', !user.isAdmin);
     document.querySelector('.dms-sidebar-admin-nav')?.classList.toggle('hidden', !user.isAdmin);
-    const managementButton = document.getElementById('managementButton');
-    if (managementButton && user.isAdmin) {
-      managementButton.classList.remove('hidden');
-      managementButton.addEventListener('click', () => { window.location.href = 'management.html'; });
-    }
   } catch (error) {
     console.error('Unable to load user profile:', error);
   }
@@ -387,7 +382,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     item.addEventListener('click', () => {
       const target = item.dataset.dmsNav;
       if (target === 'management') {
-        if (!document.getElementById('managementButton')?.classList.contains('hidden')) {
+        if (!document.querySelector('.dms-sidebar-admin-nav')?.classList.contains('hidden')) {
           window.location.href = 'management.html';
         }
         return;
@@ -439,8 +434,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="rw-dialog-body">
         <p id="rwActionPrompt"></p>
         <div id="rwActionExpertField" class="rw-action-expert-field hidden">
-          <label for="rwActionExpertUsername">DrawingExpert username *</label>
-          <input id="rwActionExpertUsername" type="text" maxlength="100" autocomplete="off" placeholder="Enter active DrawingExpert username">
+          <label for="rwActionExpertUsername">Select Drawing Expert *</label>
+          <select id="rwActionExpertUsername" required>
+            <option value="">Loading available experts…</option>
+          </select>
         </div>
         <label for="rwActionComment">Comment (optional)</label>
         <textarea id="rwActionComment" maxlength="1000" placeholder="Add a comment if needed..."></textarea>
