@@ -922,9 +922,11 @@ app.get('/api/drawing-requests', async (req, res) => {
       });
       const historyResult = await historyDb.query(`
         SELECT h.RequestID, h.HistoryID, h.ActionCode, h.ActionByUserID,
-               h.ActionByUsername, h.Comment, h.CreatedAt,
+               h.ActionByUsername, actorUser.Name AS ActionByName,
+               actorUser.Family AS ActionByFamily, h.Comment, h.CreatedAt,
                s.StatusCode AS ToStatusCode, s.StatusName AS ToStatusName
         FROM dbo.DrawingRequestHistory h
+        LEFT JOIN dbo.Users actorUser ON actorUser.UserID=h.ActionByUserID
         LEFT JOIN dbo.DrawingRequestStatuses s ON s.StatusID=h.ToStatusID
         WHERE h.RequestID IN (${historyParams.join(',')})
         ORDER BY h.CreatedAt ASC, h.HistoryID ASC;
