@@ -19,6 +19,27 @@
     return window.DMSDate ? window.DMSDate.format(value) : (value ? String(value) : '-');
   }
 
+  function displayUserName(name, family, username) {
+    const fullName = [name, family].map(value => String(value || '').trim()).filter(Boolean).join(' ');
+    return fullName || username || '-';
+  }
+
+  function workflowActorName(item, request) {
+    const actorFullName = displayUserName(item.ActionByName, item.ActionByFamily, '');
+    if (actorFullName !== '-') return actorFullName;
+    const code = String(item.ActionCode || '').toUpperCase();
+    if (code === 'REQUEST_CREATED' || code === 'REQUEST_CANCELLED') {
+      return displayUserName(request.RequesterName, request.RequesterFamily, item.ActionByUsername || request.RequesterUsername);
+    }
+    if (code.startsWith('MANAGER_')) {
+      return displayUserName(request.ManagerName, request.ManagerFamily, item.ActionByUsername || request.ManagerUsername);
+    }
+    if (code.startsWith('EXPERT_') || code === 'WORK_COMPLETED') {
+      return displayUserName(request.AssignedDrawingExpertName, request.AssignedDrawingExpertFamily, item.ActionByUsername || request.AssignedDrawingExpertUsername);
+    }
+    return item.ActionByUsername || '-';
+  }
+
   function hasPermission(code) {
     return window.DMS?.permissions instanceof Set && window.DMS.permissions.has(code);
   }
