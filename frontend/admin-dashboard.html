@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DMS Admin Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/admin-dashboard.css">
+</head>
+<body class="admin-dashboard-page">
+<header class="top-header">
+  <div class="header-title"><div class="brand-mark"></div><div class="brand-text"><h1>DMS Admin Dashboard</h1><span>System statistics, workflow and audit overview</span></div></div>
+  <div class="header-status"><button id="backButton" class="admin-secondary">← DMS</button><span class="status connected">Admin</span></div>
+</header>
+<main class="admin-dashboard">
+  <div class="dashboard-toolbar"><div><span class="eyebrow">ADMINISTRATION</span><h2>System Overview</h2><p id="generatedAt">Loading dashboard data...</p></div><button id="refreshButton" class="admin-primary">Refresh</button></div>
+  <div id="dashboardError" class="dashboard-error hidden"></div>
+  <section class="metric-grid" aria-label="System overview">
+    <article class="metric-card"><span class="metric-label">Total Nodes</span><strong id="totalNodes">-</strong><small id="activeNodes">Database records</small></article>
+    <article class="metric-card"><span class="metric-label">Danieli PDFs</span><strong id="danieliPdfs">-</strong><small>Registered drawings</small></article>
+    <article class="metric-card"><span class="metric-label">Users</span><strong id="totalUsers">-</strong><small id="activeUsers">- active</small></article>
+    <article class="metric-card"><span class="metric-label">Roles</span><strong id="activeRoles">-</strong><small>Role records</small></article>
+    <article class="metric-card"><span class="metric-label">Audit Logs</span><strong id="totalLogs">-</strong><small id="todayLogs">- today</small></article>
+    <article class="metric-card"><span class="metric-label">Drawing Requests</span><strong id="totalRequests">-</strong><small id="activeRequests">-</small></article>
+  </section>
+  <section class="dashboard-grid">
+    <article class="dashboard-panel activity-panel"><div class="panel-heading"><div><h3>Activity — Last 7 Days</h3><span>Recent audit events</span></div></div><div id="activityChart" class="bar-chart"><div class="chart-empty">Loading...</div></div></article>
+    <article class="dashboard-panel workflow-panel"><div class="panel-heading"><div><h3>Workflow Status</h3><span>Current drawing request distribution</span></div></div><div id="workflowChart" class="status-chart"><div class="chart-empty">Loading...</div></div></article>
+  </section>
+  <section class="dashboard-grid lower-grid">
+    <article class="dashboard-panel"><div class="panel-heading"><div><h3>System Health</h3><span>Key operational indicators</span></div></div><div class="health-list"><div><span>Node Records</span><strong id="healthNodes">-</strong></div><div><span>Active Users</span><strong id="healthUsers">-</strong></div><div><span>Unread Notifications</span><strong id="healthNotifications">-</strong></div><div><span>Failed Actions</span><strong id="healthFailed">-</strong></div></div></article>
+    <article class="dashboard-panel recent-panel"><div class="panel-heading"><div><h3>Recent Activity</h3><span>Latest audit events</span></div></div><div id="recentActivity" class="recent-list"><div class="chart-empty">Loading...</div></div></article>
+  </section>
+  <div class="dashboard-footer"><button id="managementButton" class="admin-secondary">Database Management</button><button id="backButtonBottom" class="admin-secondary">Return to DMS</button></div>
+</main>
+<script src="js/admin-dashboard.js"></script>
+</body>
+</html>
