@@ -2,66 +2,94 @@
 
 Last reviewed: 2026-10-14
 Repository: https://github.com/AliAbolghandi/Drawing-Management-System-DMS-
-Status: Requirements recorded; implementation and database migration have not yet been performed.
+Status: Phase implementation committed; SQL Server runtime/UI verification is still pending.
 
 ## Drawing production stages
 
 Each drawing request has four production data points:
 1. **Predicted part count** — mandatory when the assigned Drawing Expert accepts the request.
-2. **Croquis / vector sketch** — start date, end date, and number of parts sketched.
-3. **Modeling** — start date, end date, and number of parts modeled.
-4. **Final drawing** — start date, end date, standard-part count, and drawn-part count.
+2. **Croquis / vector sketch** — start date, end date, and number of parts contributed by that expert.
+3. **Modeling** — start date, end date, and number of parts contributed by that expert.
+4. **Final drawing** — start date, end date, standard-part count, and drawn-part count contributed by that expert.
 
 ## Workflow rules confirmed by the user
 
-- When an expert accepts a request, the expert must enter a valid predicted part count. The request must not be accepted without it. After successful acceptance, the request status becomes `IN_PROGRESS`.
-- Work can span multiple days. An expert may perform a stage and register its data, then continue another stage on a later date. Stage data must therefore be saved in the database as it is entered; it must not exist only in a temporary modal.
-- A request's work must not be marked complete until the required Croquis, Modeling, and Final Drawing data have all been completed and validated.
-- Clicking **Complete Work** opens a modal for entering/completing stage data. Required fields must be validated server-side; incomplete data must block completion.
-- Final Drawing requires two separate non-negative counts: standard parts and drawn parts.
-- Normally one expert owns a request at a time. The workflow may transfer/reassign the request to another expert. The application must preserve each assignment's history and must not attribute one expert's contribution to another expert.
-- If different experts contribute to the same request, each expert must be able to register their own Croquis, Modeling, and Final Drawing data for that request. Reporting must be able to attribute dates and part counts to the request and to the relevant expert/assignment.
-- The resulting data is intended for future reporting and analytics; persist it in SQL Server, not only in browser state.
-- Follow existing security rules: authenticated session, effective permission checks, server-side validation, parameterized SQL, and no trust in client-supplied expert identity or status.
+- Accept requires a valid predicted part count. After the prediction is persisted, the request moves to `IN_PROGRESS`.
+- Work can span multiple days and stages. Work data is persisted in SQL Server rather than being temporary browser state.
+- A request normally has one current expert. Reassignment creates a separate `DrawingRequestAssignments` record and must never overwrite the previous expert's contribution.
+- A later expert can see previous experts' contribution data.
+- If the later expert completes only the missing Drawing stage, only that expert's Drawing contribution is stored; previous Croquis/Modeling values remain attributed to the previous expert.
+- If the later expert adds 3 Croquis parts to a previous expert's 10, the previous expert remains at 10 and the later expert stores 3. Reporting can therefore show both the individual contributions and the request total of 13.
+- Complete Work is allowed only after the request has completed Croquis, Modeling, and Final Drawing across its expert contributions. Final Drawing requires both Standard Part Count and Drawn Part Count.
+- Counts are non-negative integers. A stage's start/end dates must be supplied together and end date cannot precede start date.
+- Server-side validation is mandatory; the client cannot choose another expert's assignment or bypass workflow state.
 
-## Current schema facts verified from `SQL/Relation between table.rpt`
+## Database design implemented
 
-- `dbo.DrawingRequests` has primary key `RequestID` and current expert field `AssignedDrawingExpertID`.
-- `dbo.DrawingRequestAssignments` has primary key `AssignmentID`, foreign key `RequestID`, `DrawingExpertUserID`, `AssignedAt`, `AcceptedAt`, `CompletedAt`, `IsCurrent`, and `AssignmentStatus`. Its foreign keys point to `dbo.DrawingRequests` and `dbo.Users`.
-- `dbo.DrawingRequestHistory` records request actions and status transitions.
-- The schema report was generated 2026-10-14 at 11:44:15 and says no table data was exported.
-- Do not assume a new expert-work table already exists. No database migration for this feature has been applied.
+New table: `dbo.DrawingRequestExpertWork`
 
-## Proposed database design (not yet implemented)
+- `ExpertWorkID` — PK, identity.
+- `AssignmentID` — unique FK to `dbo.DrawingRequestAssignments(AssignmentID)`.
+- `PredictedPartCount`.
+- `CroquisStartDate`, `CroquisEndDate`, `CroquisPartCount`.
+- `ModelingStartDate`, `ModelingEndDate`, `ModelingPartCount`.
+- `DrawingStartDate`, `DrawingEndDate`, `StandardPartCount`, `DrawnPartCount`.
+- `CreatedAt`, `UpdatedAt`.
+- CHECK constraints enforce non-negative counts and valid date ordering.
+- Indexes support assignment/date reporting.
 
-Add a separate table, tentatively named `dbo.DrawingRequestExpertWork`, linked to **`DrawingRequestAssignments.AssignmentID`** so work data belongs to a specific expert assignment rather than being overwritten on `DrawingRequests`.
+Migration file: `SQL/ExpertDrawingWork.sql`.
 
-Proposed data fields:
-- Identity primary key, e.g. `ExpertWorkID`.
-- `AssignmentID` foreign key to `dbo.DrawingRequestAssignments(AssignmentID)` (unique if the chosen design is one cumulative record per assignment).
-- Predicted part count.
-- Croquis start/end dates and sketched-part count.
-- Modeling start/end dates and modeled-part count.
-- Final Drawing start/end dates, standard-part count, and drawn-part count.
-- Created/updated timestamps and, if required by the final schema, the user who last updated the record.
+The migration also contains database-level triggers:
+- `dbo.TR_DrawingRequests_ExpertAcceptPrerequisite`: blocks transition to `IN_PROGRESS` if the current assignment has no predicted part count.
+- `dbo.TR_DrawingRequests_ExpertCompletePrerequisite`: blocks transition to `PENDING_FINAL_APPROVAL` until Croquis, Modeling, and Final Drawing are all represented by valid contributions across the request's assignments.
 
-Use appropriate integer types for counts, non-negative constraints, date-order validation (end must not precede start), foreign keys, and indexes. Keep the schema normalized and report-friendly. Confirm whether one cumulative row per assignment is sufficient before finalizing; if multiple separate work sessions per stage must be recorded, use a stage/session detail table instead.
+This design intentionally leaves existing workflow tables unchanged.
 
-## Unresolved decision before implementation
+## Implemented APIs
 
-When a request is transferred and multiple experts contribute, should **Complete Work** be allowed when the current expert has completed all three stage records for their own assignment, or should the system aggregate contributions from multiple assignments and only complete the request once all required stages/counts across the request are complete? Preserve per-expert attribution either way.
+Implemented under the existing authenticated `/api/auth` router:
+- `GET /api/auth/expert-work/:requestId` — returns assignment-level expert contributions and request totals; access is limited to the current/prior assigned expert or users with `REQUEST_DRAWING_VIEW_ALL`.
+- `POST /api/auth/expert-work/:requestId/prediction` — requires `REQUEST_DRAWING_ACCEPT`, validates non-negative prediction, and saves it against the current expert assignment.
+- `POST /api/auth/expert-work/:requestId/save` — requires `REQUEST_DRAWING_COMPLETE`, validates stage data, and saves it against the current expert assignment without changing another assignment's row.
+- `GET /api/auth/pending-drawing-count` now counts actionable workflow requests assigned to the current user instead of relying on `Notifications.IsRead`.
 
-## Required implementation sequence
+## Implemented frontend behavior
 
-1. Re-read this file and `AI_PROJECT_STATE.md`; inspect current `backend/server.js`, `frontend/js/request-workflow.js`, and the current SQL relationship report.
-2. Confirm the unresolved completion rule above.
-3. Add an idempotent SQL migration script under `SQL/` to create the new table and relationships; do not change existing tables without explicit approval.
-4. Update the accept action so predicted part count is required and saved before status changes to `IN_PROGRESS`.
-5. Add secure APIs to read/save the current assignment's stage data, with assignment ownership and permission checks enforced server-side.
-6. Add UI fields to accept and progressively save stage data; update Complete Work modal and block completion until required data is valid.
-7. Ensure reassignment creates/uses the new assignment's separate record without overwriting prior experts' data.
-8. Syntax-check changed JavaScript and inspect the SQL migration. Test authentication/authorization, invalid counts/dates, partial saves, reassignment, and completion blocking; test against SQL Server when available.
-9. Commit implementation and update `AI_PROJECT_STATE.md` with exact commit SHA, tests actually performed, known limitations, and a concrete `# NEXT ACTION`.
+`frontend/js/request-workflow.js` now:
+- Requires Predicted Part Count when an expert clicks **Accept Work**.
+- Shows the expert-work completion fields when **Complete Work** is selected.
+- Shows request-level contribution totals and each expert's contribution in Request Workflow details.
+- Sends expert data through authenticated APIs before the existing workflow action is executed.
+- Uses the actionable pending-count API for the sidebar notification badge and refreshes it every 30 seconds.
+
+## Current implementation commits
+
+- `32dff1b1c1c5b63c7517e81157a77d086125f6e5` — initial expert contribution table.
+- `311d8b667e766ab0057db99f65b3103723868161` — database prerequisites/triggers.
+- `7b371e95eb2944eee9c377c2024273294e50121d` — secure expert-work APIs and actionable request count.
+- `ae858dd84c0a579d48b55518f2c2809e2eece981` — expert work UI, Accept prediction and Complete Work modal.
+
+## Verification status
+
+- Repository structure and `SQL/Relation between table.rpt` were inspected before implementation.
+- SQL migration was reviewed structurally.
+- Runtime SQL Server testing has **not** been performed in this session.
+- Browser/LAN runtime testing has **not** been performed in this session.
+- JavaScript `node --check` against the repository file has not yet been completed in this session.
+
+## Important limitation to resolve next
+
+The current UI exposes expert work entry through the Complete Work modal. The backend supports stage-level partial saves, but a dedicated **Save Progress** UI action for recording Croquis/Modeling on an earlier day before final completion still needs to be wired in. This is required to fully match the agreed multi-day work behavior.
+
+## Security constraints
+
+- All expert-work APIs require an authenticated DMS session.
+- Permission checks are server-side.
+- Assignment ownership is server-side; the client cannot select another expert's assignment for writing.
+- SQL inputs are parameterized.
+- Database triggers provide a second enforcement boundary for Accept and Complete transitions.
+- Direct API access without the DMS session remains unauthorized.
 
 ## Non-negotiable constraints
 
