@@ -42,9 +42,9 @@ BEGIN
 END;
 GO
 
-/* Existing workflow data is not backfilled because historical expert contributions cannot be inferred reliably. */
+/* Historical expert contributions are not backfilled because they cannot be inferred reliably. */
 
-/* Database-level completion guard: incomplete current expert work cannot reach final approval. */
+/* Completion is request-level and may aggregate contributions from multiple expert assignments. */
 IF OBJECT_ID(N'dbo.TR_DrawingRequests_ExpertWorkCompletionGuard', N'TR') IS NOT NULL
     DROP TRIGGER dbo.TR_DrawingRequests_ExpertWorkCompletionGuard;
 GO
@@ -64,15 +64,35 @@ BEGIN
     (
         SELECT 1
         FROM inserted i
-        LEFT JOIN dbo.DrawingRequestAssignments a
-          ON a.RequestID=i.RequestID AND a.DrawingExpertUserID=i.AssignedDrawingExpertID AND a.IsCurrent=1
-        LEFT JOIN dbo.DrawingRequestExpertWork w ON w.AssignmentID=a.AssignmentID
         WHERE i.StatusID=@targetStatusID
-          AND (a.AssignmentID IS NULL OR w.ExpertWorkID IS NULL OR w.PredictedPartCount IS NULL
-            OR w.CroquisStartDate IS NULL OR w.CroquisEndDate IS NULL OR w.CroquisPartCount IS NULL
-            OR w.ModelingStartDate IS NULL OR w.ModelingEndDate IS NULL OR w.ModelingPartCount IS NULL
-            OR w.DrawingStartDate IS NULL OR w.DrawingEndDate IS NULL
-            OR w.StandardPartCount IS NULL OR w.DrawnPartCount IS NULL)
+          AND
+          (
+            NOT EXISTS
+            (
+                SELECT 1 FROM dbo.DrawingRequestAssignments a
+                INNER JOIN dbo.DrawingRequestExpertWork w ON w.AssignmentID=a.AssignmentID
+                WHERE a.RequestID=i.RequestID AND w.PredictedPartCount IS NOT NULL
+            )
+            OR NOT EXISTS
+            (
+                SELECT 1 FROM dbo.DrawingRequestExpertWork w
+                WHERE w.RequestID=i.RequestID
+                  AND w.CroquisStartDate IS NOT NULL AND w.CroquisEndDate IS NOT NULL AND w.CroquisPartCount IS NOT NULL
+            )
+            OR NOT EXISTS
+            (
+                SELECT 1 FROM dbo.DrawingRequestExpertWork w
+                WHERE w.RequestID=i.RequestID
+                  AND w.ModelingStartDate IS NOT NULL AND w.ModelingEndDate IS NOT NULL AND w.ModelingPartCount IS NOT NULL
+            )
+            OR NOT EXISTS
+            (
+                SELECT 1 FROM dbo.DrawingRequestExpertWork w
+                WHERE w.RequestID=i.RequestID
+                  AND w.DrawingStartDate IS NOT NULL AND w.DrawingEndDate IS NOT NULL
+                  AND w.StandardPartCount IS NOT NULL AND w.DrawnPartCount IS NOT NULL
+            )
+          )
     )
     BEGIN
         THROW 51020, 'Drawing work is incomplete. Croquis, Modeling and Final Drawing data are required before completion.', 1;
