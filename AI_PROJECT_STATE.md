@@ -101,6 +101,19 @@ Implemented under `/api/auth` in `backend/auth.js`:
 ## Durable specification
 Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 
+## UI restoration and theme alignment — 2026-10-14
+- Restored the missing **Step-by-step workflow** section in the Drawing Request details view in `frontend/js/request-workflow.js`.
+- The timeline renders `request.WorkflowHistory` supplied by the existing drawing-requests API, with action labels, status, actor full name, timestamp, comments, approval/rejection accents, and a safe empty state. It does not add or change database structures or API contracts.
+- Updated the injected expert-work styles in `frontend/js/request-workflow.js` so Croquis / Vector Sketch, Modeling, Final Drawing, contribution summaries, inputs and action modal use the DMS dark navy/slate/cyan palette rather than light cards.
+- Added responsive timeline and expert-work styling in `frontend/css/request-workflow.css`.
+- Bumped the `frontend/index.html` asset query versions to prevent stale browser cache from hiding the fixes.
+- Commits:
+  - `47a437412b10fe47e0b8f514994f304d5974893b` — restore step-by-step workflow rendering.
+  - `6c8cfad565e7f0ef7f31cfe804363710973eed35` — align dynamically injected expert-work styles with DMS theme.
+  - `08c7f033d0d886a71e5b17b09de4b159c427b913` — theme Croquis/Modeling/Final Drawing and workflow timeline CSS.
+  - `56c10d0d8b75bc2eeace9766e8727cd8fd96d518` — refresh frontend asset cache versions.
+- Verification: source structure and API data flow were inspected. Runtime browser verification and `node --check` were not completed in this environment; a local clone attempt failed because this environment could not resolve `github.com`.
+
 ## Recent commits
 - `e5ed79ccd890798fd75352643d24331559da8db8` — fixed login 500: `backend/auth.js` called undefined `setAuthCookie`; now calls the already-defined `setCookie` helper, preserving the existing `dms_session` cookie behavior.
 - `dd0e675eafd8a63e2864a765261f271dfce23a77` — fixed the missing closing parenthesis in the completion trigger's `IF EXISTS` condition.
@@ -132,9 +145,9 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 The compatibility correction is committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
 # NEXT ACTION
-1. Pull latest `main` (includes login cookie fix commit `e5ed79ccd890798fd75352643d24331559da8db8`) into `H:\\Drawing Management system\\app\\MyTreeApp`.
-2. Run `node --check backend/auth.js` from the project root, restart the backend, and retry login. Confirm the `setAuthCookie` ReferenceError and login 500 are gone.
-3. If login now returns `401 Invalid username or password`, inspect only the attempted account in SQL Server: `Users.IsActive`, `Users.PasswordHash`, and exact `Users.Username`; do not reset credentials until these are checked. Confirm the password was generated using the current `set-password.js` format compatible with `verifyPassword()` in `backend/auth.js`.
-4. Separately rerun `SQL/ExpertDrawingWork.sql` on `dbDrawingManagment`; confirm both expert prerequisite triggers compile and the transaction completes.
-5. Verify `dbo.DrawingRequestExpertWork`, its constraints/indexes, and both triggers `TR_DrawingRequests_ExpertAcceptPrerequisite` and `TR_DrawingRequests_ExpertCompletePrerequisite`.
-6. Test the expert work flow: Expert 1 Accept with prediction -> Save Progress Croquis -> Save Progress Modeling -> transfer -> Expert 2 sees prior contributions -> Expert 2 adds Drawing -> Complete succeeds. Record actual runtime results.
+1. Pull latest `main` (latest UI fixes include `56c10d0d8b75bc2eeace9766e8727cd8fd96d518`) into `H:\\Drawing Management system\\app\\MyTreeApp`.
+2. From the project root run `node --check frontend/js/request-workflow.js`; restart the backend/frontend server and open Drawing Requests. Confirm **Step-by-step workflow** appears with history, actors, timestamps and comments for an existing request.
+3. Open an assigned request and verify Croquis / Vector Sketch, Modeling and Final Drawing forms and the Save Progress / Complete Work buttons use the DMS dark theme at desktop and narrow viewport widths.
+4. If the workflow timeline is empty for requests with history, inspect the GET drawing-requests response in DevTools and confirm `WorkflowHistory` is populated; the UI intentionally uses that existing response field.
+5. Continue runtime login verification: run `node --check backend/auth.js`, restart backend, retry login; if 401 persists inspect `Users.IsActive`, `Users.PasswordHash`, exact `Users.Username`, and compatibility with `verifyPassword()` before resetting anything.
+6. Rerun `SQL/ExpertDrawingWork.sql` against `dbDrawingManagment`; verify `dbo.DrawingRequestExpertWork` and both prerequisite triggers compile, then test Accept -> Save Progress Croquis -> Save Progress Modeling -> transfer -> prior contribution visibility -> Complete.
