@@ -148,6 +148,7 @@ BEGIN
                     AND w.DrawnPartCount IS NOT NULL
               )
           )
+    )
     BEGIN
         RAISERROR('Croquis, Modeling and Final Drawing data are required before completing the request.', 16, 1);
         ROLLBACK TRANSACTION;
