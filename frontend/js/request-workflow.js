@@ -30,7 +30,8 @@
       .rw-expert-work-box h4{margin:0 0 12px;font-size:15px}.rw-ew-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
       .rw-ew-stat{padding:10px;border-radius:9px;background:#fff;border:1px solid #e5e7eb}.rw-ew-stat small{display:block;color:#68717d;font-size:11px}.rw-ew-stat strong{font-size:18px}
       .rw-ew-contribution{padding:10px 0;border-top:1px solid #e5e7eb}.rw-ew-contribution:first-of-type{border-top:0}.rw-ew-contribution strong{display:block;margin-bottom:5px}
-      .rw-ew-modal{margin:14px 0;padding:14px;border:1px solid #d9dee6;border-radius:10px;background:#f8fafc}.rw-ew-modal h4{margin:0 0 12px}.rw-ew-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.rw-ew-stage{border:1px solid #e1e5ea;background:#fff;border-radius:10px;padding:12px}.rw-ew-stage h5{margin:0 0 10px}.rw-ew-stage label{display:block;font-size:12px;margin:7px 0 4px}.rw-ew-stage input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #ccd3dc;border-radius:6px}.rw-ew-note{font-size:12px;color:#667085;margin:8px 0}.rw-ew-error{color:#b42318;font-size:12px;margin-top:8px}
+      .rw-ew-modal{margin:14px 0;padding:14px;border:1px solid #d9dee6;border-radius:10px;background:#f8fafc}.rw-ew-modal h4{margin:0 0 12px}.rw-ew-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.rw-ew-stage{border:1px solid #e1e5ea;background:#fff;border-radius:10px;padding:12px}.rw-ew-stage h5{margin:0 0 10px}.rw-ew-stage label{display:block;font-size:12px;margin:7px 0 4px}.rw-ew-stage input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #ccd3dc;border-radius:6px}.rw-ew-note{font-size:12px;color:#667085;margin:8px 0}.rw-ew-error{color:#b42318;font-size:12px;margin-top:8px}.rw-ew-success{color:#027a48;font-size:12px;margin-top:8px}
+      .rw-ew-save-progress{margin-right:8px}
       @media(max-width:900px){.rw-ew-summary,.rw-ew-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.rw-ew-summary,.rw-ew-grid{grid-template-columns:1fr}}
     `; document.head.appendChild(style);
   }
@@ -58,7 +59,7 @@
     if(['PENDING_DRAWING_APPROVAL','EXPERT_REJECTED','TRANSFERRED','RETURNED_FOR_CORRECTION'].includes(s)){add('assign','Refer to Expert','REQUEST_DRAWING_ASSIGN');add('final-reject','Reject Request','REQUEST_DRAWING_FINAL_REJECT');}
     if(Number(r.AssignedDrawingExpertID)===uid){if(['ASSIGNED','TRANSFERRED'].includes(s))add('accept','Accept Work','REQUEST_DRAWING_ACCEPT');if(['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s)){add('transfer','Refer to Another Expert','REQUEST_DRAWING_TRANSFER');add('expert-reject','Reject Work','REQUEST_DRAWING_EXPERT_REJECT');}if(['IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s))add('complete','Complete Work','REQUEST_DRAWING_COMPLETE');}
     if(['PENDING_FINAL_APPROVAL','FINAL_REJECTED'].includes(s))add('return-correction','Return for Correction','REQUEST_DRAWING_RETURN_CORRECTION');
-    if(s==='PENDING_FINAL_APPROVAL')add('final-approve','Final Approve','REQUEST_DRAWING_FINAL_APPROVE');
+    if(s==='PENDING_FINAL_APPROVAL')add('final-approve','Final Approval','REQUEST_DRAWING_FINAL_APPROVE');
     return actions;
   }
 
@@ -99,25 +100,63 @@
       ew=document.createElement('section');ew.id='rwActionExpertWorkFields';ew.className='rw-ew-modal';ew.innerHTML=`<h4>1. Predicted Part Count *</h4><label for="rwPredictedPartCount">Predicted number of Parts</label><input id="rwPredictedPartCount" type="number" min="0" step="1" required><p class="rw-ew-note">This value is required before the request can be accepted.</p><div id="rwExpertWorkInlineError" class="rw-ew-error"></div>`;body?.insertBefore(ew,body.querySelector('.rw-dialog-actions'));
     }
     if(action==='complete'){
-      ew=document.createElement('section');ew.id='rwActionExpertWorkFields';ew.className='rw-ew-modal';ew.innerHTML=`<h4>Expert Work Completion</h4><p class="rw-ew-note">Enter the contribution made by you. Previous experts' data remains unchanged. All fields in each completed stage are mandatory.</p><div class="rw-ew-grid"><div class="rw-ew-stage"><h5>2. Croquis / Vector Sketch</h5><label>Start date *</label><input id="rwCroquisStart" type="date"><label>End date *</label><input id="rwCroquisEnd" type="date"><label>Parts added by you *</label><input id="rwCroquisCount" type="number" min="0" step="1"></div><div class="rw-ew-stage"><h5>3. Modeling</h5><label>Start date *</label><input id="rwModelingStart" type="date"><label>End date *</label><input id="rwModelingEnd" type="date"><label>Parts added by you *</label><input id="rwModelingCount" type="number" min="0" step="1"></div><div class="rw-ew-stage"><h5>4. Final Drawing</h5><label>Start date *</label><input id="rwDrawingStart" type="date"><label>End date *</label><input id="rwDrawingEnd" type="date"><label>Standard parts *</label><input id="rwStandardCount" type="number" min="0" step="1"><label>Drawn parts *</label><input id="rwDrawnCount" type="number" min="0" step="1"></div></div><div id="rwExpertWorkInlineError" class="rw-ew-error"></div></section>`;body?.insertBefore(ew,body.querySelector('.rw-dialog-actions'));loadExpertWork(requestId).then(data=>{const totals=data.totals||{};const note=document.createElement('p');note.className='rw-ew-note';note.textContent=`Current totals — Croquis: ${totals.croquisPartCount||0}, Modeling: ${totals.modelingPartCount||0}, Standard: ${totals.standardPartCount||0}, Drawn: ${totals.drawnPartCount||0}`;ew.prepend(note);}).catch(()=>{});
+      ew=document.createElement('section');ew.id='rwActionExpertWorkFields';ew.className='rw-ew-modal';ew.innerHTML=`<h4>Expert Work</h4><p class="rw-ew-note">Enter only the contribution made by you. Previous experts' contributions remain unchanged. A stage may be left blank when that stage was already completed by a previous expert.</p><div class="rw-ew-grid"><div class="rw-ew-stage"><h5>2. Croquis / Vector Sketch</h5><label>Start date</label><input id="rwCroquisStart" type="date"><label>End date</label><input id="rwCroquisEnd" type="date"><label>Parts added by you</label><input id="rwCroquisCount" type="number" min="0" step="1"></div><div class="rw-ew-stage"><h5>3. Modeling</h5><label>Start date</label><input id="rwModelingStart" type="date"><label>End date</label><input id="rwModelingEnd" type="date"><label>Parts added by you</label><input id="rwModelingCount" type="number" min="0" step="1"></div><div class="rw-ew-stage"><h5>4. Final Drawing</h5><label>Start date</label><input id="rwDrawingStart" type="date"><label>End date</label><input id="rwDrawingEnd" type="date"><label>Standard parts</label><input id="rwStandardCount" type="number" min="0" step="1"><label>Drawn parts</label><input id="rwDrawnCount" type="number" min="0" step="1"></div></div><div id="rwExpertWorkInlineError" class="rw-ew-error"></div><div id="rwExpertWorkInlineSuccess" class="rw-ew-success"></div>`;body?.insertBefore(ew,body.querySelector('.rw-dialog-actions'));loadExpertWork(requestId).then(data=>{const totals=data.totals||{};const note=document.createElement('p');note.className='rw-ew-note';note.textContent=`Current totals — Croquis: ${totals.croquisPartCount||0}, Modeling: ${totals.modelingPartCount||0}, Standard: ${totals.standardPartCount||0}, Drawn: ${totals.drawnPartCount||0}`;ew.prepend(note);}).catch(()=>{});
+      const actions=body?.querySelector('.rw-dialog-actions');
+      if(actions&&!$('rwSaveExpertWorkProgress')){const save=document.createElement('button');save.type='button';save.id='rwSaveExpertWorkProgress';save.className='rw-submit rw-ew-save-progress';save.textContent='Save Progress';actions.insertBefore(save,actions.firstChild);}
     }
-    $('rwActionContinue').textContent=action==='cancel'?'Confirm Cancel':'Continue';$('rwActionModal').classList.remove('hidden');
+    $('rwActionContinue').textContent=action==='cancel'?'Confirm Cancel':(action==='complete'?'Complete Work':'Continue');$('rwActionModal').classList.remove('hidden');
   }
 
   function closeActionModal(){$('rwActionModal')?.classList.add('hidden');$('rwConfirmModal')?.classList.add('hidden');pendingModalAction=null;}
-  function validateExpertWork(action){
+
+  function readExpertWorkFields(){
+    return {
+      croquisStartDate:$('rwCroquisStart')?.value||null,
+      croquisEndDate:$('rwCroquisEnd')?.value||null,
+      croquisPartCount:$('rwCroquisCount')?.value===''?null:Number($('rwCroquisCount')?.value),
+      modelingStartDate:$('rwModelingStart')?.value||null,
+      modelingEndDate:$('rwModelingEnd')?.value||null,
+      modelingPartCount:$('rwModelingCount')?.value===''?null:Number($('rwModelingCount')?.value),
+      drawingStartDate:$('rwDrawingStart')?.value||null,
+      drawingEndDate:$('rwDrawingEnd')?.value||null,
+      standardPartCount:$('rwStandardCount')?.value===''?null:Number($('rwStandardCount')?.value),
+      drawnPartCount:$('rwDrawnCount')?.value===''?null:Number($('rwDrawnCount')?.value)
+    };
+  }
+
+  function validateExpertWork(action,allowPartial=false){
     const err=$('rwExpertWorkInlineError');if(err)err.textContent='';
     if(action==='accept'){const v=$('rwPredictedPartCount')?.value;if(v===''||!Number.isInteger(Number(v))||Number(v)<0){if(err)err.textContent='Predicted Part Count is required and must be a non-negative integer.';return false;}return true;}
     if(action!=='complete')return true;
-    const groups=[['rwCroquisStart','rwCroquisEnd','rwCroquisCount','Croquis'],['rwModelingStart','rwModelingEnd','rwModelingCount','Modeling'],['rwDrawingStart','rwDrawingEnd','rwStandardCount','rwDrawnCount','Drawing']];
-    for(const g of groups){const ids=g.slice(0,-1),values=ids.map(id=>$(id)?.value||'');if(values.some(v=>!v)){if(err)err.textContent=`All ${g[g.length-1]} fields are required.`;return false;}if(ids.includes('rwCroquisStart')||ids.includes('rwModelingStart')||ids.includes('rwDrawingStart')){const s=new Date(values[0]),e=new Date(values[1]);if(e<s){if(err)err.textContent=`${g[g.length-1]} end date cannot precede start date.`;return false;}}for(const id of ids.slice(ids.includes('rwDrawingStart')?2:2)){if(['rwCroquisCount','rwModelingCount','rwStandardCount','rwDrawnCount'].includes(id)&&(!Number.isInteger(Number($(id).value))||Number($(id).value)<0)){if(err)err.textContent='Part counts must be non-negative integers.';return false;}}}
+    const f=readExpertWorkFields();
+    const groups=[
+      {name:'Croquis',values:[f.croquisStartDate,f.croquisEndDate,f.croquisPartCount],dates:[f.croquisStartDate,f.croquisEndDate]},
+      {name:'Modeling',values:[f.modelingStartDate,f.modelingEndDate,f.modelingPartCount],dates:[f.modelingStartDate,f.modelingEndDate]},
+      {name:'Drawing',values:[f.drawingStartDate,f.drawingEndDate,f.standardPartCount,f.drawnPartCount],dates:[f.drawingStartDate,f.drawingEndDate]}
+    ];
+    for(const g of groups){
+      const filled=g.values.filter(v=>v!==null&&v!=='').length;
+      if(!allowPartial && filled===0){continue;}
+      if(filled!==0&&filled!==g.values.length){if(err)err.textContent=`${g.name} fields must be completed together.`;return false;}
+      if(filled===0)continue;
+      if(g.dates[1]<g.dates[0]){if(err)err.textContent=`${g.name} end date cannot precede start date.`;return false;}
+      for(const v of g.values.slice(2))if(!Number.isInteger(Number(v))||Number(v)<0){if(err)err.textContent='Part counts must be non-negative integers.';return false;}
+    }
     return true;
   }
 
   async function saveExpertWork(action,requestId){
     if(action==='accept')return requestJson(`${API}/auth/expert-work/${requestId}/prediction`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({predictedPartCount:Number($('rwPredictedPartCount').value)})});
     if(action!=='complete')return null;
-    return requestJson(`${API}/auth/expert-work/${requestId}/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({croquisStartDate:$('rwCroquisStart').value,croquisEndDate:$('rwCroquisEnd').value,croquisPartCount:Number($('rwCroquisCount').value),modelingStartDate:$('rwModelingStart').value,modelingEndDate:$('rwModelingEnd').value,modelingPartCount:Number($('rwModelingCount').value),drawingStartDate:$('rwDrawingStart').value,drawingEndDate:$('rwDrawingEnd').value,standardPartCount:Number($('rwStandardCount').value),drawnPartCount:Number($('rwDrawnCount').value)})});
+    return requestJson(`${API}/auth/expert-work/${requestId}/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(readExpertWorkFields())});
+  }
+
+  async function saveProgress(){
+    if(!pendingModalAction||pendingModalAction.action!=='complete')return;
+    if(!validateExpertWork('complete',true))return;
+    const button=$('rwSaveExpertWorkProgress'),err=$('rwExpertWorkInlineError'),ok=$('rwExpertWorkInlineSuccess');
+    if(button)button.disabled=true;if(err)err.textContent='';if(ok)ok.textContent='';
+    try{await saveExpertWork('complete',pendingModalAction.requestId);if(ok)ok.textContent='Progress saved successfully.';await loadWorklist();await loadPendingCount();if(selectedWorkflowRequestId===pendingModalAction.requestId)openRequestDetailsModal(pendingModalAction.requestId);}catch(e){if(err)err.textContent=e.message;}finally{if(button)button.disabled=false;}
   }
 
   function openConfirmationModal(){if(!pendingModalAction)return;const a=pendingModalAction.action;$('rwConfirmTitle').textContent=`Confirm: ${actionLabels[a]||'Drawing Request Action'}`;$('rwConfirmPrompt').textContent=`Are you sure you want to ${(actionLabels[a]||'process this request').toLowerCase()} for request ${pendingModalAction.requestNumber}?`;$('rwConfirmYes').textContent='Confirm Action';$('rwConfirmError').textContent='';$('rwConfirmModal').classList.remove('hidden');}
@@ -144,7 +183,8 @@
     $('rwContent')?.addEventListener('click',e=>{const item=e.target.closest('[data-open-request-id]');if(item)openRequestDetailsModal(Number(item.dataset.openRequestId));});
     $('rwWorklistModal')?.addEventListener('click',e=>{const actionButton=e.target.closest('[data-details-action]');if(actionButton){const action=actionButton.dataset.detailsAction;if(actionButton.disabled||(action!=='cancel'&&!hasPermission(actionButton.dataset.requiredPermission))){alert(`Permission denied: ${actionButton.dataset.requiredPermission||'required workflow permission'}.`);return;}openActionModal(action,Number(actionButton.dataset.requestId));return;}const location=e.target.closest('#rwShowNodeLocation');if(location){window.DMS?.revealNodeLocation?.(Number(location.dataset.nodeId),location.dataset.nodeCode||'');closeSidebar();}});
     $('rwActionClose')?.addEventListener('click',closeActionModal);$('rwActionBack')?.addEventListener('click',closeActionModal);
-    $('rwActionContinue')?.addEventListener('click',()=>{if(!pendingModalAction)return;if(['assign','transfer'].includes(pendingModalAction.action)&&!$('rwActionExpertUsername')?.value.trim()){$('rwActionError').textContent='Select a Drawing Expert from the list.';return;}if(['accept','complete'].includes(pendingModalAction.action)&&!validateExpertWork(pendingModalAction.action))return;if(pendingModalAction.action==='cancel')executePendingAction();else openConfirmationModal();});
+    $('rwActionContinue')?.addEventListener('click',()=>{if(!pendingModalAction)return;if(['assign','transfer'].includes(pendingModalAction.action)&&!$('rwActionExpertUsername')?.value.trim()){$('rwActionError').textContent='Select a Drawing Expert from the list.';return;}if(['accept','complete'].includes(pendingModalAction.action)&&!validateExpertWork(pendingModalAction.action,false))return;if(pendingModalAction.action==='cancel')executePendingAction();else openConfirmationModal();});
+    document.addEventListener('click',e=>{if(e.target.closest('#rwSaveExpertWorkProgress'))saveProgress();});
     $('rwConfirmNo')?.addEventListener('click',()=>$('rwConfirmModal')?.classList.add('hidden'));$('rwConfirmClose')?.addEventListener('click',()=>$('rwConfirmModal')?.classList.add('hidden'));$('rwConfirmYes')?.addEventListener('click',executePendingAction);
     $('addRequestBtn')?.addEventListener('click',()=>openRequestModal(window.DMS?.state?.currentSelectedNode));$('rwRequestCancel')?.addEventListener('click',closeRequestModal);$('rwRequestClose')?.addEventListener('click',closeRequestModal);$('rwRequestSubmit')?.addEventListener('click',submitRequest);
     setInterval(loadPendingCount,30000);
