@@ -175,7 +175,7 @@ function createAuth(frontendOrigins) {
       const pr = await p.query("SELECT DISTINCT p.PermissionCode FROM dbo.UserRoles ur INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1 WHERE ur.UserID=@userId;");
       const permissions = new Set(pr.recordset.map(x => String(x.PermissionCode)));
       const sessionUser = { userId:Number(user.UserID), username:String(user.Username), name:user.Name||'', family:user.Family||'', isAdmin:Number(user.IsAdmin)===1, permissions };
-      setAuthCookie(res, createSession(sessionUser)); loginAttempts.delete(ip);
+      setCookie(res, createSession(sessionUser)); loginAttempts.delete(ip);
       const u = new sql.Request(); u.input('userId', sql.Int, user.UserID); await u.query('UPDATE dbo.Users SET LastLoginAt=SYSUTCDATETIME(), UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId;');
       await writeAudit(user.UserID, user.Username, 'LOGIN_SUCCESS', ip);
       res.json({ success:true, user:{ userId:sessionUser.userId, username:sessionUser.username, name:sessionUser.name, family:sessionUser.family } });
