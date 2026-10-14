@@ -102,6 +102,7 @@ Implemented under `/api/auth` in `backend/auth.js`:
 Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 
 ## Recent commits
+- `31b672a79d90e438e361aaa25fe6bd7948a097e1` — fixed missing semicolon before both `THROW` statements in `SQL/ExpertDrawingWork.sql`.
 - `d3d284b2a7224b16a7cf13d64f933cd34c854481` — Expert Work Save Progress UI and partial-save handling.
 - `bd0af20043d5f456b1e0fcc2269614fed1a11754` — completion trigger changed to aggregate contributions across expert assignments.
 - `93027bf9dfae81f61a50b239c5d39df8a9762520` — project specification/state documentation update.
@@ -110,17 +111,17 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 ## Verification status
 - GitHub source and `SQL/Relation between table.rpt` were inspected before this phase.
 - SQL migration was structurally reviewed.
-- Runtime SQL Server testing: NOT performed.
+- `SQL/ExpertDrawingWork.sql`: added the required semicolon immediately before both `THROW` statements in the expert accept/completion triggers to fix SQL Server syntax error 102.
+- Runtime SQL Server testing: NOT performed; the trigger script must still be rerun against the target database.
 - LAN/browser runtime testing: NOT performed.
 - `node --check` on the newly changed repository files: NOT yet performed in this environment.
 
 ## Known limitation / immediate follow-up
-The implementation is committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
+The implementation and `THROW` syntax correction are committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
 # NEXT ACTION
-1. Execute `SQL/ExpertDrawingWork-v01.sql` on `dbDrawingManagment` and verify `dbo.DrawingRequestExpertWork`, its three FKs, indexes, and `TR_DrawingRequests_ExpertWorkCompletionGuard`.
-2. Run `node --check` on `backend/auth.js` and `frontend/js/request-workflow.js` using the repository files.
-3. Test the full scenario: Expert 1 Accept with prediction -> Save Progress Croquis -> Save Progress Modeling -> transfer -> Expert 2 sees prior contributions -> Expert 2 adds Drawing -> Complete succeeds.
-4. Test the alternative: Expert 2 adds 3 Croquis parts; Expert 1's count remains unchanged and total increases by 3.
-5. Test incomplete-stage completion, invalid dates/counts, unauthenticated direct API access, and unauthorized expert access.
-6. Record actual runtime results and latest commit SHA here after testing.
+1. Rerun the corrected `SQL/ExpertDrawingWork.sql` on `dbDrawingManagment`; confirm both triggers compile successfully and the transaction completes.
+2. Verify `dbo.DrawingRequestExpertWork`, its constraints/indexes, and both triggers `TR_DrawingRequests_ExpertAcceptPrerequisite` and `TR_DrawingRequests_ExpertCompletePrerequisite`.
+3. Run `node --check` on `backend/auth.js` and `frontend/js/request-workflow.js` using the repository files.
+4. Test the full scenario: Expert 1 Accept with prediction -> Save Progress Croquis -> Save Progress Modeling -> transfer -> Expert 2 sees prior contributions -> Expert 2 adds Drawing -> Complete succeeds.
+5. Test incomplete-stage completion, invalid dates/counts, unauthenticated direct API access, and unauthorized expert access; record actual runtime results.
