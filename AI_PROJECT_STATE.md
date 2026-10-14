@@ -52,7 +52,7 @@ Security is a mandatory requirement for all DMS code. New and modified frontend,
 - Security-sensitive changes must be checked with unauthenticated (401), unauthorized (403), Admin-only, direct URL, and direct API/bypass scenarios before completion.
 
 ## Existing important APIs
-- Auth: `/api/auth`, `/api/auth/me`, `/api/auth/logout`
+- Auth: `/api/auth`, `/api/auth/me`, `/api/auth/logout`, `/api/auth/pending-drawing-count`
 - Nodes: `/api/nodes`, `/api/nodes/search`, `/api/nodes/:nodeId`, `/api/node-hierarchy/:nodeId`
 - PDF: `/api/pdfs`, `/api/pdf-open/:pdfId`, `/api/pdf-file/:pdfId`, `/api/srsc-pdfs/:nodeId`, `/api/srsc-status`
 - Files: `/api/node-folder`, `/api/node-folders/:nodeId`, `/api/node-folder-files/:nodeId/:folderName`, `/api/node-file`, `/api/node-file-upload/:nodeId`
@@ -68,7 +68,7 @@ Security is a mandatory requirement for all DMS code. New and modified frontend,
 - Existing Node color matrix: Danieli only = yellow; SRSC only = green; both = green; neither = default.
 
 ## Request workflow
-The current backend already contains request workflow logic and references:
+The current backend contains request workflow logic and references:
 - `DrawingRequests`
 - `DrawingRequestStatuses`
 - `DrawingRequestAssignments`
@@ -94,35 +94,41 @@ Features:
 - Dashboard data uses existing protected `/api/admin/tables` and `/api/admin/tables/:tableName/rows` APIs; no duplicate statistics are stored and no database schema was changed.
 - If workflow tables are absent, the dashboard reports workflow unavailable instead of failing.
 - Admin authorization remains server-side through the existing admin database API.
-- `frontend/management.html` now has an `Admin Dashboard` button.
+- `frontend/management.html` has an `Admin Dashboard` button.
+- Admin Dashboard is reachable from the main DMS sidebar `Dashboard` item for Admin users.
+- Dashboard page now has vertical scrolling so all lower panels remain reachable on smaller screens.
 
 Dashboard limitation:
 - This first implementation uses the generic admin-table API, so some values are table row counts / latest 200 rows rather than dedicated aggregate SQL. Exact all-time workflow status counts and exact 7-day activity counts are therefore not guaranteed when more than 200 records exist.
-- Main DMS sidebar previously reached management only; it now routes the Admin `Dashboard` item to `admin-dashboard.html`.
 
 ## Security fix — 2026-10-14
-- `backend/auth.js` now protects direct access to `/management.html` and `/admin-dashboard.html` at the server middleware layer before `express.static()` can serve them.
+- `backend/auth.js` protects direct access to `/management.html` and `/admin-dashboard.html` at the server middleware layer before `express.static()` can serve them.
 - Unauthenticated direct navigation is redirected to `/login.html`.
 - Authenticated non-Admin users receive HTTP 403 for those pages.
 - Existing `/api` authentication middleware remains in force, so direct API calls still require the session cookie and Admin APIs still require `requireAdmin()`.
-- `frontend/js/script.js` now hides the Admin Dashboard sidebar button from non-Admin users and routes an Admin click on `Dashboard` to `admin-dashboard.html`.
+- `frontend/js/script.js` hides the Admin Dashboard sidebar button from non-Admin users and routes an Admin click on `Dashboard` to `admin-dashboard.html`.
 - No database schema was changed.
 
-## Current repository discrepancy discovered 2026-10-14
-- Previous handoff described `SQL/Inserttable.sql` and a v04 migration commit, but the current GitHub `main` tree was inspected and currently contains only `SQL/Relation between table.rpt` under `SQL`; `SQL/Inserttable.sql` is not present in the live tree.
-- Do not assume the old migration commit/state exists on current `main`; verify GitHub before further SQL changes.
+## Pending Drawing Request notification — 2026-10-14
+- Added authenticated endpoint `/api/auth/pending-drawing-count` in `backend/auth.js`.
+- The count is calculated from the CURRENT workflow status and the logged-in user's responsibility, not from an `IsRead` flag. This means the sidebar badge represents requests still waiting for that user/type of user to act.
+- Current responsibility mapping:
+  - `PENDING_MANAGER` -> `DrawingRequests.ManagerUserID = current user`.
+  - `ASSIGNED`, `TRANSFERRED`, `RETURNED_FOR_CORRECTION` -> `DrawingRequests.AssignedDrawingExpertID = current user`.
+  - `PENDING_DRAWING_APPROVAL` -> users with `REQUEST_DRAWING_ASSIGN` permission.
+  - `PENDING_FINAL_APPROVAL` -> users with `REQUEST_DRAWING_FINAL_APPROVE` permission.
+- `frontend/js/script.js` updates `#dmsRequestsBadge`, hides it at zero, displays `99+` above 99, refreshes on load and every 30 seconds, and exposes `window.DMS.refreshPendingRequestBadge()` for immediate refresh hooks.
+- The badge is informational only; all actual workflow actions remain protected by backend authorization.
 
-## Recent security/dashboard commits
-- `276ed5d1367cc9eba131ba1d2ab4a256beed054a` — added mandatory secure-by-default coding rules to `DMS_AI_INSTRUCTIONS.md`.
-- `a6423c8c7658903151250a7edfbdbc0ccdb0afca` — recorded the security issue and required next implementation steps in `AI_PROJECT_STATE.md`.
-- `87c754acd7d0aa3d79c240baf76aa9c453b39dad` — added server-side protection for `management.html` and `admin-dashboard.html` in `backend/auth.js`.
-- `81d89151988376234cba799f900cfff80cc7f5bb` — routed the Admin Dashboard from the sidebar and hid that Dashboard item for non-Admin users in `frontend/js/script.js`.
+## Repository recovery note — 2026-10-14
+- An intermediate attempt accidentally replaced `backend/server.js` with an incomplete file. The branch was immediately recovered by moving `main` back to the known-good commit `e397c83e4e01bfad18db80c026cc7426c5daa560` and applying the new changes on top.
+- Current `main` therefore retains the full known-good `backend/server.js` from `e397c83e4e01bfad18db80c026cc7426c5daa560`.
 
 ## Verification
-- `frontend/js/admin-dashboard.js` was syntax-checked with `node --check` before this security/navigation change; it passed.
-- GitHub source for the modified security/navigation files was inspected.
-- Runtime SQL Server/UI testing has NOT been performed in this session.
-- The new server-side page guard and sidebar behavior still require runtime verification on the LAN pilot.
+- `frontend/js/admin-dashboard.js` had previously passed `node --check`.
+- GitHub source was inspected after the changes.
+- Runtime SQL Server/LAN UI testing has NOT been performed in this session.
+- `node --check` for the newly modified `backend/auth.js` and `frontend/js/script.js` has not been run in this environment.
 
 ## Constraints
 - Do not change existing database structures without explicit user approval.
@@ -132,9 +138,10 @@ Dashboard limitation:
 - For significant changes: implement -> test/syntax-check -> commit -> update this file -> record commit -> update NEXT ACTION.
 
 # NEXT ACTION
-1. Restart the LAN pilot Node.js server so the new `backend/auth.js` code is loaded.
-2. Without a login session, request `/management.html` and `/admin-dashboard.html`; both must redirect to `/login.html`.
-3. Login as a non-Admin user and request both pages directly; both must return HTTP 403.
-4. Login as Admin and click the sidebar `Dashboard`; it must open `admin-dashboard.html` and load its protected API data.
-5. Directly call `/api/admin/tables` without the session cookie; it must return HTTP 401. Call it as a non-Admin session; it must return HTTP 403.
-6. Run `node --check backend/auth.js` and `node --check frontend/js/script.js`, then record the verification result in this file.
+1. Restart the LAN pilot Node.js server so the updated `backend/auth.js` is loaded.
+2. Login as a Manager with a `PENDING_MANAGER` request and verify the sidebar `Drawing Requests` badge shows the number of requests awaiting that Manager.
+3. Login as a Drawing Expert and verify only requests currently assigned/returned/transferred to that expert are counted.
+4. Verify users with `REQUEST_DRAWING_ASSIGN` see `PENDING_DRAWING_APPROVAL` counts and users with `REQUEST_DRAWING_FINAL_APPROVE` see `PENDING_FINAL_APPROVAL` counts.
+5. Perform a workflow action and confirm the badge drops after the current pending responsibility changes; the 30-second polling should also update it.
+6. Verify the Admin Dashboard can be scrolled vertically and the bottom-most panel is reachable.
+7. Run `node --check backend/auth.js` and `node --check frontend/js/script.js`, then record the results here.
