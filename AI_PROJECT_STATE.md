@@ -114,7 +114,16 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
   - `56c10d0d8b75bc2eeace9766e8727cd8fd96d518` — refresh frontend asset cache versions.
 - Verification: source structure and API data flow were inspected. Runtime browser verification and `node --check` were not completed in this environment; a local clone attempt failed because this environment could not resolve `github.com`.
 
+## Request final-approval side-border rule — 2026-10-14
+- Fixed the request list item class generation in `frontend/js/request-workflow.js`: the CSS already defined a green left border for `.rw-request-final-approved`, but the rendered request card never received that class. This caused even `FINAL_APPROVED` cards to keep the red left border.
+- Request cards now receive `rw-request-final-approved` only when `StatusCode` (case-normalized) is exactly `FINAL_APPROVED`. All other displayed request statuses remain without that class and use the existing red left-border selector. Status background classes remain independent of the left-border completion rule.
+- Bumped the `frontend/index.html` workflow script query version to `20261014-final-border-fix` to avoid stale browser cache.
+- Commits: `714832db8eacf523c52a563eb6ba0b791bfa0ec7` (JS class fix), `8a2b161d0c72c57cb07df63163e3b83fcda4b68e` (cache version).
+- Verification: inspected the committed template and confirmed the final-approved class condition exists; live browser behavior has not been tested in this environment.
+
 ## Recent commits
+- `8a2b161d0c72c57cb07df63163e3b83fcda4b68e` — refreshed workflow JS cache version for final-approval border fix.
+- `714832db8eacf523c52a563eb6ba0b791bfa0ec7` — apply `rw-request-final-approved` class only when `StatusCode=FINAL_APPROVED`.
 - `e5ed79ccd890798fd75352643d24331559da8db8` — fixed login 500: `backend/auth.js` called undefined `setAuthCookie`; now calls the already-defined `setCookie` helper, preserving the existing `dms_session` cookie behavior.
 - `dd0e675eafd8a63e2864a765261f271dfce23a77` — fixed the missing closing parenthesis in the completion trigger's `IF EXISTS` condition.
 - `3a2814417976b6f827c52d59440f586f4536156b` — replaced both trigger `THROW` statements with `RAISERROR` checks for compatibility with older SQL Server parsers.
@@ -145,9 +154,8 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 The compatibility correction is committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
 # NEXT ACTION
-1. Pull latest `main` (latest UI fixes include `56c10d0d8b75bc2eeace9766e8727cd8fd96d518`) into `H:\\Drawing Management system\\app\\MyTreeApp`.
-2. From the project root run `node --check frontend/js/request-workflow.js`; restart the backend/frontend server and open Drawing Requests. Confirm **Step-by-step workflow** appears with history, actors, timestamps and comments for an existing request.
-3. Open an assigned request and verify Croquis / Vector Sketch, Modeling and Final Drawing forms and the Save Progress / Complete Work buttons use the DMS dark theme at desktop and narrow viewport widths.
-4. If the workflow timeline is empty for requests with history, inspect the GET drawing-requests response in DevTools and confirm `WorkflowHistory` is populated; the UI intentionally uses that existing response field.
-5. Continue runtime login verification: run `node --check backend/auth.js`, restart backend, retry login; if 401 persists inspect `Users.IsActive`, `Users.PasswordHash`, exact `Users.Username`, and compatibility with `verifyPassword()` before resetting anything.
-6. Rerun `SQL/ExpertDrawingWork.sql` against `dbDrawingManagment`; verify `dbo.DrawingRequestExpertWork` and both prerequisite triggers compile, then test Accept -> Save Progress Croquis -> Save Progress Modeling -> transfer -> prior contribution visibility -> Complete.
+1. Pull latest `main` (final-approval border fix commit `8a2b161d0c72c57cb07df63163e3b83fcda4b68e`) into `H:\\Drawing Management system\\app\\MyTreeApp`.
+2. Run `node --check frontend/js/request-workflow.js` from the project root and refresh the browser with `Ctrl+F5`.
+3. Open Drawing Requests and verify the card's left border is red for every displayed request whose status is not `FINAL_APPROVED`, and green only for `FINAL_APPROVED`; confirm status background colors remain unchanged.
+4. Continue pending browser/backend checks for the restored Step-by-step workflow and Croquis/Modeling/Final Drawing theme alignment.
+5. Continue runtime login verification and SQL expert-work trigger testing as previously listed above.
