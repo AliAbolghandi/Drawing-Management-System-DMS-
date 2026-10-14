@@ -137,11 +137,34 @@ Dashboard limitation:
 - Never commit passwords, API keys, tokens or secrets.
 - For significant changes: implement -> test/syntax-check -> commit -> update this file -> record commit -> update NEXT ACTION.
 
+
+## Expert drawing work tracking — requirements recorded 2026-10-14
+
+Detailed durable specification: `docs/EXPERT_DRAWING_WORKFLOW.md` (commit `6a7bd24cd70e15f6c82f0fe89273955e45beca1b`).
+
+Confirmed business rules:
+- Each drawing request tracks predicted part count, Croquis/vector sketch, Modeling, and Final Drawing.
+- Accept must require a valid predicted part count, persist it, then set status to `IN_PROGRESS`.
+- Stage data is saved persistently as work progresses across days; it cannot live only in the Complete Work modal.
+- Complete Work opens a modal and must be blocked until all required Croquis, Modeling, and Final Drawing fields are valid.
+- Croquis and Modeling each require start date, end date, and part count.
+- Final Drawing requires start/end dates, standard-part count, and drawn-part count.
+- Counts must be non-negative; end date must not precede start date.
+- A request normally has one current expert, but may be reassigned. Each expert's work must remain attributable to that expert's specific assignment; reassignment must not overwrite prior contributions.
+- Data must be stored in SQL Server for future reporting.
+
+Schema findings from current `SQL/Relation between table.rpt`:
+- `dbo.DrawingRequestAssignments.AssignmentID` is the correct candidate key to associate work with a specific expert assignment; it includes `RequestID`, `DrawingExpertUserID`, `AssignedAt`, `AcceptedAt`, `CompletedAt`, `IsCurrent`, and `AssignmentStatus`.
+- `dbo.DrawingRequests` holds request-level status/current expert; `dbo.DrawingRequestHistory` records workflow actions/status transitions.
+- A new table tentatively named `dbo.DrawingRequestExpertWork` is proposed. This is not yet implemented and no migration has been applied.
+- One design decision remains unresolved: for a request transferred between experts, should Complete Work require all three stages on the current assignment, or should completion aggregate valid stage contributions across multiple assignments? See the detailed specification.
+- Existing database tables must not be changed without explicit approval. First implementation step is to resolve the completion rule, then add an idempotent migration and secure assignment-scoped APIs/UI.
+
 # NEXT ACTION
-1. Restart the LAN pilot Node.js server so the updated `backend/auth.js` is loaded.
-2. Login as a Manager with a `PENDING_MANAGER` request and verify the sidebar `Drawing Requests` badge shows the number of requests awaiting that Manager.
-3. Login as a Drawing Expert and verify only requests currently assigned/returned/transferred to that expert are counted.
-4. Verify users with `REQUEST_DRAWING_ASSIGN` see `PENDING_DRAWING_APPROVAL` counts and users with `REQUEST_DRAWING_FINAL_APPROVE` see `PENDING_FINAL_APPROVAL` counts.
-5. Perform a workflow action and confirm the badge drops after the current pending responsibility changes; the 30-second polling should also update it.
-6. Verify the Admin Dashboard can be scrolled vertically and the bottom-most panel is reachable.
-7. Run `node --check backend/auth.js` and `node --check frontend/js/script.js`, then record the results here.
+1. Resolve the expert-work completion rule in `docs/EXPERT_DRAWING_WORKFLOW.md`: per-current-assignment completion vs. aggregating contributions across multiple expert assignments.
+2. Re-inspect the current `backend/server.js`, `frontend/js/request-workflow.js`, and `SQL/Relation between table.rpt` before implementation.
+3. Design and add an idempotent SQL migration for `dbo.DrawingRequestExpertWork`, linked to `dbo.DrawingRequestAssignments.AssignmentID`; do not modify existing tables without explicit approval.
+4. Implement server-side persistence and authorization for predicted part count and each expert's Croquis, Modeling, and Final Drawing data.
+5. Update expert Accept and Complete Work UI, including progressive stage saves and mandatory modal validation.
+6. Syntax-check changed JS, inspect SQL, and test auth/permissions, invalid counts/dates, partial saves, reassignment, and completion blocking. Do not claim SQL runtime tests unless run.
+7. Commit code and update this file with exact commit SHA, actual test results, known issues, and next actions.
