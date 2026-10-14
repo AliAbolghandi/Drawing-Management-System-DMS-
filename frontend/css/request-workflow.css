@@ -1217,3 +1217,92 @@
     border-top: 1px solid var(--line-strong, rgba(255,255,255,.16));
 }
 .rw-search-result-group .rw-empty { padding: 8px 4px 14px; }
+
+
+/* Restored step-by-step workflow timeline — unified DMS navy/cyan theme. */
+.rw-details-dialog .rw-workflow-timeline,
+.rw-inline-workflow .rw-workflow-timeline {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #0b1424;
+  color: #e2e8f0;
+}
+.rw-workflow-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.rw-workflow-timeline-header h4 { margin: 0; color: #f8fafc; font-size: .98rem; }
+.rw-workflow-step-count {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  background: #1e293b;
+  color: #cbd5e1;
+  font-size: .72rem;
+}
+.rw-details-dialog .rw-timeline-list,
+.rw-inline-workflow .rw-timeline-list { display: flex; flex-direction: column; gap: 0; }
+.rw-details-dialog .rw-timeline-step,
+.rw-inline-workflow .rw-timeline-step {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 15px;
+  border: 1px solid #334155;
+  border-left: 3px solid #64748b;
+  border-radius: 9px;
+  background: #111c2f;
+  color: #e2e8f0;
+}
+.rw-details-dialog .rw-timeline-step.is-approved,
+.rw-inline-workflow .rw-timeline-step.is-approved { border-left-color: #22c55e; }
+.rw-details-dialog .rw-timeline-step.is-rejected,
+.rw-inline-workflow .rw-timeline-step.is-rejected { border-left-color: #ef4444; }
+.rw-details-dialog .rw-timeline-heading,
+.rw-inline-workflow .rw-timeline-heading {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.rw-details-dialog .rw-timeline-heading strong { color: #f8fafc; }
+.rw-details-dialog .rw-timeline-heading span { background: #1e293b; color: #6fe3ff; }
+.rw-details-dialog .rw-timeline-actor,
+.rw-details-dialog .rw-timeline-step time { display: block; margin-top: 6px; color: #94a3b8; font-size: .78rem; }
+.rw-details-dialog .rw-timeline-comment {
+  margin: 8px 0 0; padding: 9px 10px; border: 1px solid #26364d; border-radius: 6px;
+  background: #0b1424; color: #e2e8f0; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.rw-details-dialog .rw-timeline-no-comment { margin: 7px 0 0; color: #64748b; font-size: .78rem; font-style: italic; }
+.rw-details-dialog .rw-timeline-arrow { height: 28px; display: flex; align-items: center; justify-content: center; color: #60a5fa; }
+.rw-details-dialog .rw-workflow-placeholder { min-height: 120px; border: 1px dashed #334155; border-radius: 9px; }
+.rw-details-dialog .rw-workflow-placeholder strong { color: #e2e8f0; }
+.rw-details-dialog .rw-workflow-placeholder p { color: #94a3b8; }
+
+/* Croquis, Modeling and Final Drawing modal follows the main DMS dark theme. */
+.expert-work-dialog { background: #0f172a !important; color: #e2e8f0; border: 1px solid #334155; }
+.expert-work-dialog .rw-action-header { background: #111c2f; border-bottom: 1px solid #334155; }
+.expert-work-dialog .rw-action-header h2 { color: #f8fafc; }
+.expert-work-dialog .rw-action-header p { color: #94a3b8; }
+.expert-work-dialog .expert-work-body { background: #0f172a; color: #e2e8f0; }
+.expert-work-dialog .expert-work-section { background: #111c2f; border: 1px solid #334155; border-radius: 10px; padding: 14px; margin: 12px 0; }
+.expert-work-dialog .expert-work-section-head strong { color: #f8fafc; }
+.expert-work-dialog .expert-work-section-head small { color: #94a3b8; }
+.expert-work-dialog .expert-work-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.expert-work-dialog .expert-work-field { display: block; min-width: 0; color: #cbd5e1; font-size: 12px; }
+.expert-work-dialog .expert-work-field span { display: block; margin-bottom: 6px; }
+.expert-work-dialog .expert-work-field input { width: 100%; box-sizing: border-box; background: #0b1424; color: #f8fafc; border: 1px solid #475569; border-radius: 7px; padding: 9px 10px; }
+.expert-work-dialog .expert-work-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.expert-work-dialog .expert-work-summary > div { padding: 10px; border: 1px solid #334155; border-radius: 8px; background: #111c2f; color: #cbd5e1; }
+.expert-work-dialog .expert-work-summary b { color: #6fe3ff; }
+.expert-work-dialog .rw-action-footer { background: #111c2f; border-top: 1px solid #334155; }
+@media (max-width: 700px) {
+  .expert-work-dialog .expert-work-grid,
+  .expert-work-dialog .expert-work-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .expert-work-dialog .expert-work-grid,
+  .expert-work-dialog .expert-work-summary { grid-template-columns: 1fr; }
+}
