@@ -65,30 +65,30 @@ New table: `dbo.DrawingRequestExpertWork`, linked by unique `AssignmentID -> dbo
 Columns:
 - `ExpertWorkID`
 - `AssignmentID`
+- `RequestID`
+- `ExpertUserID`
 - `PredictedPartCount`
 - `CroquisStartDate`, `CroquisEndDate`, `CroquisPartCount`
 - `ModelingStartDate`, `ModelingEndDate`, `ModelingPartCount`
 - `DrawingStartDate`, `DrawingEndDate`, `StandardPartCount`, `DrawnPartCount`
 - `CreatedAt`, `UpdatedAt`
 
-Migration: `SQL/ExpertDrawingWork.sql`.
-Database constraints enforce non-negative counts and date order. Database triggers enforce:
-- Accept cannot move to `IN_PROGRESS` without a prediction for the current assignment.
-- Complete cannot move to `PENDING_FINAL_APPROVAL` until Croquis, Modeling and Final Drawing are represented across request contributions.
+Migration: `SQL/ExpertDrawingWork-v01.sql`.
+Database constraints enforce count/date validity. A database trigger prevents transition to `PENDING_FINAL_APPROVAL` until the request has prediction plus complete Croquis, Modeling and Final Drawing data represented across its expert contributions. This deliberately aggregates contributions across assignments, so Expert 2 can finish a request using Croquis/Modeling completed by Expert 1.
 
 ### Expert work APIs
 Implemented under `/api/auth` in `backend/auth.js`:
 - `GET /api/auth/expert-work/:requestId` — current/prior assigned expert or `REQUEST_DRAWING_VIEW_ALL` can read assignment contributions and totals.
 - `POST /api/auth/expert-work/:requestId/prediction` — requires `REQUEST_DRAWING_ACCEPT`; saves prediction for the current assignment.
-- `POST /api/auth/expert-work/:requestId/save` — requires `REQUEST_DRAWING_COMPLETE`; validates and saves current expert contribution without modifying other assignments.
+- `POST /api/auth/expert-work/:requestId/save` — requires `REQUEST_DRAWING_COMPLETE`; validates and saves current expert contribution without modifying other assignments. Empty stage values remain NULL, enabling progressive saves.
 
-### Frontend
-`frontend/js/request-workflow.js` now:
-- Shows a required prediction field when Expert clicks `Accept Work`.
-- Shows Croquis, Modeling and Final Drawing fields in `Complete Work`.
-- Displays previous expert contributions and request totals in Request Workflow details.
-- Saves expert data through authenticated APIs before executing the existing workflow action.
-- Uses the actionable pending request count for the sidebar badge.
+### Save Progress — implemented 2026-10-14
+`frontend/js/request-workflow.js` now adds a `Save Progress` button to the Complete Work expert-data modal.
+- An expert can save a fully completed Croquis group today and return later for Modeling.
+- A stage's fields must be supplied together when that stage is being entered; unrelated stages may remain blank.
+- Save Progress does not execute the workflow `complete` action and therefore does not move the request to final approval.
+- Existing expert contributions are not overwritten because the record is scoped to the current `AssignmentID`.
+- The backend endpoint remains the authorization boundary.
 
 ## Admin dashboard
 - `frontend/admin-dashboard.html`
@@ -102,25 +102,25 @@ Implemented under `/api/auth` in `backend/auth.js`:
 Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 
 ## Recent commits
-- `32dff1b1c1c5b63c7517e81157a77d086125f6e5` — expert contribution table.
-- `311d8b667e766ab0057db99f65b3103723868161` — database prerequisite triggers.
-- `7b371e95eb2944eee9c377c2024273294e50121d` — expert-work APIs and actionable request count.
-- `ae858dd84c0a579d48b55518f2c2809e2eece981` — expert-work frontend UI.
+- `d3d284b2a7224b16a7cf13d64f933cd34c854481` — Expert Work Save Progress UI and partial-save handling.
+- `bd0af20043d5f456b1e0fcc2269614fed1a11754` — completion trigger changed to aggregate contributions across expert assignments.
 - `93027bf9dfae81f61a50b239c5d39df8a9762520` — project specification/state documentation update.
+- `7b371e95eb2944eee9c377c2024273294e50121d` — expert-work APIs and actionable request count.
 
 ## Verification status
 - GitHub source and `SQL/Relation between table.rpt` were inspected before this phase.
 - SQL migration was structurally reviewed.
 - Runtime SQL Server testing: NOT performed.
 - LAN/browser runtime testing: NOT performed.
-- `node --check` on the newly changed repository files: NOT yet performed.
+- `node --check` on the newly changed repository files: NOT yet performed in this environment.
 
 ## Known limitation / immediate follow-up
-The backend save API supports partial stage saves, but the current UI exposes expert data entry through the Complete Work modal. A dedicated `Save Progress` action is still required so an expert can save completed Croquis or Modeling on an earlier day without completing the request.
+The implementation is committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
 # NEXT ACTION
-1. Add `Save Progress` to the Expert Work modal and allow saving any fully completed stage independently while keeping Complete Work blocked until all three stages are complete.
-2. Run `node --check backend/auth.js` and `node --check frontend/js/request-workflow.js` against the repository files.
-3. Run `SQL/ExpertDrawingWork.sql` on `dbDrawingManagment` and verify the table, FK, indexes and triggers.
-4. Test: Expert 1 prediction/accept -> Croquis save -> Modeling save -> transfer -> Expert 2 sees prior data -> Expert 2 adds Drawing -> Complete succeeds; also test incomplete stages and unauthorized direct API calls.
-5. After testing, update this file with exact test results, latest commit SHA and any remaining bugs.
+1. Execute `SQL/ExpertDrawingWork-v01.sql` on `dbDrawingManagment` and verify `dbo.DrawingRequestExpertWork`, its three FKs, indexes, and `TR_DrawingRequests_ExpertWorkCompletionGuard`.
+2. Run `node --check` on `backend/auth.js` and `frontend/js/request-workflow.js` using the repository files.
+3. Test the full scenario: Expert 1 Accept with prediction -> Save Progress Croquis -> Save Progress Modeling -> transfer -> Expert 2 sees prior contributions -> Expert 2 adds Drawing -> Complete succeeds.
+4. Test the alternative: Expert 2 adds 3 Croquis parts; Expert 1's count remains unchanged and total increases by 3.
+5. Test incomplete-stage completion, invalid dates/counts, unauthenticated direct API access, and unauthorized expert access.
+6. Record actual runtime results and latest commit SHA here after testing.
