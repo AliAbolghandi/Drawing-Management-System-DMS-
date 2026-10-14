@@ -102,7 +102,8 @@ Implemented under `/api/auth` in `backend/auth.js`:
 Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 
 ## Recent commits
-- `31b672a79d90e438e361aaa25fe6bd7948a097e1` — fixed missing semicolon before both `THROW` statements in `SQL/ExpertDrawingWork.sql`.
+- `da4d4d545cb40042e24c6555d903df19988266a0` — wrapped both trigger `THROW` statements in `BEGIN...END` blocks so the `IF EXISTS` condition controls the error correctly.
+- `31b672a79d90e438e361aaa25fe6bd7948a097e1` — initial `THROW` semicolon fix (superseded by the block fix).
 - `d3d284b2a7224b16a7cf13d64f933cd34c854481` — Expert Work Save Progress UI and partial-save handling.
 - `bd0af20043d5f456b1e0fcc2269614fed1a11754` — completion trigger changed to aggregate contributions across expert assignments.
 - `93027bf9dfae81f61a50b239c5d39df8a9762520` — project specification/state documentation update.
@@ -111,8 +112,9 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 ## Verification status
 - GitHub source and `SQL/Relation between table.rpt` were inspected before this phase.
 - SQL migration was structurally reviewed.
-- `SQL/ExpertDrawingWork.sql`: added the required semicolon immediately before both `THROW` statements in the expert accept/completion triggers to fix SQL Server syntax error 102.
-- Runtime SQL Server testing: NOT performed; the trigger script must still be rerun against the target database.
+- `SQL/ExpertDrawingWork.sql`: both `THROW` statements are now enclosed in `BEGIN...END` blocks under their respective `IF EXISTS` checks, with the semicolon immediately before `THROW`.
+- The previous semicolon-only fix caused a second syntax error because the `IF` had no block; that correction is superseded.
+- Runtime SQL Server testing: NOT performed; rerun the script against the target database to verify compilation.
 - LAN/browser runtime testing: NOT performed.
 - `node --check` on the newly changed repository files: NOT yet performed in this environment.
 
@@ -120,7 +122,7 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 The implementation and `THROW` syntax correction are committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
 # NEXT ACTION
-1. Rerun the corrected `SQL/ExpertDrawingWork.sql` on `dbDrawingManagment`; confirm both triggers compile successfully and the transaction completes.
+1. Rerun the latest `SQL/ExpertDrawingWork.sql` on `dbDrawingManagment`; confirm both triggers compile successfully and the transaction completes.
 2. Verify `dbo.DrawingRequestExpertWork`, its constraints/indexes, and both triggers `TR_DrawingRequests_ExpertAcceptPrerequisite` and `TR_DrawingRequests_ExpertCompletePrerequisite`.
 3. Run `node --check` on `backend/auth.js` and `frontend/js/request-workflow.js` using the repository files.
 4. Test the full scenario: Expert 1 Accept with prediction -> Save Progress Croquis -> Save Progress Modeling -> transfer -> Expert 2 sees prior contributions -> Expert 2 adds Drawing -> Complete succeeds.
