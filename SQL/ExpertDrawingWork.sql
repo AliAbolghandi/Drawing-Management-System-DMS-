@@ -84,7 +84,9 @@ BEGIN
           )
     )
     BEGIN
-        ;THROW 51021, 'A predicted part count is required before accepting drawing work.', 1;
+        RAISERROR('A predicted part count is required before accepting drawing work.', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
     END;
 END;
 GO
@@ -147,7 +149,9 @@ BEGIN
               )
           )
     BEGIN
-        ;THROW 51022, 'Croquis, Modeling and Final Drawing data are required before completing the request.', 1;
+        RAISERROR('Croquis, Modeling and Final Drawing data are required before completing the request.', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
     END;
 END;
 GO
