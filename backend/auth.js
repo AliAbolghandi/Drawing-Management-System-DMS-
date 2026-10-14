@@ -27,6 +27,13 @@ function createAuth(frontendOrigins) {
       'Content-Security-Policy',
       "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' http://localhost:3000 http://127.0.0.1:3000; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     );
+
+    // Protected administrative pages must not be reachable merely by knowing
+    // their URL. This is enforced before express.static() and therefore also
+    // applies to direct browser navigation and non-DMS clients.
+    const protectedAdminPages = new Set(['/management.html', '/admin-dashboard.html']);
+    if (protectedAdminPages.has(req.path)) return authenticateAdminPage(req, res, next);
+
     next();
   }
 
@@ -217,6 +224,24 @@ function createAuth(frontendOrigins) {
     next();
   }
 
+  function authenticateAdminPage(req, res, next) {
+    const token = parseCookies(req).dms_session;
+    const session = token ? sessions.get(token) : null;
+
+    if (!session || session.expiresAt <= Date.now()) {
+      if (token) sessions.delete(token);
+      return res.redirect('/login.html');
+    }
+
+    if (!session.user?.isAdmin) {
+      return res.status(403).send('Admin access required.');
+    }
+
+    session.expiresAt = Date.now() + SESSION_TTL_MS;
+    req.user = session.user;
+    next();
+  }
+
   router.post('/login', async (req, res) => {
     const ip = getClientIp(req);
     const now = Date.now();
@@ -386,6 +411,7 @@ function createAuth(frontendOrigins) {
       csrfGuard(req, res, next);
     }),
     authenticatePage,
+    authenticateAdminPage,
     cleanup
   };
 }
