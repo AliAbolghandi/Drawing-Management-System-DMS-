@@ -102,6 +102,7 @@ Implemented under `/api/auth` in `backend/auth.js`:
 Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 
 ## Recent commits
+- `3a2814417976b6f827c52d59440f586f4536156b` — replaced both trigger `THROW` statements with `RAISERROR` checks for compatibility with older SQL Server parsers.
 - `da4d4d545cb40042e24c6555d903df19988266a0` — wrapped both trigger `THROW` statements in `BEGIN...END` blocks so the `IF EXISTS` condition controls the error correctly.
 - `31b672a79d90e438e361aaa25fe6bd7948a097e1` — initial `THROW` semicolon fix (superseded by the block fix).
 - `d3d284b2a7224b16a7cf13d64f933cd34c854481` — Expert Work Save Progress UI and partial-save handling.
@@ -112,17 +113,17 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 ## Verification status
 - GitHub source and `SQL/Relation between table.rpt` were inspected before this phase.
 - SQL migration was structurally reviewed.
-- `SQL/ExpertDrawingWork.sql`: both `THROW` statements are now enclosed in `BEGIN...END` blocks under their respective `IF EXISTS` checks, with the semicolon immediately before `THROW`.
+- `SQL/ExpertDrawingWork.sql`: both trigger checks now use `RAISERROR(..., 16, 1)` followed by transaction rollback and return, avoiding the syntax that the target SQL Server rejected.
 - The previous semicolon-only fix caused a second syntax error because the `IF` had no block; that correction is superseded.
 - Runtime SQL Server testing: NOT performed; rerun the script against the target database to verify compilation.
 - LAN/browser runtime testing: NOT performed.
 - `node --check` on the newly changed repository files: NOT yet performed in this environment.
 
 ## Known limitation / immediate follow-up
-The implementation and `THROW` syntax correction are committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
+The compatibility correction is committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
 # NEXT ACTION
-1. Rerun the latest `SQL/ExpertDrawingWork.sql` on `dbDrawingManagment`; confirm both triggers compile successfully and the transaction completes.
+1. Rerun the latest `SQL/ExpertDrawingWork.sql` on `dbDrawingManagment`; confirm both triggers compile successfully and the transaction completes. If it errors again, capture the full first error and run `SELECT @@VERSION;`.
 2. Verify `dbo.DrawingRequestExpertWork`, its constraints/indexes, and both triggers `TR_DrawingRequests_ExpertAcceptPrerequisite` and `TR_DrawingRequests_ExpertCompletePrerequisite`.
 3. Run `node --check` on `backend/auth.js` and `frontend/js/request-workflow.js` using the repository files.
 4. Test the full scenario: Expert 1 Accept with prediction -> Save Progress Croquis -> Save Progress Modeling -> transfer -> Expert 2 sees prior contributions -> Expert 2 adds Drawing -> Complete succeeds.
