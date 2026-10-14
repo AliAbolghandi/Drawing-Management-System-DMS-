@@ -10,7 +10,7 @@
 <body class="management-page">
 <header class="top-header">
  <div class="header-title"><div class="brand-mark"></div><div><h1>Database Management</h1><span>Administrative data management</span></div></div>
- <div class="header-status"><button id="backButton" class="mgmt-secondary">← DMS</button><span id="adminIdentity" class="status connected">Admin</span></div>
+ <div class="header-status"><button id="dashboardButton" class="mgmt-secondary">▦ Admin Dashboard</button><button id="backButton" class="mgmt-secondary">← DMS</button><span id="adminIdentity" class="status connected">Admin</span></div>
 </header>
 <main class="management-layout">
  <aside class="management-sidebar">
@@ -36,4 +36,5 @@
 </div>
 <script src="js/date-utils.js?v=20261012-jalali-en"></script>
 <script src="js/management.js?v=20261012-jalali-en"></script>
+<script>document.getElementById('dashboardButton')?.addEventListener('click',()=>window.location.href='admin-dashboard.html');</script>
 </body></html>
