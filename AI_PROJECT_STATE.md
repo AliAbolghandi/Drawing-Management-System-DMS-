@@ -102,6 +102,7 @@ Implemented under `/api/auth` in `backend/auth.js`:
 Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 
 ## Recent commits
+- `e5ed79ccd890798fd75352643d24331559da8db8` — fixed login 500: `backend/auth.js` called undefined `setAuthCookie`; now calls the already-defined `setCookie` helper, preserving the existing `dms_session` cookie behavior.
 - `dd0e675eafd8a63e2864a765261f271dfce23a77` — fixed the missing closing parenthesis in the completion trigger's `IF EXISTS` condition.
 - `3a2814417976b6f827c52d59440f586f4536156b` — replaced both trigger `THROW` statements with `RAISERROR` checks for compatibility with older SQL Server parsers.
 - `da4d4d545cb40042e24c6555d903df19988266a0` — wrapped both trigger `THROW` statements in `BEGIN...END` blocks so the `IF EXISTS` condition controls the error correctly.
@@ -110,6 +111,13 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 - `bd0af20043d5f456b1e0fcc2269614fed1a11754` — completion trigger changed to aggregate contributions across expert assignments.
 - `93027bf9dfae81f61a50b239c5d39df8a9762520` — project specification/state documentation update.
 - `7b371e95eb2944eee9c377c2024273294e50121d` — expert-work APIs and actionable request count.
+
+## Login error — fixed in source, runtime pending
+- Reported local error: `ReferenceError: setAuthCookie is not defined` at `backend/auth.js:178`, followed by `POST /api/auth/login` 500.
+- Root cause confirmed in source: the existing cookie helper is named `setCookie(res, token)`, but the login handler called `setAuthCookie(...)`.
+- Fix committed to `main`: `e5ed79ccd890798fd75352643d24331559da8db8`.
+- Expected effect: login should no longer fail at cookie creation; the next response will reveal whether credentials/account status also pass validation.
+- Runtime login and Node syntax checks have NOT been performed in this environment.
 
 ## Verification status
 - GitHub source and `SQL/Relation between table.rpt` were inspected before this phase.
@@ -124,8 +132,9 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 The compatibility correction is committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
 # NEXT ACTION
-1. Open the latest `SQL/ExpertDrawingWork.sql` from `main` in a fresh SSMS query window and rerun it on `dbDrawingManagment`; confirm both triggers compile successfully and the transaction completes. If it errors again, send the full error and the exact lines around the reported line number.
-2. Verify `dbo.DrawingRequestExpertWork`, its constraints/indexes, and both triggers `TR_DrawingRequests_ExpertAcceptPrerequisite` and `TR_DrawingRequests_ExpertCompletePrerequisite`.
-3. Run `node --check` on `backend/auth.js` and `frontend/js/request-workflow.js` using the repository files.
-4. Test the full scenario: Expert 1 Accept with prediction -> Save Progress Croquis -> Save Progress Modeling -> transfer -> Expert 2 sees prior contributions -> Expert 2 adds Drawing -> Complete succeeds.
-5. Test incomplete-stage completion, invalid dates/counts, unauthenticated direct API access, and unauthorized expert access; record actual runtime results.
+1. Pull latest `main` (includes login cookie fix commit `e5ed79ccd890798fd75352643d24331559da8db8`) into `H:\\Drawing Management system\\app\\MyTreeApp`.
+2. Run `node --check backend/auth.js` from the project root, restart the backend, and retry login. Confirm the `setAuthCookie` ReferenceError and login 500 are gone.
+3. If login now returns `401 Invalid username or password`, inspect only the attempted account in SQL Server: `Users.IsActive`, `Users.PasswordHash`, and exact `Users.Username`; do not reset credentials until these are checked. Confirm the password was generated using the current `set-password.js` format compatible with `verifyPassword()` in `backend/auth.js`.
+4. Separately rerun `SQL/ExpertDrawingWork.sql` on `dbDrawingManagment`; confirm both expert prerequisite triggers compile and the transaction completes.
+5. Verify `dbo.DrawingRequestExpertWork`, its constraints/indexes, and both triggers `TR_DrawingRequests_ExpertAcceptPrerequisite` and `TR_DrawingRequests_ExpertCompletePrerequisite`.
+6. Test the expert work flow: Expert 1 Accept with prediction -> Save Progress Croquis -> Save Progress Modeling -> transfer -> Expert 2 sees prior contributions -> Expert 2 adds Drawing -> Complete succeeds. Record actual runtime results.
