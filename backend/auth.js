@@ -27,13 +27,8 @@ function createAuth(frontendOrigins) {
       'Content-Security-Policy',
       "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' http://localhost:3000 http://127.0.0.1:3000; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     );
-
-    // Protected administrative pages must not be reachable merely by knowing
-    // their URL. This is enforced before express.static() and therefore also
-    // applies to direct browser navigation and non-DMS clients.
     const protectedAdminPages = new Set(['/management.html', '/admin-dashboard.html']);
     if (protectedAdminPages.has(req.path)) return authenticateAdminPage(req, res, next);
-
     next();
   }
 
@@ -49,11 +44,7 @@ function createAuth(frontendOrigins) {
 
   function setAuthCookie(res, token) {
     const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-    res.setHeader(
-      'Set-Cookie',
-      'dms_session=' + encodeURIComponent(token) +
-      '; Path=/; HttpOnly; SameSite=Lax; Max-Age=' + Math.floor(SESSION_TTL_MS / 1000) + secure
-    );
+    res.setHeader('Set-Cookie', 'dms_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Lax; Max-Age=' + Math.floor(SESSION_TTL_MS / 1000) + secure);
   }
 
   function clearAuthCookie(res) {
@@ -73,27 +64,18 @@ function createAuth(frontendOrigins) {
         if (!password || !stored || typeof stored !== 'string') return resolve(false);
         const parts = stored.split('$');
         if (parts.length !== 6 || parts[0] !== 'scrypt') return resolve(false);
-
         const N = Number(parts[1]);
         const r = Number(parts[2]);
         const p = Number(parts[3]);
         const salt = Buffer.from(parts[4], 'base64');
         const expected = Buffer.from(parts[5], 'base64');
-
-        if (!Number.isSafeInteger(N) || !Number.isSafeInteger(r) || !Number.isSafeInteger(p) ||
-            !salt.length || !expected.length) return resolve(false);
-        if (N < 2 || (N & (N - 1)) !== 0 || r <= 0 || p <= 0 ||
-            expected.length < 16 || expected.length > 128) return resolve(false);
-
-        crypto.scrypt(password, salt, expected.length, {
-          N, r, p, maxmem: 128 * 1024 * 1024
-        }, (err, derived) => {
+        if (!Number.isSafeInteger(N) || !Number.isSafeInteger(r) || !Number.isSafeInteger(p) || !salt.length || !expected.length) return resolve(false);
+        if (N < 2 || (N & (N - 1)) !== 0 || r <= 0 || p <= 0 || expected.length < 16 || expected.length > 128) return resolve(false);
+        crypto.scrypt(password, salt, expected.length, { N, r, p, maxmem: 128 * 1024 * 1024 }, (err, derived) => {
           if (err) return reject(err);
           resolve(crypto.timingSafeEqual(expected, derived));
         });
-      } catch (e) {
-        reject(e);
-      }
+      } catch (e) { reject(e); }
     });
   }
 
@@ -104,24 +86,17 @@ function createAuth(frontendOrigins) {
       r.input('userName', sql.NVarChar(100), userName || null);
       r.input('action', sql.NVarChar(100), action);
       r.input('ip', sql.NVarChar(64), ip || null);
-      await r.query(
-        "INSERT INTO dbo.Logs (UserID,UserName,Action,IPAddress,CreatedAt) " +
-        "VALUES (@userId,@userName,@action,@ip,SYSUTCDATETIME());"
-      );
-    } catch (e) {
-      console.warn('Audit log failed:', e.message);
-    }
+      await r.query("INSERT INTO dbo.Logs (UserID,UserName,Action,IPAddress,CreatedAt) VALUES (@userId,@userName,@action,@ip,SYSUTCDATETIME());");
+    } catch (e) { console.warn('Audit log failed:', e.message); }
   }
 
   function authenticate(req, res, next) {
     const token = parseCookies(req).dms_session;
     const session = token ? sessions.get(token) : null;
-
     if (!session || session.expiresAt <= Date.now()) {
       if (token) sessions.delete(token);
       return res.status(401).json({ error: 'Authentication required.' });
     }
-
     session.expiresAt = Date.now() + SESSION_TTL_MS;
     req.user = session.user;
     req.sessionToken = token;
@@ -131,13 +106,8 @@ function createAuth(frontendOrigins) {
   function requirePermission(permission) {
     return (req, res, next) => {
       if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
-
-      // Authorization is always derived from the user's effective PermissionCodes
-      // loaded through UserRoles -> Roles -> RolePermissions -> Permissions.
-      // isAdmin is informational only and MUST NOT bypass RolePermissions.
       const permissionCode = typeof permission === 'string' ? permission.trim() : '';
       if (permissionCode && req.user.permissions.has(permissionCode)) return next();
-
       return res.status(403).json({ error: 'Permission denied.' });
     };
   }
@@ -148,14 +118,7 @@ function createAuth(frontendOrigins) {
       try {
         const r = new sql.Request();
         r.input('userId', sql.Int, req.user.userId);
-        const q = await r.query(`
-          SELECT TOP 1 1 AS IsAdmin
-          FROM dbo.UserRoles ur
-          INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID
-          INNER JOIN dbo.Users u ON u.UserID=ur.UserID
-          WHERE ur.UserID=@userId AND u.IsActive=1
-            AND r.RoleCode=N'Admin' AND r.IsActive=1;
-        `);
+        const q = await r.query(`SELECT TOP 1 1 AS IsAdmin FROM dbo.UserRoles ur INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID INNER JOIN dbo.Users u ON u.UserID=ur.UserID WHERE ur.UserID=@userId AND u.IsActive=1 AND r.RoleCode=N'Admin' AND r.IsActive=1;`);
         if (!q.recordset.length) return res.status(403).json({ error: 'Admin access required.' });
         next();
       } catch (e) {
@@ -169,56 +132,38 @@ function createAuth(frontendOrigins) {
     const key = getClientIp(req);
     const now = Date.now();
     let state = apiRateLimits.get(key);
-
     if (!state || now - state.startedAt >= API_WINDOW_MS) {
       state = { startedAt: now, count: 0 };
       apiRateLimits.set(key, state);
     }
-
     state.count += 1;
     if (state.count > API_MAX_REQUESTS) {
-      res.setHeader(
-        'Retry-After',
-        String(Math.max(1, Math.ceil((API_WINDOW_MS - (now - state.startedAt)) / 1000)))
-      );
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil((API_WINDOW_MS - (now - state.startedAt)) / 1000))));
       return res.status(429).json({ error: 'Too many requests. Please try again later.' });
     }
-
     next();
   }
 
   function csrfGuard(req, res, next) {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
-
     const origin = req.headers.origin;
     const referer = req.headers.referer;
-
-    if (origin && !frontendOrigins.has(origin)) {
-      return res.status(403).json({ error: 'Forbidden origin.' });
-    }
-
+    if (origin && !frontendOrigins.has(origin)) return res.status(403).json({ error: 'Forbidden origin.' });
     if (!origin && referer) {
       try {
-        if (!frontendOrigins.has(new URL(referer).origin)) {
-          return res.status(403).json({ error: 'Forbidden origin.' });
-        }
-      } catch (_) {
-        return res.status(403).json({ error: 'Forbidden origin.' });
-      }
+        if (!frontendOrigins.has(new URL(referer).origin)) return res.status(403).json({ error: 'Forbidden origin.' });
+      } catch (_) { return res.status(403).json({ error: 'Forbidden origin.' }); }
     }
-
     next();
   }
 
   function authenticatePage(req, res, next) {
     const token = parseCookies(req).dms_session;
     const session = token ? sessions.get(token) : null;
-
     if (!session || session.expiresAt <= Date.now()) {
       if (token) sessions.delete(token);
       return res.redirect('/login.html');
     }
-
     session.expiresAt = Date.now() + SESSION_TTL_MS;
     req.user = session.user;
     next();
@@ -227,16 +172,11 @@ function createAuth(frontendOrigins) {
   function authenticateAdminPage(req, res, next) {
     const token = parseCookies(req).dms_session;
     const session = token ? sessions.get(token) : null;
-
     if (!session || session.expiresAt <= Date.now()) {
       if (token) sessions.delete(token);
       return res.redirect('/login.html');
     }
-
-    if (!session.user?.isAdmin) {
-      return res.status(403).send('Admin access required.');
-    }
-
+    if (!session.user?.isAdmin) return res.status(403).send('Admin access required.');
     session.expiresAt = Date.now() + SESSION_TTL_MS;
     req.user = session.user;
     next();
@@ -246,157 +186,91 @@ function createAuth(frontendOrigins) {
     const ip = getClientIp(req);
     const now = Date.now();
     const state = loginAttempts.get(ip) || { count: 0, firstAt: now, blockedUntil: 0 };
-
-    if (state.blockedUntil > now) {
-      return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
-    }
-
-    if (now - state.firstAt > LOGIN_WINDOW_MS) {
-      state.count = 0;
-      state.firstAt = now;
-      state.blockedUntil = 0;
-    }
-
+    if (state.blockedUntil > now) return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
+    if (now - state.firstAt > LOGIN_WINDOW_MS) { state.count = 0; state.firstAt = now; state.blockedUntil = 0; }
     const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required.' });
-    }
-
+    if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
     try {
       const r = new sql.Request();
       r.input('username', sql.NVarChar(100), username);
-
-      const q = await r.query(`
-        SELECT TOP 1 u.UserID,u.Username,u.Name,u.Family,u.PasswordHash,u.IsActive,
-               CAST(CASE WHEN EXISTS (
-                 SELECT 1
-                 FROM dbo.UserRoles ur
-                 INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID
-                 WHERE ur.UserID=u.UserID AND rr.RoleCode='Admin' AND rr.IsActive=1
-               ) THEN 1 ELSE 0 END AS bit) AS IsAdmin
-        FROM dbo.Users u
-        WHERE u.Username=@username;
-      `);
-
+      const q = await r.query(`SELECT TOP 1 u.UserID,u.Username,u.Name,u.Family,u.PasswordHash,u.IsActive, CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.UserRoles ur INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID WHERE ur.UserID=u.UserID AND rr.RoleCode='Admin' AND rr.IsActive=1) THEN 1 ELSE 0 END AS bit) AS IsAdmin FROM dbo.Users u WHERE u.Username=@username;`);
       const user = q.recordset[0];
-      const valid = user && Number(user.IsActive) === 1 &&
-        await passwordVerify(password, user.PasswordHash);
-
+      const valid = user && Number(user.IsActive) === 1 && await passwordVerify(password, user.PasswordHash);
       if (!valid) {
         state.count += 1;
-        if (state.count >= LOGIN_MAX_ATTEMPTS) {
-          state.blockedUntil = now + LOGIN_WINDOW_MS;
-        }
+        if (state.count >= LOGIN_MAX_ATTEMPTS) state.blockedUntil = now + LOGIN_WINDOW_MS;
         loginAttempts.set(ip, state);
         await writeAudit(user?.UserID || null, username, 'LOGIN_FAILED', ip);
         return res.status(401).json({ error: 'Invalid username or password.' });
       }
-
       const p = new sql.Request();
       p.input('userId', sql.Int, user.UserID);
-
-      const pr = await p.query(`
-        SELECT DISTINCT p.PermissionCode
-        FROM dbo.UserRoles ur
-        INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1
-        INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID
-        INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1
-        WHERE ur.UserID=@userId
-      `);
-
+      const pr = await p.query(`SELECT DISTINCT p.PermissionCode FROM dbo.UserRoles ur INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1 WHERE ur.UserID=@userId`);
       const permissions = new Set(pr.recordset.map(x => String(x.PermissionCode)));
-      const sessionUser = {
-        userId: Number(user.UserID),
-        username: String(user.Username),
-        name: user.Name || '',
-        family: user.Family || '',
-        isAdmin: Number(user.IsAdmin) === 1,
-        permissions
-      };
-
+      const sessionUser = { userId:Number(user.UserID), username:String(user.Username), name:user.Name||'', family:user.Family||'', isAdmin:Number(user.IsAdmin)===1, permissions };
       const token = createSession(sessionUser);
       setAuthCookie(res, token);
       loginAttempts.delete(ip);
-
       const u = new sql.Request();
       u.input('userId', sql.Int, user.UserID);
-      await u.query(
-        'UPDATE dbo.Users SET LastLoginAt=SYSUTCDATETIME(), UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId;'
-      );
-
+      await u.query('UPDATE dbo.Users SET LastLoginAt=SYSUTCDATETIME(), UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId;');
       await writeAudit(user.UserID, user.Username, 'LOGIN_SUCCESS', ip);
-
-      res.json({
-        success: true,
-        user: {
-          userId: sessionUser.userId,
-          username: sessionUser.username,
-          name: sessionUser.name,
-          family: sessionUser.family
-        }
-      });
-    } catch (e) {
-      console.error('Login failed:', e);
-      res.status(500).json({ error: 'Login service is unavailable.' });
-    }
+      res.json({ success:true, user:{ userId:sessionUser.userId, username:sessionUser.username, name:sessionUser.name, family:sessionUser.family } });
+    } catch (e) { console.error('Login failed:', e); res.status(500).json({ error:'Login service is unavailable.' }); }
   });
 
   router.post('/logout', async (req, res) => {
     const token = parseCookies(req).dms_session;
     const session = token ? sessions.get(token) : null;
-
-    if (session) {
-      await writeAudit(session.user.userId, session.user.username, 'LOGOUT', getClientIp(req));
-      sessions.delete(token);
-    }
-
+    if (session) { await writeAudit(session.user.userId, session.user.username, 'LOGOUT', getClientIp(req)); sessions.delete(token); }
     clearAuthCookie(res);
-    res.json({ success: true });
+    res.json({ success:true });
   });
 
   router.get('/me', (req, res) => {
     const token = parseCookies(req).dms_session;
     const session = token ? sessions.get(token) : null;
-
     if (!session || session.expiresAt <= Date.now()) {
       if (token) sessions.delete(token);
-      return res.status(401).json({ authenticated: false });
+      return res.status(401).json({ authenticated:false });
     }
-
     session.expiresAt = Date.now() + SESSION_TTL_MS;
     const u = session.user;
+    res.json({ authenticated:true, user:{ userId:u.userId, username:u.username, name:u.name, family:u.family, isAdmin:u.isAdmin }, permissions:[...u.permissions] });
+  });
 
-    res.json({
-      authenticated: true,
-      user: {
-        userId: u.userId,
-        username: u.username,
-        name: u.name,
-        family: u.family,
-        isAdmin: u.isAdmin
-      },
-      permissions: [...u.permissions]
-    });
+  router.get('/pending-drawing-count', authenticate, async (req, res) => {
+    const userId = Number(req.user.userId);
+    if (!Number.isInteger(userId) || userId <= 0) return res.status(401).json({ error:'Authentication required.' });
+    const permissions = req.user.permissions;
+    const db = new sql.Request();
+    db.input('userId', sql.Int, userId);
+    db.input('canAssign', sql.Bit, permissions.has('REQUEST_DRAWING_ASSIGN'));
+    db.input('canFinalApprove', sql.Bit, permissions.has('REQUEST_DRAWING_FINAL_APPROVE'));
+    try {
+      const result = await db.query(`
+        SELECT COUNT(DISTINCT dr.RequestID) AS PendingCount
+        FROM dbo.DrawingRequests dr
+        INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID
+        WHERE
+          (s.StatusCode=N'PENDING_MANAGER' AND dr.ManagerUserID=@userId)
+          OR (s.StatusCode IN (N'ASSIGNED',N'TRANSFERRED',N'RETURNED_FOR_CORRECTION') AND dr.AssignedDrawingExpertID=@userId)
+          OR (s.StatusCode=N'PENDING_DRAWING_APPROVAL' AND @canAssign=1)
+          OR (s.StatusCode=N'PENDING_FINAL_APPROVAL' AND @canFinalApprove=1);
+      `);
+      res.json({ pendingCount:Number(result.recordset[0]?.PendingCount || 0) });
+    } catch (e) {
+      console.error('Pending drawing request count failed:', e.message);
+      res.status(500).json({ error:'Pending drawing request count failed.' });
+    }
   });
 
   function cleanup() {
     const now = Date.now();
-
-    for (const [token, session] of sessions) {
-      if (session.expiresAt <= now) sessions.delete(token);
-    }
-
-    for (const [ip, state] of loginAttempts) {
-      if (state.blockedUntil <= now && now - state.firstAt > LOGIN_WINDOW_MS) {
-        loginAttempts.delete(ip);
-      }
-    }
-
-    for (const [ip, state] of apiRateLimits) {
-      if (now - state.startedAt > API_WINDOW_MS) apiRateLimits.delete(ip);
-    }
+    for (const [token, session] of sessions) if (session.expiresAt <= now) sessions.delete(token);
+    for (const [ip, state] of loginAttempts) if (state.blockedUntil <= now && now - state.firstAt > LOGIN_WINDOW_MS) loginAttempts.delete(ip);
+    for (const [ip, state] of apiRateLimits) if (now - state.startedAt > API_WINDOW_MS) apiRateLimits.delete(ip);
   }
 
   return {
