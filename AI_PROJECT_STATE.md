@@ -98,32 +98,31 @@ Features:
 
 Dashboard limitation:
 - This first implementation uses the generic admin-table API, so some values are table row counts / latest 200 rows rather than dedicated aggregate SQL. Exact all-time workflow status counts and exact 7-day activity counts are therefore not guaranteed when more than 200 records exist.
-- Main DMS sidebar has not yet been changed; dashboard is currently reached from Database Management.
+- Main DMS sidebar previously reached management only; it now routes the Admin `Dashboard` item to `admin-dashboard.html`.
 
-## Security issue discovered — 2026-10-14
-- User reported that `management.html` and `admin-dashboard.html` can currently be opened without login.
-- The coding policy has now been updated in `DMS_AI_INSTRUCTIONS.md` with mandatory secure-by-default rules.
-- The next implementation task is to enforce authentication before protected pages can expose any management/dashboard content, while preserving the existing server-side Admin authorization for their APIs.
-- Direct API access must be tested separately from UI access; knowing a URL must never grant access.
+## Security fix — 2026-10-14
+- `backend/auth.js` now protects direct access to `/management.html` and `/admin-dashboard.html` at the server middleware layer before `express.static()` can serve them.
+- Unauthenticated direct navigation is redirected to `/login.html`.
+- Authenticated non-Admin users receive HTTP 403 for those pages.
+- Existing `/api` authentication middleware remains in force, so direct API calls still require the session cookie and Admin APIs still require `requireAdmin()`.
+- `frontend/js/script.js` now hides the Admin Dashboard sidebar button from non-Admin users and routes an Admin click on `Dashboard` to `admin-dashboard.html`.
+- No database schema was changed.
 
 ## Current repository discrepancy discovered 2026-10-14
 - Previous handoff described `SQL/Inserttable.sql` and a v04 migration commit, but the current GitHub `main` tree was inspected and currently contains only `SQL/Relation between table.rpt` under `SQL`; `SQL/Inserttable.sql` is not present in the live tree.
 - Do not assume the old migration commit/state exists on current `main`; verify GitHub before further SQL changes.
 
-## Recent dashboard commits
-- `47093daab4fa7fdd2f72883a4ab98c363d7280ae` — temporary dashboard backend module created; unused.
-- `802b759ab455e14420d5772f82416461d7c4988f` — removed unused dashboard backend module.
-- `87432b46ed21a70f46fb928d124bd01fb1b314e9` — added `frontend/admin-dashboard.html`.
-- `590253fe80e7297d3495ce8f6564caa22983e32f` — added admin dashboard CSS.
-- `bc6f4922a86e3f35b6ca74957281937c8a2bdc68` — added admin dashboard JavaScript.
-- `fa3c43d0012d8bc56b4e12fa54635574b37becfc` — linked Database Management to Admin Dashboard.
+## Recent security/dashboard commits
 - `276ed5d1367cc9eba131ba1d2ab4a256beed054a` — added mandatory secure-by-default coding rules to `DMS_AI_INSTRUCTIONS.md`.
+- `a6423c8c7658903151250a7edfbdbc0ccdb0afca` — recorded the security issue and required next implementation steps in `AI_PROJECT_STATE.md`.
+- `87c754acd7d0aa3d79c240baf76aa9c453b39dad` — added server-side protection for `management.html` and `admin-dashboard.html` in `backend/auth.js`.
+- `81d89151988376234cba799f900cfff80cc7f5bb` — routed the Admin Dashboard from the sidebar and hid that Dashboard item for non-Admin users in `frontend/js/script.js`.
 
 ## Verification
-- `frontend/js/admin-dashboard.js` was syntax-checked with `node --check`; it passed.
-- GitHub source for changed dashboard files was inspected after creation.
+- `frontend/js/admin-dashboard.js` was syntax-checked with `node --check` before this security/navigation change; it passed.
+- GitHub source for the modified security/navigation files was inspected.
 - Runtime SQL Server/UI testing has NOT been performed in this session.
-- The reported unauthenticated page-access issue has not yet been fixed in code; only the mandatory coding policy has been added.
+- The new server-side page guard and sidebar behavior still require runtime verification on the LAN pilot.
 
 ## Constraints
 - Do not change existing database structures without explicit user approval.
@@ -133,7 +132,9 @@ Dashboard limitation:
 - For significant changes: implement -> test/syntax-check -> commit -> update this file -> record commit -> update NEXT ACTION.
 
 # NEXT ACTION
-1. Fix `frontend/management.html` and `frontend/admin-dashboard.html` so unauthenticated users cannot access protected content, using the existing authentication/session model without weakening server-side `requireAdmin()` checks.
-2. Inspect `backend/server.js` static-file/page serving and `backend/auth.js` before implementing the page guard; prefer server-side protection for protected pages.
-3. Verify direct unauthenticated requests to both pages and to `/api/admin/tables...` return authentication/authorization failures as appropriate.
-4. Syntax-check and commit the security fix.
+1. Restart the LAN pilot Node.js server so the new `backend/auth.js` code is loaded.
+2. Without a login session, request `/management.html` and `/admin-dashboard.html`; both must redirect to `/login.html`.
+3. Login as a non-Admin user and request both pages directly; both must return HTTP 403.
+4. Login as Admin and click the sidebar `Dashboard`; it must open `admin-dashboard.html` and load its protected API data.
+5. Directly call `/api/admin/tables` without the session cookie; it must return HTTP 401. Call it as a non-Admin session; it must return HTTP 403.
+6. Run `node --check backend/auth.js` and `node --check frontend/js/script.js`, then record the verification result in this file.
