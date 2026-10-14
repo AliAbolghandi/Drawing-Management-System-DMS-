@@ -587,3 +587,32 @@
 
   loadRoots();
 })();
+
+// Admin Dashboard navigation is intentionally enforced by the server too.
+// This capture handler prevents the existing generic "home" handler from
+// swallowing the Dashboard click for an authenticated Admin user.
+(() => {
+  const host = window.location.hostname || 'localhost';
+  const API = `http://${host}:3000/api`;
+  const dashboardButton = document.querySelector('[data-dms-nav="home"]');
+  if (!dashboardButton) return;
+
+  window.__DMS_IS_ADMIN = false;
+  fetch(`${API}/auth/me`, { credentials: 'include', cache: 'no-store' })
+    .then(async response => {
+      if (!response.ok) return;
+      const data = await response.json().catch(() => ({}));
+      window.__DMS_IS_ADMIN = data.user?.isAdmin === true;
+      dashboardButton.classList.toggle('hidden', !window.__DMS_IS_ADMIN);
+    })
+    .catch(() => {});
+
+  document.addEventListener('click', event => {
+    if (!window.__DMS_IS_ADMIN) return;
+    const button = event.target.closest('[data-dms-nav="home"]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.location.assign('admin-dashboard.html');
+  }, true);
+})();
