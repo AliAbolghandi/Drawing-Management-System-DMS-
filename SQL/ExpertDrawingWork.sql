@@ -83,7 +83,7 @@ BEGIN
                 AND w.PredictedPartCount IS NULL
           )
     )
-        THROW 51021, 'A predicted part count is required before accepting drawing work.', 1;
+        ;THROW 51021, 'A predicted part count is required before accepting drawing work.', 1;
 END;
 GO
 
@@ -144,7 +144,7 @@ BEGIN
                     AND w.DrawnPartCount IS NOT NULL
               )
           )
-        THROW 51022, 'Croquis, Modeling and Final Drawing data are required before completing the request.', 1;
+        ;THROW 51022, 'Croquis, Modeling and Final Drawing data are required before completing the request.', 1;
 END;
 GO
 
