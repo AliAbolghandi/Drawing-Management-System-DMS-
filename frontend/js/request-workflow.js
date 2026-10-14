@@ -26,14 +26,15 @@
     if($('rwExpertWorkStyles')) return;
     const style=document.createElement('style'); style.id='rwExpertWorkStyles';
     style.textContent=`
-      .rw-expert-work-box{margin:16px 0;padding:16px;border:1px solid #dfe4ea;border-radius:12px;background:#fafbfc}
-      .rw-expert-work-box h4{margin:0 0 12px;font-size:15px}.rw-ew-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
-      .rw-ew-stat{padding:10px;border-radius:9px;background:#fff;border:1px solid #e5e7eb}.rw-ew-stat small{display:block;color:#68717d;font-size:11px}.rw-ew-stat strong{font-size:18px}
-      .rw-ew-contribution{padding:10px 0;border-top:1px solid #e5e7eb}.rw-ew-contribution:first-of-type{border-top:0}.rw-ew-contribution strong{display:block;margin-bottom:5px}
-      .rw-ew-modal{margin:14px 0;padding:14px;border:1px solid #d9dee6;border-radius:10px;background:#f8fafc}.rw-ew-modal h4{margin:0 0 12px}.rw-ew-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.rw-ew-stage{border:1px solid #e1e5ea;background:#fff;border-radius:10px;padding:12px}.rw-ew-stage h5{margin:0 0 10px}.rw-ew-stage label{display:block;font-size:12px;margin:7px 0 4px}.rw-ew-stage input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #ccd3dc;border-radius:6px}.rw-ew-note{font-size:12px;color:#667085;margin:8px 0}.rw-ew-error{color:#b42318;font-size:12px;margin-top:8px}.rw-ew-success{color:#027a48;font-size:12px;margin-top:8px}
+      .rw-expert-work-box{margin:16px 0;padding:16px;border:1px solid #334155;border-radius:12px;background:#0b1424;color:#e2e8f0}
+      .rw-expert-work-box h4{margin:0 0 12px;font-size:15px;color:#f8fafc}.rw-ew-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
+      .rw-ew-stat{padding:10px;border-radius:9px;background:#111c2f;border:1px solid #334155;color:#e2e8f0}.rw-ew-stat small{display:block;color:#94a3b8;font-size:11px}.rw-ew-stat strong{font-size:18px;color:#f8fafc}
+      .rw-ew-contribution{padding:10px 0;border-top:1px solid #334155}.rw-ew-contribution:first-of-type{border-top:0}.rw-ew-contribution strong{display:block;margin-bottom:5px;color:#f1f5f9}
+      .rw-ew-modal{margin:14px 0;padding:14px;border:1px solid #334155;border-radius:10px;background:#0b1424;color:#e2e8f0}.rw-ew-modal h4{margin:0 0 12px;color:#f8fafc}.rw-ew-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.rw-ew-stage{border:1px solid #334155;background:#111c2f;color:#e2e8f0;border-radius:10px;padding:12px}.rw-ew-stage h5{margin:0 0 10px;color:#f8fafc}.rw-ew-stage label{display:block;font-size:12px;margin:7px 0 4px;color:#cbd5e1}.rw-ew-stage input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #475569;border-radius:6px;background:#0b1424;color:#f8fafc}.rw-ew-note{font-size:12px;color:#94a3b8;margin:8px 0}.rw-ew-error{color:#fca5a5;font-size:12px;margin-top:8px}.rw-ew-success{color:#86efac;font-size:12px;margin-top:8px}
       .rw-ew-save-progress{margin-right:8px}
+      .expert-work-dialog{background:#0f172a!important;color:#e2e8f0;border:1px solid #334155}.expert-work-dialog .rw-action-header{background:#111c2f;border-bottom:1px solid #334155}.expert-work-dialog .rw-action-header h2{color:#f8fafc}.expert-work-dialog .rw-action-header p{color:#94a3b8}.expert-work-dialog .expert-work-section{background:#111c2f;border:1px solid #334155;border-radius:10px;padding:14px;margin:12px 0}.expert-work-dialog .expert-work-section-head strong{color:#f8fafc}.expert-work-dialog .expert-work-section-head small{color:#94a3b8}.expert-work-dialog .expert-work-field{color:#cbd5e1}.expert-work-dialog .expert-work-field input{background:#0b1424;color:#f8fafc;border-color:#475569}.expert-work-dialog .expert-work-summary>div{background:#111c2f;color:#cbd5e1;border:1px solid #334155}.expert-work-dialog .expert-work-summary b{color:#6fe3ff}
       @media(max-width:900px){.rw-ew-summary,.rw-ew-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.rw-ew-summary,.rw-ew-grid{grid-template-columns:1fr}}
-    `; document.head.appendChild(style);
+    `;; document.head.appendChild(style);
   }
 
   function setBadge(count){
