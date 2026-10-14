@@ -81,10 +81,36 @@
     return `<section class="rw-expert-work-box"><h4>Expert Work Contributions</h4><div class="rw-ew-summary"><div class="rw-ew-stat"><small>Predicted</small><strong>${Number(t.predictedPartCount||0)}</strong></div><div class="rw-ew-stat"><small>Croquis</small><strong>${Number(t.croquisPartCount||0)}</strong></div><div class="rw-ew-stat"><small>Modeling</small><strong>${Number(t.modelingPartCount||0)}</strong></div><div class="rw-ew-stat"><small>Standard</small><strong>${Number(t.standardPartCount||0)}</strong></div><div class="rw-ew-stat"><small>Drawn</small><strong>${Number(t.drawnPartCount||0)}</strong></div></div>${rows.map(x=>`<div class="rw-ew-contribution"><strong>${esc(userText(x.ExpertName,x.ExpertFamily,x.DrawingExpertUsername))}${Number(x.IsCurrent)===1?' — Current Expert':''}</strong><div class="rw-ew-note">Prediction: ${x.PredictedPartCount??'-'} | Croquis: ${x.CroquisPartCount??'-'} | Modeling: ${x.ModelingPartCount??'-'} | Drawing: Standard ${x.StandardPartCount??'-'} / Drawn ${x.DrawnPartCount??'-'}</div></div>`).join('')}</section>`;
   }
 
+  function renderStepByStepWorkflow(request) {
+    const history = Array.isArray(request.WorkflowHistory) ? request.WorkflowHistory : [];
+    const actionNames = {
+      REQUEST_CREATED: 'Request Created', MANAGER_APPROVED: 'Manager Approved',
+      MANAGER_REJECTED: 'Manager Rejected', DRAWING_APPROVED: 'Drawing Approved',
+      DRAWING_REJECTED: 'Drawing Rejected', ASSIGNED_TO_EXPERT: 'Assigned to Expert',
+      EXPERT_ACCEPTED: 'Expert Accepted Work', EXPERT_TRANSFERRED: 'Transferred to Another Expert',
+      EXPERT_REJECTED: 'Expert Rejected Work', RETURN_FOR_CORRECTION: 'Returned for Correction',
+      WORK_COMPLETED: 'Work Completed', FINAL_APPROVED: 'Final Approved',
+      FINAL_REJECTED: 'Final Rejected', REQUEST_CANCELLED: 'Request Cancelled'
+    };
+    const steps = history.map((item, index) => {
+      const action = String(item.ActionCode || '').toUpperCase();
+      const rejected = /REJECT|CANCEL/.test(action) || /REJECT|CANCEL/i.test(item.ToStatusName || '');
+      const approved = /APPROV|ACCEPT|COMPLETE|CREATED|ASSIGNED|TRANSFERRED/i.test(action);
+      const actor = userText(item.ActionByName, item.ActionByFamily, item.ActionByUsername);
+      const when = dateText(item.CreatedAt);
+      return `<article class="rw-timeline-step ${rejected ? 'is-rejected' : approved ? 'is-approved' : ''}">
+        <div class="rw-timeline-heading"><strong>${esc(actionNames[action] || String(item.ToStatusName || action || 'Workflow Update').replaceAll('_',' '))}</strong><span>${esc(item.ToStatusName || 'Recorded')}</span></div>
+        <div class="rw-timeline-actor">${esc(actor)}</div><time>${esc(when)}</time>
+        ${item.Comment ? `<p class="rw-timeline-comment">${esc(item.Comment)}</p>` : '<p class="rw-timeline-no-comment">No comment recorded</p>'}
+      </article>${index < history.length - 1 ? '<div class="rw-timeline-arrow" aria-hidden="true">↓</div>' : ''}`;
+    }).join('');
+    return `<section class="rw-workflow-timeline"><div class="rw-workflow-timeline-header"><h4>Step-by-step workflow</h4><span class="rw-workflow-step-count">${history.length} ${history.length === 1 ? 'step' : 'steps'}</span></div><div class="rw-timeline-list">${steps || '<div class="rw-workflow-placeholder"><span>◷</span><strong>Workflow history is not available yet</strong><p>Recorded actions will appear here as the request moves through approval and drawing.</p></div>'}</div></section>`;
+  }
+
   function openRequestDetailsModal(requestId){
     const r=allRequests.find(x=>Number(x.RequestID)===Number(requestId));if(!r)return;selectedWorkflowRequestId=Number(requestId);const box=$('rwDetailsBody');if(!box)return;
     const actions=getRequestActions(r);const actionsHtml=actions.length?`<section class="rw-details-actions"><h4>Available Actions</h4><div class="rw-action-row">${actions.map(a=>`<button type="button" class="rw-action-btn" data-details-action="${a.action}" data-request-id="${Number(r.RequestID)}" data-required-permission="${esc(a.permission)}"${a.allowed?'':' disabled aria-disabled="true"'}>${esc(a.label)}</button>`).join('')}</div></section>`:'<div class="rw-details-no-actions">No actions are available for your account at this workflow stage.</div>';
-    box.innerHTML=`<div class="rw-details-request-number">${esc(r.RequestNumber||'-')}</div><div class="rw-details-status-row"><span class="rw-details-status-label">STATUS</span><span class="rw-details-status">${esc(r.StatusName||r.StatusCode||'-')}</span></div><section class="rw-details-location-section"><div class="rw-details-location"><button type="button" class="rw-submit" id="rwShowNodeLocation" data-node-id="${Number(r.NodeID)}" data-node-code="${esc(r.NodeCode||'')}">Show location in tree</button><span id="rwNodeLocationMessage"></span></div><div class="rw-node-path" id="rwRequestNodePath"></div></section>${actionsHtml}<div id="rwExpertWorkDetails"><div class="rw-loading">Loading expert work…</div></div>`;
+    box.innerHTML=`<div class="rw-details-request-number">${esc(r.RequestNumber||'-')}</div><div class="rw-details-status-row"><span class="rw-details-status-label">STATUS</span><span class="rw-details-status">${esc(r.StatusName||r.StatusCode||'-')}</span></div><section class="rw-details-location-section"><div class="rw-details-location"><button type="button" class="rw-submit" id="rwShowNodeLocation" data-node-id="${Number(r.NodeID)}" data-node-code="${esc(r.NodeCode||'')}">Show location in tree</button><span id="rwNodeLocationMessage"></span></div><div class="rw-node-path" id="rwRequestNodePath"></div></section>${actionsHtml}${renderStepByStepWorkflow(r)}<div id="rwExpertWorkDetails"><div class="rw-loading">Loading expert work…</div></div>`;
     if($('rwDetailsTitle'))$('rwDetailsTitle').textContent=r.RequestNumber||'Request Workflow';if($('rwSelectedStatus'))$('rwSelectedStatus').textContent=r.StatusName||r.StatusCode||'-';
     loadExpertWork(requestId).then(data=>{const el=$('rwExpertWorkDetails');if(el)el.innerHTML=buildExpertWorkView(data);}).catch(e=>{const el=$('rwExpertWorkDetails');if(el)el.innerHTML=`<div class="rw-empty">${esc(e.message)}</div>`;});
     requestJson(`${API}/node-hierarchy/${Number(r.NodeID)}/full`).then(data=>{const p=$('rwRequestNodePath');if(p&&Array.isArray(data.hierarchy))p.innerHTML=data.hierarchy.map((n,i)=>`<div class="rw-node-path-item ${i===data.hierarchy.length-1?'is-current':''}"><span class="rw-node-path-label"><strong>${esc(n.nodeCode||'-')}</strong><span>${esc(n.nodeName||'-')}</span></span></div>`).join('');}).catch(()=>{});
