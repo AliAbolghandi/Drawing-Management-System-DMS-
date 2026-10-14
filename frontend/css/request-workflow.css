@@ -213,7 +213,7 @@
 }
 
 .rw-dialog {
-    width: min(520px, 96vw);
+    width: min(50%, 80%);
     background: #fff;
     color: #0f172a;
     border-radius: 12px;
