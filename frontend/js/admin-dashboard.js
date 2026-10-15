@@ -78,6 +78,7 @@
     $('reportEndDate').value = window.DMSDate.toJalaliInput(end, true);
   }
   function renderExpertReport() {
+    document.querySelectorAll('.report-legend[data-report-legend="expert"]').forEach(el => el.remove());
     const selected = $('reportExpertFilter').value;
     const rows = selected === 'all' ? reportState.experts : reportState.experts.filter(x => String(x.UserID) === selected);
     const chart = $('expertPerformanceChart');
@@ -162,5 +163,10 @@
     }
   }
 
-  $('refreshButton').addEventListener('click',load);$('backButton').addEventListener('click',()=>location.href='index.html');$('backButtonBottom').addEventListener('click',()=>location.href='index.html');$('managementButton').addEventListener('click',()=>location.href='management.html');\n  $('loadProductionReports').addEventListener('click',loadProductionReports);\n  $('reportExpertFilter').addEventListener('change',renderExpertReport);\n  reportDefaultDates();\n  loadProductionReports();\n  load();
+  $('refreshButton').addEventListener('click',load);$('backButton').addEventListener('click',()=>location.href='index.html');$('backButtonBottom').addEventListener('click',()=>location.href='index.html');$('managementButton').addEventListener('click',()=>location.href='management.html');
+  $('loadProductionReports').addEventListener('click',loadProductionReports);
+  $('reportExpertFilter').addEventListener('change',renderExpertReport);
+  reportDefaultDates();
+  loadProductionReports();
+  load();
 })();
