@@ -136,6 +136,87 @@ function registerAdminDatabaseRoutes(app, deps) {
     });
   }
 
+  // Read-only production reporting; does not alter the database schema.
+  app.get('/api/admin/dashboard/production-reports', auth.requireAdmin(), async (req, res) => {
+    try {
+      const parseDate = value => {
+        if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return null;
+        const d = new Date(value + 'T00:00:00Z');
+        return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value ? value : null;
+      };
+      const startDate = parseDate(req.query.startDate);
+      const endDate = parseDate(req.query.endDate);
+      if (!startDate || !endDate || startDate > endDate) {
+        return res.status(400).json({ error: 'Valid startDate and endDate are required in YYYY-MM-DD format; startDate must not be after endDate.' });
+      }
+      const request = () => {
+        const r = new sql.Request();
+        r.input('startDate', sql.Date, startDate);
+        r.input('endDate', sql.Date, endDate);
+        return r;
+      };
+      const performanceResult = await request().query(`
+        SELECT u.UserID, u.Username,
+          LTRIM(RTRIM(CONCAT(COALESCE(u.Name, N''), N' ', COALESCE(u.Family, N'')))) AS ExpertName,
+          SUM(CASE WHEN w.CroquisEndDate >= @startDate AND w.CroquisEndDate < DATEADD(day, 1, @endDate) THEN COALESCE(w.CroquisPartCount, 0) ELSE 0 END) AS CroquisParts,
+          SUM(CASE WHEN w.ModelingEndDate >= @startDate AND w.ModelingEndDate < DATEADD(day, 1, @endDate) THEN COALESCE(w.ModelingPartCount, 0) ELSE 0 END) AS ModelingParts,
+          SUM(CASE WHEN w.DrawingEndDate >= @startDate AND w.DrawingEndDate < DATEADD(day, 1, @endDate) THEN COALESCE(w.StandardPartCount, 0) + COALESCE(w.DrawnPartCount, 0) ELSE 0 END) AS DrawingParts
+        FROM dbo.DrawingRequestAssignments a
+        INNER JOIN dbo.Users u ON u.UserID = a.DrawingExpertUserID
+        LEFT JOIN dbo.DrawingRequestExpertWork w ON w.AssignmentID = a.AssignmentID
+        WHERE
+          (w.CroquisEndDate >= @startDate AND w.CroquisEndDate < DATEADD(day, 1, @endDate))
+          OR (w.ModelingEndDate >= @startDate AND w.ModelingEndDate < DATEADD(day, 1, @endDate))
+          OR (w.DrawingEndDate >= @startDate AND w.DrawingEndDate < DATEADD(day, 1, @endDate))
+        GROUP BY u.UserID, u.Username, u.Name, u.Family
+        ORDER BY ExpertName, u.Username;
+      `);
+      const monthlyResult = await request().query(`
+        WITH ProductionEvents AS (
+          SELECT DATEFROMPARTS(YEAR(a.AssignedAt), MONTH(a.AssignedAt), 1) AS MonthStart,
+            N'PredictedParts' AS Metric, CAST(COALESCE(w.PredictedPartCount, 0) AS bigint) AS PartCount
+          FROM dbo.DrawingRequestAssignments a
+          INNER JOIN dbo.DrawingRequestExpertWork w ON w.AssignmentID = a.AssignmentID
+          WHERE a.AssignedAt >= @startDate AND a.AssignedAt < DATEADD(day, 1, @endDate)
+            AND w.PredictedPartCount IS NOT NULL
+          UNION ALL
+          SELECT DATEFROMPARTS(YEAR(w.CroquisEndDate), MONTH(w.CroquisEndDate), 1), N'CroquisParts', CAST(COALESCE(w.CroquisPartCount, 0) AS bigint)
+          FROM dbo.DrawingRequestExpertWork w
+          WHERE w.CroquisEndDate >= @startDate AND w.CroquisEndDate < DATEADD(day, 1, @endDate)
+          UNION ALL
+          SELECT DATEFROMPARTS(YEAR(w.ModelingEndDate), MONTH(w.ModelingEndDate), 1), N'ModelingParts', CAST(COALESCE(w.ModelingPartCount, 0) AS bigint)
+          FROM dbo.DrawingRequestExpertWork w
+          WHERE w.ModelingEndDate >= @startDate AND w.ModelingEndDate < DATEADD(day, 1, @endDate)
+          UNION ALL
+          SELECT DATEFROMPARTS(YEAR(w.DrawingEndDate), MONTH(w.DrawingEndDate), 1), N'DrawingParts',
+            CAST(COALESCE(w.StandardPartCount, 0) + COALESCE(w.DrawnPartCount, 0) AS bigint)
+          FROM dbo.DrawingRequestExpertWork w
+          WHERE w.DrawingEndDate >= @startDate AND w.DrawingEndDate < DATEADD(day, 1, @endDate)
+        )
+        SELECT MonthStart,
+          SUM(CASE WHEN Metric = N'PredictedParts' THEN PartCount ELSE 0 END) AS PredictedParts,
+          SUM(CASE WHEN Metric = N'CroquisParts' THEN PartCount ELSE 0 END) AS CroquisParts,
+          SUM(CASE WHEN Metric = N'ModelingParts' THEN PartCount ELSE 0 END) AS ModelingParts,
+          SUM(CASE WHEN Metric = N'DrawingParts' THEN PartCount ELSE 0 END) AS DrawingParts
+        FROM ProductionEvents
+        GROUP BY MonthStart ORDER BY MonthStart;
+      `);
+      res.json({
+        startDate, endDate,
+        expertPerformance: performanceResult.recordset,
+        monthlyProduction: monthlyResult.recordset,
+        rejectedParts: null,
+        rejectedPartsAvailable: false,
+        rejectedPartsMessage: 'No part-level rejection source exists in the inspected schema. DrawingRequestHistory records workflow actions, not rejected part counts; no database structure or inferred rejection count was added.',
+        predictionDateNote: 'dbo.DrawingRequestExpertWork has no prediction timestamp; monthly predicted parts are attributed to DrawingRequestAssignments.AssignedAt.',
+        drawingCountDefinition: 'StandardPartCount + DrawnPartCount',
+        performanceDateDefinition: 'Stage EndDate (CroquisEndDate, ModelingEndDate, DrawingEndDate).'
+      });
+    } catch (e) {
+      sendServerError(res, 'Production dashboard report failed', e);
+    }
+  });
+
   app.get('/api/admin/tables', auth.requireAdmin(), async (req, res) => {
     try {
       const list = await tables();
