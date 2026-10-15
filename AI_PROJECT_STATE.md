@@ -167,11 +167,17 @@ The compatibility correction is committed, but the migration must be executed on
 - Commits: `db09c5565daac00cdcde32f8808890555e0c3dc6` (Jalali picker and six fields); index cache-bust commit `680321d5ac149a9f49f8d0979272e4239bd918fb`.
 - Verification: JavaScript syntax parsed successfully with `new Function(...)`; confirmed zero remaining `type="date"` controls in `request-workflow.js`. Live browser interaction and backend save were not tested in this environment.
 
+## DrawingRequestExpertWork column-order rebuild — 2026-10-15
+- Inspected `SQL/Relation between table.rpt`: the existing `dbo.DrawingRequestExpertWork` has `ExpertWorkID, AssignmentID, PredictedPartCount, ...`; `RequestNumber` and `DrawingExpertUsername` currently exist on `dbo.DrawingRequestAssignments`, not on the expert-work table.
+- Added `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql`. It transactionally rebuilds the original table with `RequestNumber` and `DrawingExpertUsername` immediately after `AssignmentID`, copies existing rows while preserving `ExpertWorkID`, obtains the two values by joining through `AssignmentID`, checks the row count, and recreates the primary key, assignment FK, unique constraint, all eight check constraints, and the two documented indexes.
+- Added insert trigger `dbo.TR_DrawingRequestExpertWork_AssignmentSnapshot` so existing API insert statements that only provide `AssignmentID` and work fields still populate the two snapshot columns from `DrawingRequestAssignments`. Existing API contracts and assignment relationship are retained.
+- GitHub commits: `74c4bbc8e92f2b6f57844da1f42afbfd9d823a4c` (migration added); `80cb4f29b01cb2fc3735a54232e9ef359354ceac` (populate snapshot columns for future inserts).
+- Verification status: inspected schema metadata and current API insert patterns. The migration has NOT been executed against the user's SQL Server; do not claim database runtime validation. Run it during a maintenance window and verify row counts, column ordinals, constraints, and trigger after completion.
+- Safety note: the migration aborts if either requested column already exists, and its transaction rolls back on errors. Take a database backup before running it.
+
 # NEXT ACTION
-1. Test the Complete Drawing Work Jalali picker in a browser: open all six fields, navigate Jalali months, select dates, save progress, and verify the backend receives Gregorian ISO dates.
-2. Audit all frontend forms/date controls and make Solar Hijri the consistent official calendar throughout DMS; avoid changing database schema or API contracts.
-1. Pull latest `main` (final-approval border fix commit `8a2b161d0c72c57cb07df63163e3b83fcda4b68e`) into `H:\\Drawing Management system\\app\\MyTreeApp`.
-2. Run `node --check frontend/js/request-workflow.js` from the project root and refresh the browser with `Ctrl+F5`.
-3. Open Drawing Requests and verify the card's left border is red for every displayed request whose status is not `FINAL_APPROVED`, and green only for `FINAL_APPROVED`; confirm status background colors remain unchanged.
-4. Continue pending browser/backend checks for the restored Step-by-step workflow and Croquis/Modeling/Final Drawing theme alignment.
-5. Continue runtime login verification and SQL expert-work trigger testing as previously listed above.
+1. Back up `dbDrawingManagment` and stop DMS writes during a maintenance window.
+2. Execute `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` against `dbDrawingManagment` in SQL Server Management Studio.
+3. Verify the returned ordinal list shows `AssignmentID`, `RequestNumber`, `DrawingExpertUsername` as columns 2–4; compare pre/post row counts; confirm the FK, unique constraint, checks, indexes, and `TR_DrawingRequestExpertWork_AssignmentSnapshot` exist and are enabled.
+4. Test prediction save and Save Progress on a test request, then verify the two snapshot fields are populated from the matching assignment.
+5. Continue pending browser/backend checks for Jalali calendar, request border, workflow timeline/theme, login, and expert-work triggers.
