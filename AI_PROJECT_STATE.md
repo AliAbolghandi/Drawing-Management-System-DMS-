@@ -175,9 +175,28 @@ The compatibility correction is committed, but the migration must be executed on
 - Verification status: inspected schema metadata and current API insert patterns. The migration has NOT been executed against the user's SQL Server; do not claim database runtime validation. Run it during a maintenance window and verify row counts, column ordinals, constraints, and trigger after completion.
 - Safety note: the migration aborts if either requested column already exists, and its transaction rolls back on errors. Take a database backup before running it.
 
+## Dashboard production reports — 2026-10-15
+
+- Added Admin-only read endpoint `GET /api/admin/dashboard/production-reports?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` in `backend/admin-db.js`. The route validates ISO date range, uses parameterized SQL dates, and reads existing tables only.
+- Updated `frontend/admin-dashboard.html`, `frontend/css/admin-dashboard.css`, and `frontend/js/admin-dashboard.js` with Production Reports, Jalali date range fields, expert filter, charts and data tables.
+- Expert performance reports part contributions by stage end date: `CroquisPartCount`, `ModelingPartCount`, and final drawing parts = `StandardPartCount + DrawnPartCount`. The table and chart share date/expert filters.
+- Monthly production groups predicted parts, Croquis parts, Modeling parts and final drawing parts by month. Prediction timestamp does not exist in the current schema, so predicted counts are attributed to `DrawingRequestAssignments.AssignedAt`; this limitation is exposed in the UI/API response.
+- Rejected part source investigation: the inspected schema has no part-level rejection table/column. `DrawingRequestHistory` stores workflow actions/status transitions, which cannot safely be interpreted as rejected part counts. The API returns `rejectedPartsAvailable: false` and no fabricated count; the UI displays «نامشخص». Do not change database schema or infer rejection counts without explicit approval and an identified business source.
+- No database tables, columns, constraints, or API contracts were changed. Existing admin session/role protection is applied to the new endpoint.
+- Commits on `main`:
+  - `959b462f6c88fb489a4802b4c40f16bc07e77beb` — read-only production reports API.
+  - `5131b100c85df411ae840477ace855bf6ae0c801` — dashboard report sections and Jalali date utility.
+  - `2624f3a3af69f48c6f39572639fb2d454e996064` — report styles.
+  - `50a2c402bbb927cfc82e509c692ccd8cac78e030` — initial report UI implementation.
+  - `c01e9ef8529b1ce8dbbc599c45419895b79a9ae2` — corrected frontend script syntax and chart legend refresh.
+  - `10b0e171c72195fe3e5038d3cccbe41db8aa08ca` — corrected API date validation.
+- Verification: `new Function(...)` syntax checks passed for `backend/admin-db.js` and `frontend/js/admin-dashboard.js` after the final fixes. The Jalali utility was exercised in the JS runtime: `1405/07/01` converted to `2026-09-23`. No live SQL Server query, browser UI interaction, authorization integration, or real production-data validation has been performed.
+
 # NEXT ACTION
-1. Back up `dbDrawingManagment` and stop DMS writes during a maintenance window.
-2. Execute `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` against `dbDrawingManagment` in SQL Server Management Studio.
-3. Verify the returned ordinal list shows `AssignmentID`, `RequestNumber`, `DrawingExpertUsername` as columns 2–4; compare pre/post row counts; confirm the FK, unique constraint, checks, indexes, and `TR_DrawingRequestExpertWork_AssignmentSnapshot` exist and are enabled.
-4. Test prediction save and Save Progress on a test request, then verify the two snapshot fields are populated from the matching assignment.
-5. Continue pending browser/backend checks for Jalali calendar, request border, workflow timeline/theme, login, and expert-work triggers.
+1. On the DMS test environment, restart the backend and log in as an Admin.
+2. Open `admin-dashboard.html`; choose a Jalali date range and verify both reports load through `GET /api/admin/dashboard/production-reports`.
+3. Compare expert totals against `dbo.DrawingRequestExpertWork` joined to `dbo.DrawingRequestAssignments`, verifying each stage uses its own end date and Drawing parts equals `StandardPartCount + DrawnPartCount`.
+4. Verify monthly prediction grouping is understood as `DrawingRequestAssignments.AssignedAt` because no prediction timestamp exists; verify date-boundary behavior and zero-result ranges.
+5. Verify non-Admin sessions receive 403 and unauthenticated requests receive 401. Check responsive layout and expert filter in a browser.
+6. Identify the authoritative source for actual rejected part counts with the user/business owner. Do not add schema or infer values until that source and any required schema change are explicitly approved.
+7. Continue pending checks from the prior NEXT ACTION: run `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` only during the approved maintenance window after backup and stop DMS writes; then validate the Jalali work form, workflow border/timeline/theme, login, and expert-work triggers.
