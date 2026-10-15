@@ -129,6 +129,24 @@ BEGIN TRY
     CREATE NONCLUSTERED INDEX IX_DrawingRequestExpertWork_Dates
         ON dbo.DrawingRequestExpertWork (CroquisStartDate, ModelingStartDate, DrawingStartDate);
 
+    -- Keep the snapshot columns populated for future inserts from existing APIs or other clients.
+    EXEC sys.sp_executesql N'
+        CREATE TRIGGER dbo.TR_DrawingRequestExpertWork_AssignmentSnapshot
+        ON dbo.DrawingRequestExpertWork
+        AFTER INSERT
+        AS
+        BEGIN
+            SET NOCOUNT ON;
+            UPDATE work
+            SET RequestNumber = assignment.RequestNumber,
+                DrawingExpertUsername = assignment.DrawingExpertUsername
+            FROM dbo.DrawingRequestExpertWork AS work
+            INNER JOIN inserted AS i ON i.ExpertWorkID = work.ExpertWorkID
+            INNER JOIN dbo.DrawingRequestAssignments AS assignment
+                ON assignment.AssignmentID = work.AssignmentID;
+        END;
+    ';
+
     COMMIT TRANSACTION;
 
     -- Verification: column order and preserved row count.
