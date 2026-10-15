@@ -97,54 +97,79 @@
     return /^\d{4}-\d{2}-\d{2}$/.test(s)?s:null;
   }
   function inReportRange(date,start,end){return Boolean(date&&date>=start&&date<=end);}
+  function positivePartCount(value){
+    const n=Number(value);
+    return Number.isFinite(n)&&n>0?n:0;
+  }
   function addPredictionMonth(monthly,date,count){
     const month=date.slice(0,7)+'-01';
     if(!monthly.has(month)) monthly.set(month,{MonthStart:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
-    monthly.get(month).PredictedParts+=Number(count||0);
+    monthly.get(month).PredictedParts+=positivePartCount(count);
   }
+
+  // Production is calculated from completed stage records only.
+  // Each AssignmentID has at most one ExpertWork row by database constraint.
+  // A delegated assignment remains valid production for the expert who actually completed that stage.
   function buildProductionReport(workRows,assignmentRows,userRows,startDate,endDate){
     const assignments=new Map(assignmentRows.map(a=>[Number(a.AssignmentID),a]));
     const users=new Map(userRows.map(u=>[Number(u.UserID),u]));
     const experts=new Map();
     const monthly=new Map();
     const predictions=new Map();
-    for(const w of workRows){
-      const a=assignments.get(Number(w.AssignmentID));
-      if(!a) continue;
-      const userId=Number(a.DrawingExpertUserID);
+    const countedWork=new Set();
+
+    const ensureMonth=(date)=>{
+      const month=date.slice(0,7)+'-01';
+      if(!monthly.has(month)) monthly.set(month,{MonthStart:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
+      return monthly.get(month);
+    };
+    const addStage=(assignment,stageDate,field,count)=>{
+      if(!stageDate||!inReportRange(stageDate,startDate,endDate)) return;
+      const parts=positivePartCount(count);
+      if(parts<=0) return;
+      const userId=Number(assignment.DrawingExpertUserID);
       const u=users.get(userId)||{};
-      const expertName=(String(u.Name||'')+' '+String(u.Family||'')).trim()||a.DrawingExpertUsername||u.Username||'Unknown';
-      const addExpert=()=>{
-        if(!experts.has(userId)) experts.set(userId,{UserID:userId,Username:u.Username||a.DrawingExpertUsername||'',ExpertName:expertName,CroquisParts:0,ModelingParts:0,DrawingParts:0});
-        return experts.get(userId);
-      };
-      const addMonth=(date,field,count)=>{
-        if(!inReportRange(date,startDate,endDate)) return;
-        const month=date.slice(0,7)+'-01';
-        if(!monthly.has(month)) monthly.set(month,{MonthStart:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
-        monthly.get(month)[field]+=Number(count||0);
-      };
-      const croquisDate=completedDate(w.CroquisEndDate);
-      const modelingDate=completedDate(w.ModelingEndDate);
-      const drawingDate=completedDate(w.DrawingEndDate);
-      const croquis=Number(w.CroquisPartCount||0);
-      const modeling=Number(w.ModelingPartCount||0);
-      const drawing=Number(w.StandardPartCount||0)+Number(w.DrawnPartCount||0);
-      if(croquisDate&&inReportRange(croquisDate,startDate,endDate)){addExpert().CroquisParts+=croquis;addMonth(croquisDate,'CroquisParts',croquis);}
-      if(modelingDate&&inReportRange(modelingDate,startDate,endDate)){addExpert().ModelingParts+=modeling;addMonth(modelingDate,'ModelingParts',modeling);}
-      if(drawingDate&&inReportRange(drawingDate,startDate,endDate)){addExpert().DrawingParts+=drawing;addMonth(drawingDate,'DrawingParts',drawing);}
-      const prediction=Number(w.PredictedPartCount);
-      if(Number.isFinite(prediction)&&prediction>=0){
+      const expertName=(String(u.Name||'')+' '+String(u.Family||'')).trim()||assignment.DrawingExpertUsername||u.Username||'Unknown';
+      if(!experts.has(userId)) experts.set(userId,{UserID:userId,Username:u.Username||assignment.DrawingExpertUsername||'',ExpertName:expertName,CroquisParts:0,ModelingParts:0,DrawingParts:0});
+      experts.get(userId)[field]+=parts;
+      ensureMonth(stageDate)[field]+=parts;
+    };
+
+    for(const w of workRows){
+      const assignmentId=Number(w.AssignmentID);
+      if(!Number.isFinite(assignmentId)||countedWork.has(assignmentId)) continue;
+      const a=assignments.get(assignmentId);
+      if(!a) continue;
+      countedWork.add(assignmentId);
+
+      addStage(a,completedDate(w.CroquisEndDate),'CroquisParts',w.CroquisPartCount);
+      addStage(a,completedDate(w.ModelingEndDate),'ModelingParts',w.ModelingPartCount);
+      addStage(a,completedDate(w.DrawingEndDate),'DrawingParts',positivePartCount(w.StandardPartCount)+positivePartCount(w.DrawnPartCount));
+
+      const prediction=positivePartCount(w.PredictedPartCount);
+      if(prediction>0){
         const requestId=Number(a.RequestID);
-        const assignedDate=String(a.AssignedAt||'').slice(0,10);
-        const acceptedAt=String(a.AcceptedAt||a.AssignedAt||'');
-        const previous=predictions.get(requestId);
-        if(!previous||acceptedAt>previous.acceptedAt||(acceptedAt===previous.acceptedAt&&Number(a.AssignmentID)>previous.assignmentId)) predictions.set(requestId,{prediction,assignmentId:Number(a.AssignmentID),assignedDate,acceptedAt});
+        if(Number.isFinite(requestId)){
+          const assignedDate=completedDate(a.AssignedAt);
+          const acceptedAt=String(a.AcceptedAt||a.AssignedAt||'');
+          const previous=predictions.get(requestId);
+          if(!previous||acceptedAt>previous.acceptedAt||(acceptedAt===previous.acceptedAt&&assignmentId>previous.assignmentId)){
+            predictions.set(requestId,{prediction,assignmentId,assignedDate,acceptedAt});
+          }
+        }
       }
     }
-    for(const p of predictions.values()) if(inReportRange(p.assignedDate,startDate,endDate)) addPredictionMonth(monthly,p.assignedDate,p.prediction);
+
+    for(const p of predictions.values()){
+      if(p.assignedDate&&inReportRange(p.assignedDate,startDate,endDate)) addPredictionMonth(monthly,p.assignedDate,p.prediction);
+    }
+
     const months=[...monthly.values()].sort((a,b)=>a.MonthStart.localeCompare(b.MonthStart));
-    return {experts:[...experts.values()].sort((a,b)=>String(a.ExpertName).localeCompare(String(b.ExpertName))),months,predictedParts:[...predictions.values()].filter(p=>inReportRange(p.assignedDate,startDate,endDate)).reduce((n,p)=>n+p.prediction,0)};
+    return {
+      experts:[...experts.values()].sort((a,b)=>String(a.ExpertName).localeCompare(String(b.ExpertName))),
+      months,
+      predictedParts:[...predictions.values()].filter(p=>p.assignedDate&&inReportRange(p.assignedDate,startDate,endDate)).reduce((n,p)=>n+p.prediction,0)
+    };
   }
   function renderExpertReport() {
     document.querySelectorAll('.report-legend[data-report-legend="expert"]').forEach(el => el.remove());
@@ -199,7 +224,7 @@
       select.innerHTML='<option value="all">All experts</option>'+reportState.experts.map(x=>'<option value="'+escapeHtml(x.UserID)+'">'+escapeHtml(x.ExpertName||x.Username)+'</option>').join('');
       if([...select.options].some(o=>o.value===previous))select.value=previous;
       document.querySelectorAll('.report-legend').forEach(el=>el.remove());renderExpertReport();renderMonthlyReport();
-      message.textContent='Report period: '+window.DMSDate.toJalaliInput(new Date(startDate),true)+' تا '+window.DMSDate.toJalaliInput(new Date(endDate),true)+'. Production counts use completed stage EndDate and assignment-level contributions; predictions are counted once per request.';
+      message.textContent='Report period: '+window.DMSDate.toJalaliInput(new Date(startDate),true)+' تا '+window.DMSDate.toJalaliInput(new Date(endDate),true)+'. Production counts use each completed stage EndDate; each assignment is counted once; predictions are counted once per request.';
     }catch(e){console.error(e);message.textContent=e.message||'Could not load production reports.';$('expertPerformanceChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';$('monthlyProductionChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';$('expertPerformanceRows').innerHTML='<tr><td colspan="5" class="report-empty">Report unavailable.</td></tr>';$('monthlyProductionRows').innerHTML='<tr><td colspan="6" class="report-empty">Report unavailable.</td></tr>';}
   }
 
