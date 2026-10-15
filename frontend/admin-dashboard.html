@@ -33,8 +33,26 @@
     <article class="dashboard-panel"><div class="panel-heading"><div><h3>System Health</h3><span>Key operational indicators</span></div></div><div class="health-list"><div><span>Node Records</span><strong id="healthNodes">-</strong></div><div><span>Active Users</span><strong id="healthUsers">-</strong></div><div><span>Unread Notifications</span><strong id="healthNotifications">-</strong></div><div><span>Failed Actions</span><strong id="healthFailed">-</strong></div></div></article>
     <article class="dashboard-panel recent-panel"><div class="panel-heading"><div><h3>Recent Activity</h3><span>Latest audit events</span></div></div><div id="recentActivity" class="recent-list"><div class="chart-empty">Loading...</div></div></article>
   </section>
+  <section class="dashboard-panel production-report-panel">
+    <div class="panel-heading"><div><h3>Production Reports</h3><span>Expert performance and monthly cumulative production</span></div></div>
+    <div class="report-filters">
+      <label>From date (Jalali)<input id="reportStartDate" type="text" inputmode="numeric" placeholder="1405/07/01" autocomplete="off"></label>
+      <label>To date (Jalali)<input id="reportEndDate" type="text" inputmode="numeric" placeholder="1405/07/30" autocomplete="off"></label>
+      <button id="loadProductionReports" class="admin-primary" type="button">Apply date range</button>
+    </div>
+    <p id="reportMessage" class="report-note" role="status">Choose a Jalali date range to load production reports.</p>
+    <div class="report-section-heading"><div><h3>Expert Performance</h3><span>Part contributions by expert, grouped by stage end date</span></div>
+      <label class="report-expert-filter">Expert<select id="reportExpertFilter"><option value="all">All experts</option></select></label>
+    </div>
+    <div id="expertPerformanceChart" class="report-chart"><div class="chart-empty">Select a date range.</div></div>
+    <div class="report-table-wrap"><table class="report-table"><thead><tr><th>Expert</th><th>Croquis parts</th><th>Modeling parts</th><th>Drawing parts (standard + drawn)</th><th>Total</th></tr></thead><tbody id="expertPerformanceRows"><tr><td colspan="5" class="report-empty">No report loaded.</td></tr></tbody></table></div>
+    <div class="report-section-heading monthly-heading"><div><h3>Monthly Cumulative Production</h3><span>Monthly totals within the selected date range</span></div></div>
+    <div id="monthlyProductionChart" class="report-chart monthly-report-chart"><div class="chart-empty">Select a date range.</div></div>
+    <div class="report-table-wrap"><table class="report-table"><thead><tr><th>Month (Jalali)</th><th>Predicted parts*</th><th>Croquis parts</th><th>Modeling parts</th><th>Drawing parts</th><th>Rejected parts</th></tr></thead><tbody id="monthlyProductionRows"><tr><td colspan="6" class="report-empty">No report loaded.</td></tr></tbody></table></div>
+    <p class="report-note">* Predicted parts are grouped by assignment date because the current database does not store a prediction timestamp. Rejected part counts are unavailable: the current schema records workflow rejection actions, not individual rejected parts. No rejection value is inferred.</p>
+  </section>
   <div class="dashboard-footer"><button id="managementButton" class="admin-secondary">Database Management</button><button id="backButtonBottom" class="admin-secondary">Return to DMS</button></div>
 </main>
-<script src="js/admin-dashboard.js"></script>
+<script src="js/date-utils.js?v=20261015-jalali-report"></script>\n<script src="js/admin-dashboard.js?v=20261015-production-reports"></script>
 </body>
 </html>
