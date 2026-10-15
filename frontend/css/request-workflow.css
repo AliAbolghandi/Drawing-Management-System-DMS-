@@ -222,6 +222,8 @@
     overflow: hidden
 }
 
+
+
 .rw-dialog-header {
     padding: 18px 20px;
     border-bottom: 1px solid #e2e8f0;
@@ -376,7 +378,8 @@
 }
 
 .rw-confirm-dialog {
-    width: min(430px, 96vw)
+    height: min(25%, 96vw)    
+    
 }
 
 #rwActionPrompt,
