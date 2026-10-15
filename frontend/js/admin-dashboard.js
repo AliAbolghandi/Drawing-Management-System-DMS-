@@ -62,5 +62,105 @@
       $('generatedAt').textContent=`Updated ${new Date().toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'})}`;
     }catch(e){console.error(e);showError(e.message);$('generatedAt').textContent='Load failed';}
   }
-  $('refreshButton').addEventListener('click',load);$('backButton').addEventListener('click',()=>location.href='index.html');$('backButtonBottom').addEventListener('click',()=>location.href='index.html');$('managementButton').addEventListener('click',()=>location.href='management.html');load();
+
+  const reportState = { experts: [], months: [], rejectedPartsAvailable: false };
+  const reportFmt = value => Number(value || 0).toLocaleString('en-US');
+  const reportNum = (row, key) => Number(row?.[key] || 0);
+  function reportDateToIso(value) {
+    if (!window.DMSDate) throw new Error('Jalali date utility did not load.');
+    return window.DMSDate.fromJalaliInput(value, true);
+  }
+  function reportDefaultDates() {
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - 89);
+    $('reportStartDate').value = window.DMSDate.toJalaliInput(start, true);
+    $('reportEndDate').value = window.DMSDate.toJalaliInput(end, true);
+  }
+  function renderExpertReport() {
+    const selected = $('reportExpertFilter').value;
+    const rows = selected === 'all' ? reportState.experts : reportState.experts.filter(x => String(x.UserID) === selected);
+    const chart = $('expertPerformanceChart');
+    if (!rows.length) chart.innerHTML = '<div class="chart-empty">No expert contributions in this date range.</div>';
+    else {
+      const max = Math.max(1, ...rows.flatMap(x => [reportNum(x,'CroquisParts'),reportNum(x,'ModelingParts'),reportNum(x,'DrawingParts')]));
+      chart.innerHTML = rows.map(x => {
+        const values = [
+          ['CroquisParts','', 'Croquis'],
+          ['ModelingParts','modeling','Modeling'],
+          ['DrawingParts','drawing','Drawing']
+        ];
+        return '<div class="report-bar-group"><div class="report-bar-label">' + escapeHtml(x.ExpertName || x.Username) + '</div><div class="report-bar-stack">' +
+          values.map(([key, cls, label]) => '<div class="report-bar ' + cls + '" title="' + label + ': ' + reportFmt(x[key]) + '" style="height:' + Math.max(2, reportNum(x,key)/max*138) + 'px"></div>').join('') +
+          '</div><div class="report-bar-value">' + reportFmt(reportNum(x,'CroquisParts')) + ' / ' + reportFmt(reportNum(x,'ModelingParts')) + ' / ' + reportFmt(reportNum(x,'DrawingParts')) + '</div></div>';
+      }).join('');
+      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Final Drawing</span></div>');
+      const legend = chart.previousElementSibling;
+      if (legend?.classList.contains('report-legend')) legend.dataset.reportLegend = 'expert';
+    }
+    const body = $('expertPerformanceRows');
+    if (!rows.length) body.innerHTML = '<tr><td colspan="5" class="report-empty">No data for the selected filters.</td></tr>';
+    else {
+      const dataRows = rows.map(x => {
+        const c=reportNum(x,'CroquisParts'), m=reportNum(x,'ModelingParts'), d=reportNum(x,'DrawingParts');
+        return '<tr><td>' + escapeHtml(x.ExpertName || x.Username) + '</td><td>' + reportFmt(c) + '</td><td>' + reportFmt(m) + '</td><td>' + reportFmt(d) + '</td><td><strong>' + reportFmt(c+m+d) + '</strong></td></tr>';
+      }).join('');
+      const totals = rows.reduce((a,x)=>({c:a.c+reportNum(x,'CroquisParts'),m:a.m+reportNum(x,'ModelingParts'),d:a.d+reportNum(x,'DrawingParts')}),{c:0,m:0,d:0});
+      body.innerHTML = dataRows + '<tr class="report-total-row"><td>Total</td><td>' + reportFmt(totals.c) + '</td><td>' + reportFmt(totals.m) + '</td><td>' + reportFmt(totals.d) + '</td><td>' + reportFmt(totals.c+totals.m+totals.d) + '</td></tr>';
+    }
+  }
+  function renderMonthlyReport() {
+    const rows = reportState.months;
+    const chart = $('monthlyProductionChart');
+    if (!rows.length) chart.innerHTML = '<div class="chart-empty">No production events in this date range.</div>';
+    else {
+      const keys = [['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['DrawingParts','drawing','Final Drawing'],['PredictedParts','predicted','Predicted']];
+      const max = Math.max(1,...rows.flatMap(x=>keys.map(([key])=>reportNum(x,key))));
+      chart.innerHTML = rows.map(x => {
+        const month = window.DMSDate.toJalaliInput(new Date(x.MonthStart),true).slice(0,7);
+        return '<div class="report-bar-group"><div class="report-bar-label">' + escapeHtml(month) + '</div><div class="report-bar-stack">' +
+          keys.map(([key,cls,label])=>'<div class="report-bar '+cls+'" title="'+label+': '+reportFmt(x[key])+'" style="height:'+Math.max(2,reportNum(x,key)/max*150)+'px"></div>').join('') +
+          '</div><div class="report-bar-value">C '+reportFmt(x.CroquisParts)+' · M '+reportFmt(x.ModelingParts)+' · D '+reportFmt(x.DrawingParts)+' · P '+reportFmt(x.PredictedParts)+'</div></div>';
+      }).join('');
+      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Final Drawing</span><span class="legend-predicted">Predicted parts</span></div>');
+      const legend = chart.previousElementSibling;
+      if (legend?.classList.contains('report-legend')) legend.dataset.reportLegend = 'monthly';
+    }
+    const body = $('monthlyProductionRows');
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="report-empty">No data for the selected date range.</td></tr>'; return; }
+    const totals = rows.reduce((a,x)=>({p:a.p+reportNum(x,'PredictedParts'),c:a.c+reportNum(x,'CroquisParts'),m:a.m+reportNum(x,'ModelingParts'),d:a.d+reportNum(x,'DrawingParts')}),{p:0,c:0,m:0,d:0});
+    body.innerHTML = rows.map(x => '<tr><td>' + escapeHtml(window.DMSDate.toJalaliInput(new Date(x.MonthStart),true).slice(0,7)) + '</td><td>' + reportFmt(x.PredictedParts) + '</td><td>' + reportFmt(x.CroquisParts) + '</td><td>' + reportFmt(x.ModelingParts) + '</td><td>' + reportFmt(x.DrawingParts) + '</td><td title="No part-level rejection source in current database">نامشخص</td></tr>').join('') +
+      '<tr class="report-total-row"><td>Total</td><td>' + reportFmt(totals.p) + '</td><td>' + reportFmt(totals.c) + '</td><td>' + reportFmt(totals.m) + '</td><td>' + reportFmt(totals.d) + '</td><td>نامشخص</td></tr>';
+  }
+  async function loadProductionReports() {
+    const message = $('reportMessage');
+    try {
+      const startDate = reportDateToIso($('reportStartDate').value);
+      const endDate = reportDateToIso($('reportEndDate').value);
+      if (!startDate || !endDate || startDate > endDate) throw new Error('بازه تاریخ شمسی معتبر نیست؛ تاریخ شروع باید قبل از تاریخ پایان باشد.');
+      message.textContent = 'Loading production reports...';
+      const query = new URLSearchParams({startDate,endDate});
+      const data = await getJson(`${API}/admin/dashboard/production-reports?${query.toString()}`);
+      reportState.experts = data.expertPerformance || [];
+      reportState.months = data.monthlyProduction || [];
+      reportState.rejectedPartsAvailable = Boolean(data.rejectedPartsAvailable);
+      const select = $('reportExpertFilter');
+      const previous = select.value;
+      select.innerHTML = '<option value="all">All experts</option>' + reportState.experts.map(x=>'<option value="'+escapeHtml(x.UserID)+'">'+escapeHtml(x.ExpertName || x.Username)+'</option>').join('');
+      if ([...select.options].some(o=>o.value===previous)) select.value=previous;
+      document.querySelectorAll('.report-legend').forEach(el=>el.remove());
+      renderExpertReport();
+      renderMonthlyReport();
+      message.textContent = 'Report period: ' + window.DMSDate.toJalaliInput(new Date(startDate),true) + ' تا ' + window.DMSDate.toJalaliInput(new Date(endDate),true) + '. Rejected part count is unavailable because no part-level rejection source exists in the current database.';
+    } catch (e) {
+      console.error(e);
+      message.textContent = e.message || 'Could not load production reports.';
+      $('expertPerformanceChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';
+      $('monthlyProductionChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';
+      $('expertPerformanceRows').innerHTML='<tr><td colspan="5" class="report-empty">Report unavailable.</td></tr>';
+      $('monthlyProductionRows').innerHTML='<tr><td colspan="6" class="report-empty">Report unavailable.</td></tr>';
+    }
+  }
+
+  $('refreshButton').addEventListener('click',load);$('backButton').addEventListener('click',()=>location.href='index.html');$('backButtonBottom').addEventListener('click',()=>location.href='index.html');$('managementButton').addEventListener('click',()=>location.href='management.html');\n  $('loadProductionReports').addEventListener('click',loadProductionReports);\n  $('reportExpertFilter').addEventListener('change',renderExpertReport);\n  reportDefaultDates();\n  loadProductionReports();\n  load();
 })();
