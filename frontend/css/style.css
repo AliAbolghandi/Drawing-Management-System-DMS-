@@ -1421,7 +1421,7 @@ body.dms-sidebar-collapsed .dms-nav-icon {
 body.dms-sidebar-collapsed .dms-nav-badge {
     position: absolute;
     margin: 0;
-    right: 7px;
+    right: 13px;
 }
 
 body.dms-sidebar-collapsed .dms-sidebar-footer {
