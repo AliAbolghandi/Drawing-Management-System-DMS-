@@ -111,7 +111,20 @@
   function openRequestDetailsModal(requestId){
     const r=allRequests.find(x=>Number(x.RequestID)===Number(requestId));if(!r)return;selectedWorkflowRequestId=Number(requestId);const box=$('rwDetailsBody');if(!box)return;
     const actions=getRequestActions(r);const actionsHtml=actions.length?`<section class="rw-details-actions"><h4>Available Actions</h4><div class="rw-action-row">${actions.map(a=>`<button type="button" class="rw-action-btn" data-details-action="${a.action}" data-request-id="${Number(r.RequestID)}" data-required-permission="${esc(a.permission)}"${a.allowed?'':' disabled aria-disabled="true"'}>${esc(a.label)}</button>`).join('')}</div></section>`:'<div class="rw-details-no-actions">No actions are available for your account at this workflow stage.</div>';
-    box.innerHTML=`<div class="rw-details-request-number">${esc(r.RequestNumber||'-')}</div><div class="rw-details-status-row"><span class="rw-details-status-label">STATUS</span><span class="rw-details-status">${esc(r.StatusName||r.StatusCode||'-')}</span></div><section class="rw-details-location-section"><div class="rw-details-location"><button type="button" class="rw-submit" id="rwShowNodeLocation" data-node-id="${Number(r.NodeID)}" data-node-code="${esc(r.NodeCode||'')}">Show location in tree</button><span id="rwNodeLocationMessage"></span></div><div class="rw-node-path" id="rwRequestNodePath"></div></section>${actionsHtml}${renderStepByStepWorkflow(r)}<div id="rwExpertWorkDetails"><div class="rw-loading">Loading expert work…</div></div>`;
+
+
+    box.innerHTML=
+    `<div class="rw-details-request-number">${esc(r.RequestNumber||'-')}</div>
+    <div class="rw-details-status-row"><span class="rw-details-status-label">STATUS</span><span class="rw-details-status">${esc(r.StatusName||r.StatusCode||'-')}</span></div>
+    <section class="rw-details-location-section">
+    <div class="rw-details-location"><button type="button" class="rw-submit" id="rwShowNodeLocation" data-node-id="${Number(r.NodeID)}" data-node-code="${esc(r.NodeCode||'')}">Show location in tree</button><span id="rwNodeLocationMessage"></span></div>
+    <div class="rw-node-path" id="rwRequestNodePath"></div>
+    <div id="rwExpertWorkDetails"><div class="rw-loading">Loading expert work…</div>
+    </section>${actionsHtml}${renderStepByStepWorkflow(r)}
+  
+    </div>`;
+   
+   
     if($('rwDetailsTitle'))$('rwDetailsTitle').textContent=r.RequestNumber||'Request Workflow';if($('rwSelectedStatus'))$('rwSelectedStatus').textContent=r.StatusName||r.StatusCode||'-';
     loadExpertWork(requestId).then(data=>{const el=$('rwExpertWorkDetails');if(el)el.innerHTML=buildExpertWorkView(data);}).catch(e=>{const el=$('rwExpertWorkDetails');if(el)el.innerHTML=`<div class="rw-empty">${esc(e.message)}</div>`;});
     requestJson(`${API}/node-hierarchy/${Number(r.NodeID)}/full`).then(data=>{const p=$('rwRequestNodePath');if(p&&Array.isArray(data.hierarchy))p.innerHTML=data.hierarchy.map((n,i)=>`<div class="rw-node-path-item ${i===data.hierarchy.length-1?'is-current':''}"><span class="rw-node-path-label"><strong>${esc(n.nodeCode||'-')}</strong><span>${esc(n.nodeName||'-')}</span></span></div>`).join('');}).catch(()=>{});
