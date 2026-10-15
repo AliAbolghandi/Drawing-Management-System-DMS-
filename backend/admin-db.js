@@ -140,7 +140,7 @@ function registerAdminDatabaseRoutes(app, deps) {
   app.get('/api/admin/dashboard/production-reports', auth.requireAdmin(), async (req, res) => {
     try {
       const parseDate = value => {
-        if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return null;
+        if (typeof value !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return null;
         const d = new Date(value + 'T00:00:00Z');
         return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value ? value : null;
       };
