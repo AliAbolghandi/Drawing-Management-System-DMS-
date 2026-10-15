@@ -1,234 +1,1308 @@
-(() => {
-  'use strict';
+/* Drawing request / worklist UI */
+.request-workflow-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(430px, 92vw);
+    height: 100vh;
+    background: #0f172a;
+    color: #e2e8f0;
+    box-shadow: -14px 0 35px rgba(0, 0, 0, .35);
+    z-index: 3000;
+    transform: translateX(105%);
+    transition: transform .22s ease;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #334155
+}
 
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
-  let selectedNode = null;
-  let allRequests = [];
-  let pendingModalAction = null;
-  let selectedWorkflowRequestId = null;
-  let activeRequestCategory = 'current';
+.request-workflow-sidebar.open {
+    transform: translateX(0)
+}
 
-  const $ = id => document.getElementById(id);
-  const esc = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
-  const dateText = value => window.DMSDate ? window.DMSDate.format(value) : (value ? String(value) : '-');
-  const userText = (name,family,username) => [name,family].filter(x=>String(x||'').trim()).join(' ') || username || '-';
-  const hasPermission = code => window.DMS?.permissions instanceof Set && window.DMS.permissions.has(code);
+.request-workflow-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, .48);
+    z-index: 2999;
+    display: none
+}
 
-  async function requestJson(url, options={}) {
-    const response = await fetch(url,{credentials:'include',cache:'no-store',...options});
-    const data = await response.json().catch(()=>({}));
-    if(!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-    return data;
-  }
+.request-workflow-overlay.open {
+    display: block
+}
 
-  function injectExpertWorkStyles() {
-    if($('rwExpertWorkStyles')) return;
-    const style=document.createElement('style'); style.id='rwExpertWorkStyles';
-    style.textContent=`
-      .rw-expert-work-box{margin:16px 0;padding:16px;border:1px solid #334155;border-radius:12px;background:#0b1424;color:#e2e8f0}
-      .rw-expert-work-box h4{margin:0 0 12px;font-size:15px;color:#f8fafc}.rw-ew-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
-      .rw-ew-stat{padding:10px;border-radius:9px;background:#111c2f;border:1px solid #334155;color:#e2e8f0}.rw-ew-stat small{display:block;color:#94a3b8;font-size:11px}.rw-ew-stat strong{font-size:18px;color:#f8fafc}
-      .rw-ew-contribution{padding:10px 0;border-top:1px solid #334155}.rw-ew-contribution:first-of-type{border-top:0}.rw-ew-contribution strong{display:block;margin-bottom:5px;color:#f1f5f9}
-      .rw-ew-modal{margin:14px 0;padding:14px;border:1px solid #334155;border-radius:10px;background:#0b1424;color:#e2e8f0}.rw-ew-modal h4{margin:0 0 12px;color:#f8fafc}.rw-ew-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.rw-ew-stage{border:1px solid #334155;background:#111c2f;color:#e2e8f0;border-radius:10px;padding:12px}.rw-ew-stage h5{margin:0 0 10px;color:#f8fafc}.rw-ew-stage label{display:block;font-size:12px;margin:7px 0 4px;color:#cbd5e1}.rw-ew-stage input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #475569;border-radius:6px;background:#0b1424;color:#f8fafc}.rw-ew-note{font-size:12px;color:#94a3b8;margin:8px 0}.rw-ew-error{color:#fca5a5;font-size:12px;margin-top:8px}.rw-ew-success{color:#86efac;font-size:12px;margin-top:8px}
-      .rw-ew-save-progress{margin-right:8px}
-      .expert-work-dialog{background:#0f172a!important;color:#e2e8f0;border:1px solid #334155}.expert-work-dialog .rw-action-header{background:#111c2f;border-bottom:1px solid #334155}.expert-work-dialog .rw-action-header h2{color:#f8fafc}.expert-work-dialog .rw-action-header p{color:#94a3b8}.expert-work-dialog .expert-work-section{background:#111c2f;border:1px solid #334155;border-radius:10px;padding:14px;margin:12px 0}.expert-work-dialog .expert-work-section-head strong{color:#f8fafc}.expert-work-dialog .expert-work-section-head small{color:#94a3b8}.expert-work-dialog .expert-work-field{color:#cbd5e1}.expert-work-dialog .expert-work-field input{background:#0b1424;color:#f8fafc;border-color:#475569}.expert-work-dialog .expert-work-summary>div{background:#111c2f;color:#cbd5e1;border:1px solid #334155}.expert-work-dialog .expert-work-summary b{color:#6fe3ff}
-      @media(max-width:900px){.rw-ew-summary,.rw-ew-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.rw-ew-summary,.rw-ew-grid{grid-template-columns:1fr}}
-    `;; document.head.appendChild(style);
-  }
+.rw-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px;
+    border-bottom: 1px solid #334155
+}
 
-  function setBadge(count){
-    const badge=$('rwNotificationBadge'); if(!badge)return;
-    const n=Math.max(0,Number(count)||0); badge.textContent=n>99?'99+':String(n); badge.hidden=n===0;
-  }
+.rw-sidebar-header h2 {
+    margin: 0;
+    font-size: 18px
+}
 
-  async function loadPendingCount(){
-    try{const data=await requestJson(`${API}/auth/pending-drawing-count`);setBadge(data.pendingCount);}catch(e){console.error('Pending count failed:',e);}
-  }
+.rw-close,
+.rw-sidebar-toggle {
+    border: 1px solid #475569;
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer
+}
 
-  async function loadCurrentUser(){
-    try{const data=await requestJson(`${API}/auth/me`);window.DMS=window.DMS||{};window.DMS.permissions=new Set(data.permissions||[]);window.DMS.user=data.user||{};const btn=$('addRequestBtn');if(btn){const ok=hasPermission('REQUEST_DRAWING_CREATE');btn.disabled=!ok;btn.title=ok?'':'Your RolePermission does not include REQUEST_DRAWING_CREATE.';}return data;}catch(e){console.error('Workflow user load failed:',e);return null;}
-  }
+.rw-close {
+    width: 34px;
+    height: 34px;
+    font-size: 20px
+}
 
-  function requestCategory(status){const s=String(status||'').toUpperCase();if(s==='FINAL_APPROVED')return'final';if(['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','EXPERT_REJECTED','FINAL_REJECTED'].includes(s))return'rejected';if(s==='CANCELLED')return'excluded';return'current';}
-  function colorClass(r){const s=String(r.StatusCode||'').toUpperCase(),uid=Number(window.DMS?.user?.userId||0);const assigned=Number(r.AssignedDrawingExpertID)===uid;const prior=r.WasPreviouslyAssignedExpert===true||Number(r.WasPreviouslyAssignedExpert)===1;if(s==='CANCELLED')return'rw-status-gray';if(s==='FINAL_APPROVED')return'rw-status-green';if(['MANAGER_REJECTED','DRAWING_APPROVAL_REJECTED','EXPERT_REJECTED','FINAL_REJECTED'].includes(s))return'rw-status-red';if(s==='IN_PROGRESS')return assigned?'rw-status-blue':'rw-status-green';if(s==='ASSIGNED'||s==='RETURNED_FOR_CORRECTION')return assigned?'rw-status-yellow':'rw-status-green';if(s==='TRANSFERRED')return prior&&!assigned?'rw-status-gray':assigned?'rw-status-yellow':'rw-status-green';if(s==='PENDING_FINAL_APPROVAL')return hasPermission('REQUEST_DRAWING_FINAL_APPROVE')||hasPermission('REQUEST_DRAWING_VIEW_ALL')?'rw-status-yellow':'rw-status-green';return'rw-status-orange';}
+.rw-sidebar-toggle {
+    padding: 8px 12px;
+    margin-right: 8px
+}
 
-  function getRequestActions(r){
-    const s=String(r.StatusCode||''),uid=Number(window.DMS?.user?.userId||0),actions=[];const add=(action,label,permission)=>actions.push({action,label,permission,allowed:action==='cancel'||hasPermission(permission)});
-    if(Number(r.RequesterUserID)===uid&&s==='PENDING_MANAGER')add('cancel','Cancel Request','REQUEST_DRAWING_CANCEL');
-    if(Number(r.ManagerUserID)===uid&&s==='PENDING_MANAGER'){add('approve','Approve','REQUEST_DRAWING_APPROVE');add('reject','Reject','REQUEST_DRAWING_REJECT');}
-    if(['PENDING_DRAWING_APPROVAL','EXPERT_REJECTED','TRANSFERRED','RETURNED_FOR_CORRECTION'].includes(s)){add('assign','Refer to Expert','REQUEST_DRAWING_ASSIGN');add('final-reject','Reject Request','REQUEST_DRAWING_FINAL_REJECT');}
-    if(Number(r.AssignedDrawingExpertID)===uid){if(['ASSIGNED','TRANSFERRED'].includes(s))add('accept','Accept Work','REQUEST_DRAWING_ACCEPT');if(['ASSIGNED','IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s)){add('transfer','Refer to Another Expert','REQUEST_DRAWING_TRANSFER');add('expert-reject','Reject Work','REQUEST_DRAWING_EXPERT_REJECT');}if(['IN_PROGRESS','RETURNED_FOR_CORRECTION'].includes(s))add('complete','Complete Work','REQUEST_DRAWING_COMPLETE');}
-    if(['PENDING_FINAL_APPROVAL','FINAL_REJECTED'].includes(s))add('return-correction','Return for Correction','REQUEST_DRAWING_RETURN_CORRECTION');
-    if(s==='PENDING_FINAL_APPROVAL')add('final-approve','Final Approval','REQUEST_DRAWING_FINAL_APPROVE');
-    return actions;
-  }
+.rw-user-card {
+    margin: 16px;
+    padding: 14px;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #111c2f
+}
 
-  function updateCategoryCounts(){const counts={current:0,final:0,rejected:0};allRequests.forEach(r=>{const c=requestCategory(r.StatusCode);if(counts[c]!==undefined)counts[c]++;});[['rwCurrentCount',counts.current],['rwFinalCount',counts.final],['rwRejectedCount',counts.rejected]].forEach(([id,n])=>{if($(id))$(id).textContent=String(n);});}
+.rw-user-card .rw-user-name {
+    font-weight: 700;
+    color: #f8fafc;
+    font-size: 16px
+}
 
-  function renderWorklist(requests){
-    allRequests=Array.isArray(requests)?requests:[];updateCategoryCounts();const box=$('rwContent');if(!box)return;const search=($('rwRequestSearch')?.value||'').trim().toLowerCase();
-    const items=allRequests.filter(r=>(search||requestCategory(r.StatusCode)===activeRequestCategory)&&(!search||String(r.RequestNumber||'').toLowerCase().includes(search))&&requestCategory(r.StatusCode)!=='excluded');
-    box.innerHTML=items.length?items.map(r=>{const selected=Number(r.RequestID)===Number(selectedWorkflowRequestId);return `<button type="button" class="rw-request-card rw-request-list-item ${selected?'rw-request-selected':''} ${colorClass(r)} ${String(r.StatusCode||'').toUpperCase()==='FINAL_APPROVED'?'rw-request-final-approved':''}" data-open-request-id="${Number(r.RequestID)}"><div class="rw-request-top"><span class="rw-request-number">${esc(r.RequestNumber)}</span><span class="rw-status">${esc(r.StatusName||r.StatusCode||'-')}</span></div><div class="rw-request-node"><strong>${esc(r.NodeCode||'-')}</strong> — ${esc(r.NodeName||'-')}</div><div class="rw-request-meta">Requester: ${esc(userText(r.RequesterName,r.RequesterFamily,r.RequesterUsername))}<br>Created: ${esc(dateText(r.CreatedAt))}</div></button>`;}).join(''):'<div class="rw-empty">No matching requests.</div>';
-    if(selectedWorkflowRequestId){const r=allRequests.find(x=>Number(x.RequestID)===Number(selectedWorkflowRequestId));if(r)openRequestDetailsModal(Number(r.RequestID));}
-  }
+.rw-user-meta {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 4px
+}
 
-  const actionLabels={cancel:'Cancel Drawing Request',approve:'Approve Drawing Request',reject:'Reject Drawing Request',assign:'Refer Request to Drawing Expert',transfer:'Transfer to Another Expert',accept:'Accept Drawing Work','expert-reject':'Reject Drawing Work',complete:'Complete Drawing Work','return-correction':'Return for Correction','final-approve':'Final Approval','final-reject':'Reject Drawing Request'};
+.rw-logout {
+    width: 100%;
+    margin-top: 12px;
+    padding: 9px;
+    border: 0;
+    border-radius: 7px;
+    background: #b91c1c;
+    color: #fff;
+    cursor: pointer
+}
 
-  async function loadExpertWork(requestId){return requestJson(`${API}/auth/expert-work/${requestId}`);}
+.rw-worklist-button {
+    margin: 0 16px 12px;
+    padding: 11px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    background: #1e293b;
+    color: #f8fafc;
+    cursor: pointer;
+    text-align: left
+}
 
-  function buildExpertWorkView(data){
-    const rows=data?.contributions||[],t=data?.totals||{};
-    return `<section class="rw-expert-work-box"><h4>Expert Work Contributions</h4><div class="rw-ew-summary"><div class="rw-ew-stat"><small>Predicted</small><strong>${Number(t.predictedPartCount||0)}</strong></div><div class="rw-ew-stat"><small>Croquis</small><strong>${Number(t.croquisPartCount||0)}</strong></div><div class="rw-ew-stat"><small>Modeling</small><strong>${Number(t.modelingPartCount||0)}</strong></div><div class="rw-ew-stat"><small>Standard</small><strong>${Number(t.standardPartCount||0)}</strong></div><div class="rw-ew-stat"><small>Drawn</small><strong>${Number(t.drawnPartCount||0)}</strong></div></div>${rows.map(x=>`<div class="rw-ew-contribution"><strong>${esc(userText(x.ExpertName,x.ExpertFamily,x.DrawingExpertUsername))}${Number(x.IsCurrent)===1?' — Current Expert':''}</strong><div class="rw-ew-note">Prediction: ${x.PredictedPartCount??'-'} | Croquis: ${x.CroquisPartCount??'-'} | Modeling: ${x.ModelingPartCount??'-'} | Drawing: Standard ${x.StandardPartCount??'-'} / Drawn ${x.DrawnPartCount??'-'}</div></div>`).join('')}</section>`;
-  }
+.rw-worklist-button.active {
+    background: #334155
+}
 
-  function renderStepByStepWorkflow(request) {
-    const history = Array.isArray(request.WorkflowHistory) ? request.WorkflowHistory : [];
-    const actionNames = {
-      REQUEST_CREATED: 'Request Created', MANAGER_APPROVED: 'Manager Approved',
-      MANAGER_REJECTED: 'Manager Rejected', DRAWING_APPROVED: 'Drawing Approved',
-      DRAWING_REJECTED: 'Drawing Rejected', ASSIGNED_TO_EXPERT: 'Assigned to Expert',
-      EXPERT_ACCEPTED: 'Expert Accepted Work', EXPERT_TRANSFERRED: 'Transferred to Another Expert',
-      EXPERT_REJECTED: 'Expert Rejected Work', RETURN_FOR_CORRECTION: 'Returned for Correction',
-      WORK_COMPLETED: 'Work Completed', FINAL_APPROVED: 'Final Approved',
-      FINAL_REJECTED: 'Final Rejected', REQUEST_CANCELLED: 'Request Cancelled'
-    };
-    const steps = history.map((item, index) => {
-      const action = String(item.ActionCode || '').toUpperCase();
-      const rejected = /REJECT|CANCEL/.test(action) || /REJECT|CANCEL/i.test(item.ToStatusName || '');
-      const approved = /APPROV|ACCEPT|COMPLETE|CREATED|ASSIGNED|TRANSFERRED/i.test(action);
-      const actor = userText(item.ActionByName, item.ActionByFamily, item.ActionByUsername);
-      const when = dateText(item.CreatedAt);
-      return `<article class="rw-timeline-step ${rejected ? 'is-rejected' : approved ? 'is-approved' : ''}">
-        <div class="rw-timeline-heading"><strong>${esc(actionNames[action] || String(item.ToStatusName || action || 'Workflow Update').replaceAll('_',' '))}</strong><span>${esc(item.ToStatusName || 'Recorded')}</span></div>
-        <div class="rw-timeline-actor">${esc(actor)}</div><time>${esc(when)}</time>
-        ${item.Comment ? `<p class="rw-timeline-comment">${esc(item.Comment)}</p>` : '<p class="rw-timeline-no-comment">No comment recorded</p>'}
-      </article>${index < history.length - 1 ? '<div class="rw-timeline-arrow" aria-hidden="true">↓</div>' : ''}`;
-    }).join('');
-    return `<section class="rw-workflow-timeline"><div class="rw-workflow-timeline-header"><h4>Step-by-step workflow</h4><span class="rw-workflow-step-count">${history.length} ${history.length === 1 ? 'step' : 'steps'}</span></div><div class="rw-timeline-list">${steps || '<div class="rw-workflow-placeholder"><span>◷</span><strong>Workflow history is not available yet</strong><p>Recorded actions will appear here as the request moves through approval and drawing.</p></div>'}</div></section>`;
-  }
+.rw-badge {
+    float: right;
+    min-width: 20px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    text-align: center;
+    font-size: 11px
+}
 
-  function openRequestDetailsModal(requestId){
-    const r=allRequests.find(x=>Number(x.RequestID)===Number(requestId));if(!r)return;selectedWorkflowRequestId=Number(requestId);const box=$('rwDetailsBody');if(!box)return;
-    const actions=getRequestActions(r);const actionsHtml=actions.length?`<section class="rw-details-actions"><h4>Available Actions</h4><div class="rw-action-row">${actions.map(a=>`<button type="button" class="rw-action-btn" data-details-action="${a.action}" data-request-id="${Number(r.RequestID)}" data-required-permission="${esc(a.permission)}"${a.allowed?'':' disabled aria-disabled="true"'}>${esc(a.label)}</button>`).join('')}</div></section>`:'<div class="rw-details-no-actions">No actions are available for your account at this workflow stage.</div>';
+.rw-content {
+    padding: 0 16px 18px;
+    overflow: auto;
+    flex: 1
+}
 
+.rw-loading,
+.rw-empty {
+    padding: 22px 4px;
+    color: #94a3b8;
+    text-align: center
+}
 
-    box.innerHTML=
-    `<div class="rw-details-request-number">${esc(r.RequestNumber||'-')}</div>
-    <div class="rw-details-status-row"><span class="rw-details-status-label">STATUS</span><span class="rw-details-status">${esc(r.StatusName||r.StatusCode||'-')}</span></div>
-    <section class="rw-details-location-section">
-    <div class="rw-details-location"><button type="button" class="rw-submit" id="rwShowNodeLocation" data-node-id="${Number(r.NodeID)}" data-node-code="${esc(r.NodeCode||'')}">Show location in tree</button><span id="rwNodeLocationMessage"></span></div>
-    <div class="rw-node-path" id="rwRequestNodePath"></div>
-    <div id="rwExpertWorkDetails"><div class="rw-loading">Loading expert work…</div>
-    </section>${actionsHtml}${renderStepByStepWorkflow(r)}
+.rw-request-card {
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #111827;
+    padding: 12px;
+    margin-bottom: 10px
+}
+
+.rw-request-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: flex-start
+}
+
+.rw-request-number {
+    font-weight: 700;
+    color: #f8fafc
+}
+
+.rw-status {
+    font-size: 11px;
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: #334155;
+    color: #cbd5e1;
+    white-space: nowrap
+}
+
+.rw-request-node {
+    margin-top: 7px;
+    color: #cbd5e1;
+    font-size: 13px
+}
+
+.rw-request-meta {
+    margin-top: 6px;
+    color: #94a3b8;
+    font-size: 11px;
+    line-height: 1.5
+}
+
+.rw-request-description {
+    margin-top: 8px;
+    color: #cbd5e1;
+    font-size: 12px;
+    white-space: pre-wrap
+}
+
+.request-drawing-btn {
+    padding: 8px 12px;
+    border: 1px solid #2563eb;
+    background: #1d4ed8;
+    color: #fff;
+    border-radius: 7px;
+    cursor: pointer
+}
+
+.request-drawing-btn:hover {
+    background: #2563eb
+}
+
+.rw-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, .62);
+    z-index: 3100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px
+}
+
+.rw-modal.hidden {
+    display: none
+}
+
+.rw-dialog {
+    width: min(50%, 80%);
+    background: #fff;
+    color: #0f172a;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .4);
+    overflow: hidden
+}
+
+.rw-dialog-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center
+}
+
+.rw-dialog-header h3 {
+    margin: 0;
+    font-size: 18px
+}
+
+.rw-dialog-body {
+    padding: 20px
+}
+
+.rw-node-context {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    margin-bottom: 14px
+}
+
+.rw-node-context strong {
+    display: block
+}
+
+.rw-dialog textarea {
+    width: 100%;
+    min-height: 130px;
+    resize: vertical;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 10px;
+    box-sizing: border-box;
+    font: inherit
+}
+
+.rw-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px
+}
+
+.rw-dialog-actions button {
+    padding: 9px 14px;
+    border-radius: 7px;
+    border: 1px solid #cbd5e1;
+    cursor: pointer
+}
+
+.rw-submit {
+    background: #1d4ed8 !important;
+    color: #fff;
+    border-color: #1d4ed8 !important
+}
+
+.rw-error {
+    margin-top: 10px;
+    color: #b91c1c;
+    font-size: 13px
+}
+
+.rw-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px
+}
+
+.rw-action-btn {
+    border: 1px solid #475569;
+    background: #1e293b;
+    color: #f8fafc;
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 12px;
+    cursor: pointer
+}
+
+.rw-action-btn:hover {
+    background: #334155
+}
+
+.rw-action-btn:disabled {
+    opacity: .58;
+    cursor: not-allowed;
+    border-style: dashed
+}
+
+.request-drawing-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed
+}
+
+/* Worklist search and request status sections */
+.rw-search-label {
+    display: block;
+    margin: 0 16px 6px;
+    color: #cbd5e1;
+    font-size: 12px
+}
+
+.rw-request-search {
+    display: block;
+    width: calc(100% - 32px);
+    box-sizing: border-box;
+    margin: 0 16px 12px;
+    padding: 10px 11px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    background: #111827;
+    color: #f8fafc;
+    font: inherit
+}
+
+.rw-request-search::placeholder {
+    color: #94a3b8
+}
+
+.rw-list-section {
+    margin-bottom: 18px
+}
+
+.rw-list-section h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 8px 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #475569;
+    color: #f8fafc;
+    font-size: 14px
+}
+
+.rw-list-section h3 span {
+    min-width: 22px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #334155;
+    color: #e2e8f0;
+    text-align: center;
+    font-size: 11px
+}
+
+.rw-section-empty {
+    padding: 12px 4px;
+    font-size: 12px
+}
+
+.rw-confirm-dialog {
+    width: min(430px, 96vw)
+}
+
+#rwActionPrompt,
+#rwConfirmPrompt {
+    line-height: 1.6;
+    margin: 0 0 14px
+}
+
+#rwActionModal {
+    z-index: 3200
+}
+
+#rwConfirmModal {
+    z-index: 3300
+}
+
+/* Request comments are displayed inline beneath each request card. */
+.rw-comments {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--rw-border, #334155)
+}
+
+.rw-comments h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: .88rem;
+    color: var(--rw-text, #e2e8f0)
+}
+
+.rw-comments h4 span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, .18);
+    font-size: .75rem
+}
+
+.rw-comment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px
+}
+
+.rw-comment {
+    padding: 9px 10px;
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, .45)
+}
+
+.rw-comment-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    color: var(--rw-muted, #94a3b8);
+    font-size: .75rem
+}
+
+.rw-comment-meta strong {
+    color: var(--rw-text, #e2e8f0)
+}
+
+.rw-comment-meta time {
+    margin-left: auto
+}
+
+.rw-comment p {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: .86rem;
+    color: var(--rw-text, #e2e8f0)
+}
+
+.rw-no-comments {
+    font-size: .8rem;
+    color: var(--rw-muted, #94a3b8);
+    padding: 4px 0
+}
+
+.rw-action-expert-field {
+    margin: 0 0 12px
+}
+
+.rw-action-expert-field label {
+    display: block;
+    margin-bottom: 6px
+}
+
+.rw-action-expert-field input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--rw-border, #475569);
+    border-radius: 8px;
+    background: var(--rw-input-bg, #0f172a);
+    color: var(--rw-text, #e2e8f0);
+    font: inherit
+}
+
+/* Status background describes the workflow stage; the left marker shows final completion only. */
+.rw-request-list-item {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    position: relative;
+    transition: background .15s ease, border-color .15s ease
+}
+
+.rw-request-list-item.rw-status-yellow {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #78350f
+}
+
+.rw-request-list-item.rw-status-orange {
+    background: #ffedd5;
+    border-color: #fb923c;
+    color: #7c2d12
+}
+
+.rw-request-list-item.rw-status-green {
+    background: #dcfce7;
+    border-color: #22c55e;
+    color: #14532d
+}
+
+.rw-request-list-item.rw-status-red {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #7f1d1d
+}
+
+.rw-request-list-item.rw-status-gray {
+    background: #e5e7eb;
+    border-color: #9ca3af;
+    color: #374151
+}
+
+.rw-request-list-item.rw-status-blue {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e3a8a
+}
+
+.rw-request-list-item:not(.rw-request-final-approved) {
+    border-left: 5px solid #dc2626
+}
+
+.rw-request-list-item.rw-request-final-approved {
+    border-left: 5px solid #22c55e
+}
+
+.rw-request-list-item .rw-request-number,
+.rw-request-list-item .rw-request-node,
+.rw-request-list-item .rw-request-meta {
+    color: inherit
+}
+
+.rw-request-list-item .rw-status {
+    background: rgba(15, 23, 42, .09);
+    color: inherit
+}
+
+.rw-request-list-item:hover {
+    filter: brightness(.97)
+}
+
+.rw-request-list-item:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px
+}
+
+.rw-details-dialog {
+    width: min(760px, 96vw);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column
+}
+
+.rw-details-body {
+    overflow: auto
+}
+
+.rw-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 20px 18px
+}
+
+.rw-dialog-footer button {
+    padding: 9px 15px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    background: #f8fafc;
+    cursor: pointer
+}
+
+.rw-details-request-number {
+    font-weight: 800;
+    font-size: 1.08rem;
+    overflow-wrap: anywhere
+}
+
+.rw-details-status {
+    display: inline-block;
+    margin-top: 7px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: .8rem
+}
+
+.rw-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 18px 0
+}
+
+.rw-details-grid>div {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc
+}
+
+.rw-details-grid dt {
+    margin-bottom: 4px;
+    color: #64748b;
+    font-size: .76rem;
+    font-weight: 600
+}
+
+.rw-details-grid dd {
+    margin: 0;
+    color: #0f172a;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap
+}
+
+.rw-details-grid .rw-details-description {
+    grid-column: 1/-1
+}
+
+.rw-details-location {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0 18px
+}
+
+.rw-details-location button {
+    padding: 9px 13px;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer
+}
+
+#rwNodeLocationMessage {
+    font-size: .8rem;
+    color: #64748b
+}
+
+.rw-details-actions {
+    padding: 14px 0;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0
+}
+
+.rw-details-actions h4 {
+    margin: 0;
+    color: #0f172a
+}
+
+.rw-details-no-actions {
+    padding: 14px 0;
+    color: #64748b;
+    font-size: .86rem
+}
+
+.rw-details-comments {
+    border-top: 0;
+    margin-top: 12px;
+    color: #0f172a
+}
+
+.rw-details-comments h4 {
+    color: #0f172a
+}
+
+.rw-details-comments .rw-comment {
+    background: #f8fafc;
+    border-color: #e2e8f0
+}
+
+.rw-details-comments .rw-comment-meta {
+    color: #64748b
+}
+
+.rw-details-comments .rw-comment-meta strong {
+    color: #0f172a
+}
+
+.rw-details-comments .rw-comment p {
+    color: #1e293b
+}
+
+.rw-details-comments .rw-no-comments {
+    color: #64748b
+}
+
+@media(max-width:560px) {
+    .rw-details-grid {
+        grid-template-columns: 1fr
+    }
+
+    .rw-details-dialog {
+        max-height: 94vh
+    }
+
+    .rw-details-body {
+        padding: 14px
+    }
+}
+
+/* Request details modal: match the DMS dark-slate workspace theme. */
+.rw-details-dialog {
+    width: min(820px, 96vw);
+    max-height: 92vh;
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155
+}
+
+.rw-details-dialog .rw-dialog-header {
+    background: #111c2f;
+    border-bottom-color: #334155
+}
+
+.rw-details-dialog .rw-dialog-header h3 {
+    color: #f8fafc
+}
+
+.rw-details-dialog .rw-close {
+    background: #1e293b;
+    border-color: #475569;
+    color: #e2e8f0
+}
+
+.rw-details-dialog .rw-details-body {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 20px
+}
+
+.rw-details-dialog .rw-dialog-footer {
+    padding: 12px 20px;
+    border-top: 1px solid #334155;
+    background: #111c2f;
+    display: flex;
+    justify-content: flex-end
+}
+
+.rw-details-dialog .rw-dialog-footer button {
+    padding: 8px 14px;
+    border: 1px solid #475569;
+    border-radius: 7px;
+    background: #1e293b;
+    color: #e2e8f0;
+    cursor: pointer
+}
+
+.rw-details-request-number {
+    font-weight: 800;
+    font-size: 1.12rem;
+    overflow-wrap: anywhere;
+    color: #f8fafc
+}
+
+.rw-details-status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 10px 0 12px
+}
+
+.rw-details-status-label {
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    color: #94a3b8
+}
+
+.rw-details-dialog .rw-details-status {
+    display: inline-block;
+    margin: 0;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #1e3a5f;
+    color: #bfdbfe;
+    border: 1px solid #315783;
+    font-size: .8rem
+}
+
+.rw-details-location-section {
+    padding: 12px 0 14px;
+    border-bottom: 1px solid #334155
+}
+
+.rw-details-location {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px
+}
+
+.rw-details-location button {
+    padding: 9px 13px;
+    border: 1px solid #3b82f6;
+    border-radius: 7px;
+    cursor: pointer;
+    background: #1d4ed8;
+    color: #fff
+}
+
+#rwNodeLocationMessage {
+    font-size: .8rem;
+    color: #94a3b8
+}
+
+.rw-node-path {
+    padding: 10px 12px;
+    border: 1px solid #334155;
+    border-radius: 9px;
+    background: #111c2f
+}
+
+.rw-node-path-title {
+    font-size: .76rem;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 8px
+}
+
+.rw-node-path-loading {
+    font-size: .82rem;
+    color: #94a3b8
+}
+
+.rw-node-path-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 3px
+}
+
+.rw-node-path-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    position: relative;
+    padding: 7px 8px 7px calc(8px + var(--node-depth, 0)*15px);
+    border-left: 1px solid #475569;
+    margin-left: 4px;
+    min-width: 0
+}
+
+.rw-node-path-item.is-current {
+    background: #1e293b;
+    border-radius: 6px;
+    border-left: 3px solid #60a5fa
+}
+
+.rw-node-path-branch {
+    color: #64748b;
+    flex: 0 0 10px
+}
+
+.rw-node-path-label {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-width: 0;
+    font-size: .84rem;
+    overflow-wrap: anywhere
+}
+
+.rw-node-path-label strong {
+    color: #bfdbfe
+}
+
+.rw-node-path-label span {
+    color: #e2e8f0
+}
+
+.rw-details-dialog .rw-details-actions {
+    padding: 14px 0;
+    border-top: 0;
+    border-bottom: 1px solid #334155
+}
+
+.rw-details-dialog .rw-details-actions h4,
+.rw-details-dialog .rw-workflow-timeline h4,
+.rw-details-dialog .rw-details-comments h4 {
+    margin: 0 0 10px;
+    color: #f1f5f9;
+    font-size: .94rem
+}
+
+.rw-details-dialog .rw-details-no-actions {
+    padding: 14px 0;
+    color: #94a3b8;
+    font-size: .86rem;
+    border-bottom: 1px solid #334155
+}
+
+.rw-workflow-timeline {
+    padding: 16px 0;
+    border-bottom: 1px solid #334155
+}
+
+.rw-timeline-list {
+    display: inline-block;
   
-    </div>`;
-   
-   
-    if($('rwDetailsTitle'))$('rwDetailsTitle').textContent=r.RequestNumber||'Request Workflow';if($('rwSelectedStatus'))$('rwSelectedStatus').textContent=r.StatusName||r.StatusCode||'-';
-    loadExpertWork(requestId).then(data=>{const el=$('rwExpertWorkDetails');if(el)el.innerHTML=buildExpertWorkView(data);}).catch(e=>{const el=$('rwExpertWorkDetails');if(el)el.innerHTML=`<div class="rw-empty">${esc(e.message)}</div>`;});
-    requestJson(`${API}/node-hierarchy/${Number(r.NodeID)}/full`).then(data=>{const p=$('rwRequestNodePath');if(p&&Array.isArray(data.hierarchy))p.innerHTML=data.hierarchy.map((n,i)=>`<div class="rw-node-path-item ${i===data.hierarchy.length-1?'is-current':''}"><span class="rw-node-path-label"><strong>${esc(n.nodeCode||'-')}</strong><span>${esc(n.nodeName||'-')}</span></span></div>`).join('');}).catch(()=>{});
-  }
+}
 
-  function openActionModal(action,requestId){
-    const request=allRequests.find(x=>Number(x.RequestID)===Number(requestId));if(!request)return;pendingModalAction={action,requestId:Number(requestId),requestNumber:request.RequestNumber};injectExpertWorkStyles();
-    $('rwActionTitle').textContent=actionLabels[action]||'Drawing Request Action';$('rwActionPrompt').textContent=`Request ${request.RequestNumber}. Complete the required information, then continue.`;$('rwActionComment').value='';$('rwActionError').textContent='';
-    const expertField=$('rwActionExpertField');if(expertField)expertField.classList.toggle('hidden',!['assign','transfer'].includes(action));
-    if($('rwActionExpertUsername')){$('rwActionExpertUsername').innerHTML='<option value="">Select an expert…</option>';if(['assign','transfer'].includes(action)){requestJson(`${API}/drawing-experts`).then(data=>{const experts=data.experts||[];$('rwActionExpertUsername').innerHTML='<option value="">Select an expert…</option>'+experts.map(x=>`<option value="${esc(x.Username)}">${esc(userText(x.Name,x.Family,x.Username))}</option>`).join('');}).catch(e=>$('rwActionError').textContent=e.message);}}
-    const body=$('rwActionModal')?.querySelector('.rw-dialog-body');let ew=$('rwActionExpertWorkFields');if(ew)ew.remove();
-    if(action==='accept'){
-      ew=document.createElement('section');ew.id='rwActionExpertWorkFields';ew.className='rw-ew-modal';ew.innerHTML=`<h4>1. Predicted Part Count *</h4><label for="rwPredictedPartCount">Predicted number of Parts</label><input id="rwPredictedPartCount" type="number" min="0" step="1" required><p class="rw-ew-note">This value is required before the request can be accepted.</p><div id="rwExpertWorkInlineError" class="rw-ew-error"></div>`;body?.insertBefore(ew,body.querySelector('.rw-dialog-actions'));
+.rw-timeline-step {
+    padding: 12px 14px;
+    border: 1px solid #334155;
+    border-left: 3px solid #64748b;
+    border-radius: 9px;
+    background: #111c2f
+}
+
+.rw-timeline-step.is-approved {
+    border-left-color: #22c55e
+}
+
+.rw-timeline-step.is-rejected {
+    border-left-color: #ef4444
+}
+
+.rw-timeline-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap
+}
+
+.rw-timeline-heading strong {
+    font-size: .9rem;
+    color: #f8fafc
+}
+
+.rw-timeline-heading span {
+    font-size: .78rem;
+    color: #bfdbfe;
+    background: #1e293b;
+    padding: 3px 7px;
+    border-radius: 5px
+}
+
+.rw-timeline-step time {
+    display: block;
+    margin-top: 6px;
+    color: #94a3b8;
+    font-size: .76rem
+}
+
+.rw-timeline-comment {
+    margin: 8px 0 0;
+    padding: 9px 10px;
+    border-radius: 6px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: .84rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere
+}
+
+.rw-timeline-no-comment {
+    margin: 7px 0 0;
+    color: #64748b;
+    font-size: .78rem;
+    font-style: italic
+}
+
+.rw-timeline-arrow {
+    text-align: center;
+    color: #64748b;
+    font-size: 1.15rem;
+    line-height: 1.5
+}
+
+.rw-details-dialog .rw-details-comments {
+    border-top: 0;
+    margin-top: 0;
+    padding-top: 16px;
+    color: #e2e8f0
+}
+
+.rw-details-dialog .rw-details-comments h4 {
+    color: #f1f5f9
+}
+
+.rw-details-dialog .rw-details-comments h4 span {
+    background: #334155;
+    color: #cbd5e1
+}
+
+.rw-details-dialog .rw-details-comments .rw-comment {
+    background: #111c2f;
+    border-color: #334155
+}
+
+.rw-details-dialog .rw-details-comments .rw-comment-meta {
+    color: #94a3b8
+}
+
+.rw-details-dialog .rw-details-comments .rw-comment-meta strong {
+    color: #f8fafc
+}
+
+.rw-details-dialog .rw-details-comments .rw-comment-meta span {
+    color: #bfdbfe
+}
+
+.rw-details-dialog .rw-details-comments .rw-comment p {
+    color: #e2e8f0
+}
+
+.rw-details-dialog .rw-details-comments .rw-no-comments {
+    color: #94a3b8
+}
+
+@media(max-width:560px) {
+    .rw-details-dialog {
+        max-height: 95vh
     }
-    if(action==='complete'){
-      ew=document.createElement('section');ew.id='rwActionExpertWorkFields';ew.className='rw-ew-modal';ew.innerHTML=`<h4>Expert Work</h4><p class="rw-ew-note">Enter only the contribution made by you. Previous experts' contributions remain unchanged. A stage may be left blank when that stage was already completed by a previous expert.</p><div class="rw-ew-grid"><div class="rw-ew-stage"><h5>2. Croquis / Vector Sketch</h5><label>Start date</label><input id="rwCroquisStart" type="date"><label>End date</label><input id="rwCroquisEnd" type="date"><label>Parts added by you</label><input id="rwCroquisCount" type="number" min="0" step="1"></div><div class="rw-ew-stage"><h5>3. Modeling</h5><label>Start date</label><input id="rwModelingStart" type="date"><label>End date</label><input id="rwModelingEnd" type="date"><label>Parts added by you</label><input id="rwModelingCount" type="number" min="0" step="1"></div><div class="rw-ew-stage"><h5>4. Final Drawing</h5><label>Start date</label><input id="rwDrawingStart" type="date"><label>End date</label><input id="rwDrawingEnd" type="date"><label>Standard parts</label><input id="rwStandardCount" type="number" min="0" step="1"><label>Drawn parts</label><input id="rwDrawnCount" type="number" min="0" step="1"></div></div><div id="rwExpertWorkInlineError" class="rw-ew-error"></div><div id="rwExpertWorkInlineSuccess" class="rw-ew-success"></div>`;body?.insertBefore(ew,body.querySelector('.rw-dialog-actions'));loadExpertWork(requestId).then(data=>{const totals=data.totals||{};const note=document.createElement('p');note.className='rw-ew-note';note.textContent=`Current totals — Croquis: ${totals.croquisPartCount||0}, Modeling: ${totals.modelingPartCount||0}, Standard: ${totals.standardPartCount||0}, Drawn: ${totals.drawnPartCount||0}`;ew.prepend(note);}).catch(()=>{});
-      const actions=body?.querySelector('.rw-dialog-actions');
-      if(actions&&!$('rwSaveExpertWorkProgress')){const save=document.createElement('button');save.type='button';save.id='rwSaveExpertWorkProgress';save.className='rw-submit rw-ew-save-progress';save.textContent='Save Progress';actions.insertBefore(save,actions.firstChild);}
+
+    .rw-details-dialog .rw-details-body {
+        padding: 14px
     }
-    $('rwActionContinue').textContent=action==='cancel'?'Confirm Cancel':(action==='complete'?'Complete Work':'Continue');$('rwActionModal').classList.remove('hidden');
-  }
 
-  function closeActionModal(){$('rwActionModal')?.classList.add('hidden');$('rwConfirmModal')?.classList.add('hidden');pendingModalAction=null;}
-
-  function readExpertWorkFields(){
-    return {
-      croquisStartDate:$('rwCroquisStart')?.value||null,
-      croquisEndDate:$('rwCroquisEnd')?.value||null,
-      croquisPartCount:$('rwCroquisCount')?.value===''?null:Number($('rwCroquisCount')?.value),
-      modelingStartDate:$('rwModelingStart')?.value||null,
-      modelingEndDate:$('rwModelingEnd')?.value||null,
-      modelingPartCount:$('rwModelingCount')?.value===''?null:Number($('rwModelingCount')?.value),
-      drawingStartDate:$('rwDrawingStart')?.value||null,
-      drawingEndDate:$('rwDrawingEnd')?.value||null,
-      standardPartCount:$('rwStandardCount')?.value===''?null:Number($('rwStandardCount')?.value),
-      drawnPartCount:$('rwDrawnCount')?.value===''?null:Number($('rwDrawnCount')?.value)
-    };
-  }
-
-  function validateExpertWork(action,allowPartial=false){
-    const err=$('rwExpertWorkInlineError');if(err)err.textContent='';
-    if(action==='accept'){const v=$('rwPredictedPartCount')?.value;if(v===''||!Number.isInteger(Number(v))||Number(v)<0){if(err)err.textContent='Predicted Part Count is required and must be a non-negative integer.';return false;}return true;}
-    if(action!=='complete')return true;
-    const f=readExpertWorkFields();
-    const groups=[
-      {name:'Croquis',values:[f.croquisStartDate,f.croquisEndDate,f.croquisPartCount],dates:[f.croquisStartDate,f.croquisEndDate]},
-      {name:'Modeling',values:[f.modelingStartDate,f.modelingEndDate,f.modelingPartCount],dates:[f.modelingStartDate,f.modelingEndDate]},
-      {name:'Drawing',values:[f.drawingStartDate,f.drawingEndDate,f.standardPartCount,f.drawnPartCount],dates:[f.drawingStartDate,f.drawingEndDate]}
-    ];
-    for(const g of groups){
-      const filled=g.values.filter(v=>v!==null&&v!=='').length;
-      if(!allowPartial && filled===0){continue;}
-      if(filled!==0&&filled!==g.values.length){if(err)err.textContent=`${g.name} fields must be completed together.`;return false;}
-      if(filled===0)continue;
-      if(g.dates[1]<g.dates[0]){if(err)err.textContent=`${g.name} end date cannot precede start date.`;return false;}
-      for(const v of g.values.slice(2))if(!Number.isInteger(Number(v))||Number(v)<0){if(err)err.textContent='Part counts must be non-negative integers.';return false;}
+    .rw-timeline-heading {
+        align-items: flex-start;
+        flex-direction: column
     }
-    return true;
-  }
 
-  async function saveExpertWork(action,requestId){
-    if(action==='accept')return requestJson(`${API}/auth/expert-work/${requestId}/prediction`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({predictedPartCount:Number($('rwPredictedPartCount').value)})});
-    if(action!=='complete')return null;
-    return requestJson(`${API}/auth/expert-work/${requestId}/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(readExpertWorkFields())});
-  }
+    .rw-node-path-label {
+        flex-direction: column;
+        gap: 2px
+    }
+}
 
-  async function saveProgress(){
-    if(!pendingModalAction||pendingModalAction.action!=='complete')return;
-    if(!validateExpertWork('complete',true))return;
-    const button=$('rwSaveExpertWorkProgress'),err=$('rwExpertWorkInlineError'),ok=$('rwExpertWorkInlineSuccess');
-    if(button)button.disabled=true;if(err)err.textContent='';if(ok)ok.textContent='';
-    try{await saveExpertWork('complete',pendingModalAction.requestId);if(ok)ok.textContent='Progress saved successfully.';await loadWorklist();await loadPendingCount();if(selectedWorkflowRequestId===pendingModalAction.requestId)openRequestDetailsModal(pendingModalAction.requestId);}catch(e){if(err)err.textContent=e.message;}finally{if(button)button.disabled=false;}
-  }
 
-  function openConfirmationModal(){if(!pendingModalAction)return;const a=pendingModalAction.action;$('rwConfirmTitle').textContent=`Confirm: ${actionLabels[a]||'Drawing Request Action'}`;$('rwConfirmPrompt').textContent=`Are you sure you want to ${(actionLabels[a]||'process this request').toLowerCase()} for request ${pendingModalAction.requestNumber}?`;$('rwConfirmYes').textContent='Confirm Action';$('rwConfirmError').textContent='';$('rwConfirmModal').classList.remove('hidden');}
+/* The complete step-by-step workflow is one unified panel; comments live only inside their matching step. */
+.rw-details-dialog .rw-workflow-timeline {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    background: #0b1424;
+    box-shadow: inset 0 1px 0 rgba(148, 163, 184, .05)
+}
 
-  async function executePendingAction(){
-    if(!pendingModalAction)return;const {action,requestId}=pendingModalAction;const comment=$('rwActionComment')?.value.trim()||'';const expertUsername=$('rwActionExpertUsername')?.value.trim()||'';const isCancel=action==='cancel';const button=isCancel?$('rwActionContinue'):$('rwConfirmYes');const errorBox=isCancel?$('rwActionError'):$('rwConfirmError');button.disabled=true;errorBox.textContent='';
-    try{if(['accept','complete'].includes(action))await saveExpertWork(action,requestId);await requestJson(`${API}/drawing-requests/${requestId}/action`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,comment,expertUsername})});closeActionModal();await loadWorklist();await loadPendingCount();if(selectedWorkflowRequestId===Number(requestId))openRequestDetailsModal(requestId);}catch(e){errorBox.textContent=e.message;}finally{button.disabled=false;}
-  }
+.rw-workflow-timeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px
+}
 
-  function openSidebar(){$('rwWorklistModal')?.classList.remove('hidden');document.body.classList.add('rw-worklist-open');loadWorklist();loadPendingCount();}
-  function closeSidebar(){$('rwWorklistModal')?.classList.add('hidden');document.body.classList.remove('rw-worklist-open');}
-  function setCategory(category){activeRequestCategory=category;document.querySelectorAll('[data-request-category]').forEach(b=>b.classList.toggle('active',b.dataset.requestCategory===category));renderWorklist(allRequests);}
-  async function loadWorklist(){const box=$('rwContent');if(!box)return;box.innerHTML='<div class="rw-loading">Loading worklist...</div>';try{const data=await requestJson(`${API}/drawing-requests`);renderWorklist(data.requests||[]);}catch(e){box.innerHTML=`<div class="rw-empty">${esc(e.message)}</div>`;}}
+.rw-details-dialog .rw-workflow-timeline-header h4 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: .98rem;
+    font-weight: 750;
+    letter-spacing: .01em
+}
 
-  function openRequestModal(node){if(!node)return;selectedNode=node;$('rwNodeCode').textContent=node.NodeCode||'-';$('rwNodeName').textContent=node.NodeName||'-';$('rwRequestDescription').value='';$('rwRequestError').textContent='';$('rwRequestModal')?.classList.remove('hidden');}
-  function closeRequestModal(){$('rwRequestModal')?.classList.add('hidden');selectedNode=null;}
-  async function submitRequest(){if(!selectedNode)return;const b=$('rwRequestSubmit');b.disabled=true;try{const data=await requestJson(`${API}/drawing-requests`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:Number(selectedNode.NodeID),description:$('rwRequestDescription').value.trim()})});closeRequestModal();openSidebar();alert(`Request ${data.request?.RequestNumber||''} was submitted successfully.`);}catch(e){$('rwRequestError').textContent=e.message;}finally{b.disabled=false;}}
+.rw-workflow-step-count {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border: 1px solid #334155;
+    border-radius: 999px;
+    background: #1e293b;
+    color: #cbd5e1;
+    font-size: .72rem;
+    font-weight: 650
+}
 
-  document.addEventListener('DOMContentLoaded',async()=>{
-    injectExpertWorkStyles();await loadCurrentUser();await loadPendingCount();
-    $('rwWorklistClose')?.addEventListener('click',closeSidebar);$('rwWorklistModal')?.addEventListener('click',e=>{if(e.target===$('rwWorklistModal'))closeSidebar();});
-    document.querySelectorAll('[data-request-category]').forEach(b=>b.addEventListener('click',()=>{if($('rwRequestSearch'))$('rwRequestSearch').value='';setCategory(b.dataset.requestCategory);}));
-    $('rwSearchForm')?.addEventListener('submit',e=>{e.preventDefault();renderWorklist(allRequests);});$('rwRequestSearch')?.addEventListener('input',()=>renderWorklist(allRequests));
-    $('rwContent')?.addEventListener('click',e=>{const item=e.target.closest('[data-open-request-id]');if(item)openRequestDetailsModal(Number(item.dataset.openRequestId));});
-    $('rwWorklistModal')?.addEventListener('click',e=>{const actionButton=e.target.closest('[data-details-action]');if(actionButton){const action=actionButton.dataset.detailsAction;if(actionButton.disabled||(action!=='cancel'&&!hasPermission(actionButton.dataset.requiredPermission))){alert(`Permission denied: ${actionButton.dataset.requiredPermission||'required workflow permission'}.`);return;}openActionModal(action,Number(actionButton.dataset.requestId));return;}const location=e.target.closest('#rwShowNodeLocation');if(location){window.DMS?.revealNodeLocation?.(Number(location.dataset.nodeId),location.dataset.nodeCode||'');closeSidebar();}});
-    $('rwActionClose')?.addEventListener('click',closeActionModal);$('rwActionBack')?.addEventListener('click',closeActionModal);
-    $('rwActionContinue')?.addEventListener('click',()=>{if(!pendingModalAction)return;if(['assign','transfer'].includes(pendingModalAction.action)&&!$('rwActionExpertUsername')?.value.trim()){$('rwActionError').textContent='Select a Drawing Expert from the list.';return;}if(['accept','complete'].includes(pendingModalAction.action)&&!validateExpertWork(pendingModalAction.action,false))return;if(pendingModalAction.action==='cancel')executePendingAction();else openConfirmationModal();});
-    document.addEventListener('click',e=>{if(e.target.closest('#rwSaveExpertWorkProgress'))saveProgress();});
-    $('rwConfirmNo')?.addEventListener('click',()=>$('rwConfirmModal')?.classList.add('hidden'));$('rwConfirmClose')?.addEventListener('click',()=>$('rwConfirmModal')?.classList.add('hidden'));$('rwConfirmYes')?.addEventListener('click',executePendingAction);
-    $('addRequestBtn')?.addEventListener('click',()=>openRequestModal(window.DMS?.state?.currentSelectedNode));$('rwRequestCancel')?.addEventListener('click',closeRequestModal);$('rwRequestClose')?.addEventListener('click',closeRequestModal);$('rwRequestSubmit')?.addEventListener('click',submitRequest);
-    setInterval(loadPendingCount,30000);
-  });
+.rw-details-dialog .rw-timeline-list {
+    gap: 0;
+    position: relative
+}
 
-  window.DMS=window.DMS||{};window.DMS.openDrawingRequestModal=openRequestModal;window.DMS.loadDrawingWorklist=loadWorklist;window.DMS.openDrawingWorklistModal=openSidebar;
-})();
+.rw-details-dialog .rw-timeline-step {
+    position: relative;
+    padding: 13px 15px;
+    border: 1px solid #334155;
+    border-left: 3px solid #64748b;
+    border-radius: 9px;
+    background: #111c2f
+}
+
+.rw-details-dialog .rw-timeline-step.is-approved {
+    border-left-color: #22c55e
+}
+
+.rw-details-dialog .rw-timeline-actor {
+    margin-top: 5px;
+    color: #e2e8f0;
+    font-size: .9rem;
+    font-weight: 650;
+    letter-spacing: .01em
+}
+
+.rw-details-dialog .rw-timeline-step.is-rejected {
+    border-left-color: #ef4444
+}
+
+.rw-details-dialog .rw-timeline-arrow {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #60a5fa;
+    font-size: 1.25rem;
+    line-height: 1
+}
+
+.rw-details-dialog .rw-timeline-comment {
+    border: 1px solid #26364d;
+    background: #0b1424
+}
+
+.rw-details-dialog .rw-timeline-no-comment {
+    margin-bottom: 0
+}
+
+@media(max-width:560px) {
+    .rw-details-dialog .rw-workflow-timeline {
+        padding: 12px
+    }
+
+    .rw-workflow-timeline-header {
+        align-items: flex-start
+    }
+}
+
+/* Drawing Requests modal layout */
+.rw-worklist-modal{position:fixed;inset:0;z-index:3050;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(2,6,23,.78);backdrop-filter:blur(5px)}.rw-worklist-modal.hidden{display:none}.rw-worklist-dialog{display:flex;flex-direction:column;width:min(1500px,96vw);height:min(880px,92vh);overflow:hidden;border:1px solid #334155;border-radius:16px;background:#0b1728;color:#e2e8f0;box-shadow:0 28px 90px #0008}.rw-worklist-modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid #26364b}.rw-worklist-eyebrow{color:#6fe3ff;font:600 9px var(--mono,monospace);letter-spacing:.16em}.rw-worklist-modal-header h2{margin:5px 0 0;color:#f8fafc;font-size:20px}.rw-worklist-layout{display:grid;grid-template-columns:230px minmax(0,1fr);flex:1;min-height:0}.rw-category-nav{display:flex;flex-direction:column;gap:8px;padding:18px 12px;border-right:1px solid #26364b;background:#0a1423}.rw-category-button{display:grid;grid-template-columns:28px minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:8px;width:100%;padding:13px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#b6c4d7;text-align:left;cursor:pointer}.rw-category-button.active{border-color:#6fe3ff40;background:#6fe3ff16;color:#6fe3ff;box-shadow:inset 3px 0 #6fe3ff}.rw-category-icon{grid-row:1/span 2;display:grid;place-items:center;width:27px;height:27px;border-radius:7px;background:#ffffff0c;font-size:16px}.rw-category-button>span:nth-child(2){font-size:12px;font-weight:700}.rw-category-button small{grid-column:2;grid-row:2;margin-top:4px;color:#8293aa;font-size:9px}.rw-category-count{grid-column:3;grid-row:1/span 2;padding:3px 5px;border-radius:20px;background:#1d2b40;color:#dbeafe;text-align:center;font:600 10px var(--mono,monospace)}.rw-worklist-main{display:flex;flex-direction:column;min-width:0;min-height:0}.rw-worklist-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px 14px;border-bottom:1px solid #26364b}.rw-worklist-toolbar h3{margin:0;color:#f8fafc;font-size:15px}.rw-worklist-toolbar p{margin:5px 0 0;color:#8495aa;font-size:10px}.rw-modal-search{display:flex;gap:7px;width:min(390px,52%)}.rw-modal-search input{min-width:0;flex:1;padding:10px 12px;border:1px solid #33465f;border-radius:8px;background:#0f1d30;color:#f8fafc;font:inherit;font-size:11px}.rw-modal-search button{padding:0 13px;border:1px solid #2c7187;border-radius:8px;background:#6fe3ff1a;color:#6fe3ff;font-size:11px;cursor:pointer}.rw-worklist-columns{display:grid;grid-template-columns:minmax(230px,.8fr) minmax(0,1.2fr);flex:1;min-height:0}.rw-request-results{min-width:0;min-height:0;overflow:auto;border-right:1px solid #26364b}.rw-content{padding:14px;overflow:visible}.rw-request-list-item{width:100%;margin:0 0 9px;border-radius:9px;padding:12px;cursor:pointer}.rw-request-list-item.rw-request-selected{outline:2px solid #0ea5e9;outline-offset:-2px}.rw-request-list-item .rw-request-number{font-size:12px}.rw-request-list-item .rw-request-node{font-size:11px;line-height:1.5;overflow-wrap:anywhere}.rw-request-list-item .rw-request-meta{font-size:10px}.rw-inline-workflow{min-width:0;min-height:0;overflow:auto;background:#0d1a2b}.rw-inline-workflow-heading{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid #26364b;background:#0d1a2b}.rw-inline-workflow-heading h3{margin:0;color:#f8fafc;font-size:13px;overflow-wrap:anywhere}.rw-selected-status{max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 8px;border:1px solid #33465f;border-radius:20px;color:#a8bbd2;font-size:9px}.rw-inline-workflow .rw-dialog-body{padding:16px}.rw-inline-workflow .rw-details-request-number{color:#f8fafc}.rw-inline-workflow .rw-details-status-row{display:flex;align-items:center;gap:8px;margin-top:8px}.rw-inline-workflow .rw-details-status-label{color:#8495aa;font-size:9px}.rw-inline-workflow .rw-details-status{margin:0;background:#1b3650;color:#9ddcff}.rw-inline-workflow .rw-details-location-section,.rw-inline-workflow .rw-details-actions{margin:14px 0;padding:12px;border:1px solid #26364b;border-radius:9px;background:#101f32}.rw-inline-workflow .rw-details-actions h4{margin:0 0 10px;color:#c5d4e5;font-size:11px}.rw-inline-workflow .rw-action-btn{border-color:#36506c;background:#152940}.rw-inline-workflow .rw-workflow-timeline{margin-top:16px}.rw-inline-workflow .rw-workflow-timeline-header{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.rw-inline-workflow .rw-workflow-timeline-header h4{margin:0;color:#f8fafc;font-size:12px}.rw-inline-workflow .rw-timeline-step{padding:11px;border:1px solid #2c4058;border-radius:9px;background:#101f32}.rw-inline-workflow .rw-timeline-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;color:#e2e8f0;font-size:11px}.rw-inline-workflow .rw-timeline-heading span{color:#6fe3ff}.rw-inline-workflow .rw-timeline-actor,.rw-inline-workflow .rw-timeline-step time{display:block;margin-top:6px;color:#9aacc1;font-size:10px}.rw-inline-workflow .rw-timeline-comment{white-space:pre-wrap;overflow-wrap:anywhere;color:#d3deeb;font-size:11px}.rw-workflow-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;padding:24px;text-align:center;color:#8395ab}.rw-workflow-placeholder>span{font-size:24px;color:#6fe3ff}.rw-workflow-placeholder strong{color:#d7e4f2;font-size:12px}.rw-workflow-placeholder p{max-width:220px;font-size:10px;line-height:1.6}body.rw-worklist-open{overflow:hidden}@media(max-width:900px){.rw-worklist-modal{padding:10px}.rw-worklist-dialog{width:100%;height:95vh}.rw-worklist-layout{grid-template-columns:170px minmax(0,1fr)}.rw-worklist-toolbar{align-items:stretch;flex-direction:column}.rw-modal-search{width:100%}}@media(max-width:650px){.rw-worklist-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.rw-category-nav{flex-direction:row;gap:6px;padding:8px;overflow-x:auto;border-right:0;border-bottom:1px solid #26364b}.rw-category-button{min-width:120px;padding:9px 7px}.rw-worklist-columns{grid-template-columns:1fr;grid-template-rows:minmax(150px,.75fr) minmax(240px,1.25fr)}.rw-request-results{border-right:0;border-bottom:1px solid #26364b}.rw-content{padding:9px}.rw-worklist-modal-header,.rw-worklist-toolbar,.rw-inline-workflow-heading{padding:12px}}
+
+
+/* Match request/action dialogs to the DMS dark navy + cyan theme. */
+.rw-dialog {
+    background: var(--panel, #122a47);
+    color: var(--text, #eaf2fb);
+    border: 1px solid var(--line-strong, rgba(255,255,255,.16));
+    box-shadow: 0 24px 70px rgba(0,0,0,.5);
+}
+.rw-dialog-header {
+    background: var(--bg-alt, #0e2540);
+    border-bottom-color: var(--line-strong, rgba(255,255,255,.16));
+}
+.rw-dialog-header h3 { color: var(--text, #eaf2fb); }
+.rw-dialog-body { color: var(--text, #eaf2fb); }
+.rw-dialog .rw-close {
+    background: var(--panel-2, #0f2239);
+    color: var(--text-dim, #9fb3cc);
+    border-color: var(--line-strong, rgba(255,255,255,.16));
+}
+.rw-dialog .rw-close:hover {
+    color: var(--cyan, #6fe3ff);
+    border-color: var(--cyan-dim, rgba(111,227,255,.35));
+}
+.rw-node-context {
+    border-color: var(--line-strong, rgba(255,255,255,.16));
+    background: var(--bg-alt, #0e2540);
+    color: var(--text, #eaf2fb);
+}
+.rw-dialog textarea,
+.rw-dialog input,
+.rw-dialog select {
+    background: var(--bg, #0b1d33);
+    color: var(--text, #eaf2fb);
+    border-color: var(--line-strong, rgba(255,255,255,.16));
+}
+.rw-dialog textarea::placeholder,
+.rw-dialog input::placeholder { color: var(--text-faint, #6b8099); }
+.rw-dialog-actions button:not(.rw-submit) {
+    background: var(--panel-2, #0f2239);
+    color: var(--text, #eaf2fb);
+    border-color: var(--line-strong, rgba(255,255,255,.16));
+}
+.rw-submit {
+    background: var(--cyan, #6fe3ff) !important;
+    color: #07182a !important;
+    border-color: var(--cyan, #6fe3ff) !important;
+}
+.rw-error { color: #ff9696; }
+.rw-node-context strong { color: var(--cyan, #6fe3ff); }
+.rw-dialog .rw-action-expert-field input { color: var(--text, #eaf2fb); }
+.rw-search-result-group { padding: 8px 12px 4px; }
+.rw-search-result-group h4 {
+    margin: 4px 0 10px;
+    color: var(--cyan, #6fe3ff);
+    font-size: 11px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+.rw-search-result-group h4 span {
+    margin-left: 6px;
+    color: var(--text-dim, #9fb3cc);
+    font-weight: 500;
+}
+.rw-search-result-group + .rw-search-result-group {
+    border-top: 1px solid var(--line-strong, rgba(255,255,255,.16));
+}
+.rw-search-result-group .rw-empty { padding: 8px 4px 14px; }
+
+
+/* Restored step-by-step workflow timeline — unified DMS navy/cyan theme. */
+.rw-details-dialog .rw-workflow-timeline,
+.rw-inline-workflow .rw-workflow-timeline {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #0b1424;
+  color: #e2e8f0;
+}
+.rw-workflow-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.rw-workflow-timeline-header h4 { margin: 0; color: #f8fafc; font-size: .98rem; }
+.rw-workflow-step-count {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  background: #1e293b;
+  color: #cbd5e1;
+  font-size: .72rem;
+}
+.rw-details-dialog .rw-timeline-list,
+.rw-inline-workflow .rw-timeline-list { display: flex; flex-direction: column; gap: 0; }
+.rw-details-dialog .rw-timeline-step,
+.rw-inline-workflow .rw-timeline-step {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 15px;
+  border: 1px solid #334155;
+  border-left: 3px solid #64748b;
+  border-radius: 9px;
+  background: #111c2f;
+  color: #e2e8f0;
+}
+.rw-details-dialog .rw-timeline-step.is-approved,
+.rw-inline-workflow .rw-timeline-step.is-approved { border-left-color: #22c55e; }
+.rw-details-dialog .rw-timeline-step.is-rejected,
+.rw-inline-workflow .rw-timeline-step.is-rejected { border-left-color: #ef4444; }
+.rw-details-dialog .rw-timeline-heading,
+.rw-inline-workflow .rw-timeline-heading {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.rw-details-dialog .rw-timeline-heading strong { color: #f8fafc; }
+.rw-details-dialog .rw-timeline-heading span { background: #1e293b; color: #6fe3ff; }
+.rw-details-dialog .rw-timeline-actor,
+.rw-details-dialog .rw-timeline-step time { display: block; margin-top: 6px; color: #94a3b8; font-size: .78rem; }
+.rw-details-dialog .rw-timeline-comment {
+  margin: 8px 0 0; padding: 9px 10px; border: 1px solid #26364d; border-radius: 6px;
+  background: #0b1424; color: #e2e8f0; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.rw-details-dialog .rw-timeline-no-comment { margin: 7px 0 0; color: #64748b; font-size: .78rem; font-style: italic; }
+.rw-details-dialog .rw-timeline-arrow { height: 28px; display: flex; align-items: center; justify-content: center; color: #60a5fa; }
+.rw-details-dialog .rw-workflow-placeholder { min-height: 120px; border: 1px dashed #334155; border-radius: 9px; }
+.rw-details-dialog .rw-workflow-placeholder strong { color: #e2e8f0; }
+.rw-details-dialog .rw-workflow-placeholder p { color: #94a3b8; }
+
+/* Croquis, Modeling and Final Drawing modal follows the main DMS dark theme. */
+.expert-work-dialog { background: #0f172a !important; color: #e2e8f0; border: 1px solid #334155; }
+.expert-work-dialog .rw-action-header { background: #111c2f; border-bottom: 1px solid #334155; }
+.expert-work-dialog .rw-action-header h2 { color: #f8fafc; }
+.expert-work-dialog .rw-action-header p { color: #94a3b8; }
+.expert-work-dialog .expert-work-body { background: #0f172a; color: #e2e8f0; }
+.expert-work-dialog .expert-work-section { background: #111c2f; border: 1px solid #334155; border-radius: 10px; padding: 14px; margin: 12px 0; }
+.expert-work-dialog .expert-work-section-head strong { color: #f8fafc; }
+.expert-work-dialog .expert-work-section-head small { color: #94a3b8; }
+.expert-work-dialog .expert-work-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.expert-work-dialog .expert-work-field { display: block; min-width: 0; color: #cbd5e1; font-size: 12px; }
+.expert-work-dialog .expert-work-field span { display: block; margin-bottom: 6px; }
+.expert-work-dialog .expert-work-field input { width: 100%; box-sizing: border-box; background: #0b1424; color: #f8fafc; border: 1px solid #475569; border-radius: 7px; padding: 9px 10px; }
+.expert-work-dialog .expert-work-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.expert-work-dialog .expert-work-summary > div { padding: 10px; border: 1px solid #334155; border-radius: 8px; background: #111c2f; color: #cbd5e1; }
+.expert-work-dialog .expert-work-summary b { color: #6fe3ff; }
+.expert-work-dialog .rw-action-footer { background: #111c2f; border-top: 1px solid #334155; }
+@media (max-width: 700px) {
+  .expert-work-dialog .expert-work-grid,
+  .expert-work-dialog .expert-work-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .expert-work-dialog .expert-work-grid,
+  .expert-work-dialog .expert-work-summary { grid-template-columns: 1fr; }
+}
