@@ -4,6 +4,12 @@ Last updated: 2026-10-14
 Repository: AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
+## Permanent UI requirement — official calendar
+- The official and default calendar throughout DMS must be Solar Hijri (Persian/Jalali), not Gregorian.
+- Apply this consistently to every date picker and date-entry control in all forms, including all six date fields (start/end for Croquis, Modeling, and Final Drawing) in the dynamically generated **Complete Drawing Work** form in `frontend/js/request-workflow.js`.
+- Preserve the backend/database date contract: convert selected Jalali dates to valid Gregorian ISO dates before submitting to the existing APIs, and convert stored dates back to Jalali for display. Do not change SQL date column types or API contracts for this UI requirement.
+- This requirement is permanent and must be retained in future AI handoffs.
+
 ## Architecture
 - Frontend: `frontend/` HTML/CSS/JavaScript.
 - Backend: `backend/server.js` Node.js + Express.
@@ -154,6 +160,8 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 The compatibility correction is committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
 # NEXT ACTION
+1. Implement a Solar Hijri/Jalali date-picker for all date fields in the Complete Drawing Work form in `frontend/js/request-workflow.js`; preserve ISO/Gregorian values sent to the existing backend API and render stored dates as Jalali.
+2. Audit all frontend forms/date controls and make Solar Hijri the consistent official calendar throughout DMS; avoid changing database schema or API contracts.
 1. Pull latest `main` (final-approval border fix commit `8a2b161d0c72c57cb07df63163e3b83fcda4b68e`) into `H:\\Drawing Management system\\app\\MyTreeApp`.
 2. Run `node --check frontend/js/request-workflow.js` from the project root and refresh the browser with `Ctrl+F5`.
 3. Open Drawing Requests and verify the card's left border is red for every displayed request whose status is not `FINAL_APPROVED`, and green only for `FINAL_APPROVED`; confirm status background colors remain unchanged.
