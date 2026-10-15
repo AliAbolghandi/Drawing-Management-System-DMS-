@@ -47,56 +47,51 @@ Default branch: main
 - Expert completion trigger syntax/compatibility fixes: `dd0e675eafd8a63e2864a765261f271dfce23a77` and `3a2814417976b6f827c52d59440f586f4536156b`.
 
 ## Production Reports — current task / 2026-10-15
-User reported that the `Production Reports` values, especially completed Croquis, Modeling and Drawing parts, were incorrect and asked for all calculations to be rechecked.
+User reported that the `Production Reports` section calculates incorrect values, especially completed Croquis, Modeling and Drawing parts, and requested a full recalculation review.
 
-### Calculation rules now implemented in `frontend/js/admin-dashboard.js`
-- Dashboard no longer trusts the previously aggregated `expertPerformance` / `monthlyProduction` values from the production-report route.
-- It reads authoritative rows from the existing protected admin table APIs:
+### Current implementation
+- `frontend/js/admin-dashboard.js` calculates the report directly from protected admin table APIs rather than trusting the older aggregated production-report endpoint.
+- Source tables loaded completely with pagination:
   - `DrawingRequestExpertWork`
   - `DrawingRequestAssignments`
   - `Users`
-- Pagination is handled by `getAllRows()` with 200 rows per page, so reports are not limited to the first 200 production records.
-- Each expert-work row is mapped through `AssignmentID -> DrawingRequestAssignments -> DrawingExpertUserID -> Users`.
-- Croquis, Modeling and Final Drawing are calculated independently. One assignment contribution is counted once for its corresponding completed stage.
-- Date filtering is inclusive and uses the stage `EndDate`, not the start date and not assignment date.
-- Final Drawing count is explicitly `StandardPartCount + DrawnPartCount`.
-- Contributions from transferred experts remain additive by assignment.
-- `PredictedPartCount` is treated as a request-level forecast, not production. When a request has multiple assignments, only the latest assignment prediction is counted, preventing prediction double-counting after transfer.
-- Monthly report is monthly production totals, not falsely labelled cumulative production.
-- Rejected part count remains `نامشخص`; the inspected schema has no authoritative part-level rejection count. `DrawingRequestHistory` contains workflow actions/status transitions and is not used to invent rejected-part quantities.
+- Mapping is `ExpertWork.AssignmentID -> DrawingRequestAssignments.AssignmentID -> DrawingExpertUserID -> Users`.
+- Each `AssignmentID` is explicitly deduplicated in `buildProductionReport()` before stage counts are added.
+- Croquis is counted only when `CroquisEndDate` is inside the selected range, using `CroquisPartCount`.
+- Modeling is counted only when `ModelingEndDate` is inside the selected range, using `ModelingPartCount`.
+- Final Drawing is counted only when `DrawingEndDate` is inside the selected range, using `StandardPartCount + DrawnPartCount`.
+- Zero, negative, NaN and missing part counts are not added to production totals.
+- Delegated/previous assignments remain additive; a completed stage belonging to an earlier expert is not reassigned to the later expert.
+- Predictions remain request-level forecasts and are counted once per `RequestID`, using the latest assignment prediction.
+- Monthly Production groups completed stage production by the actual stage `EndDate` month.
+- Rejected part count remains `نامشخص`; the current schema does not contain an authoritative rejected-part quantity.
 
-### UI changes
-- `frontend/admin-dashboard.html` now labels the section `Monthly Production` and explicitly states the calculation definitions.
-- Cache-bust changed to `admin-dashboard.js?v=20261015-production-reports-v2`.
-- Expert table and chart display completed contributions by expert.
-- Monthly table/chart display predicted, Croquis, Modeling and Drawing counts for the selected Jalali date range.
+### Latest code change
+- Commit `780228be106082a83ccda6d795179d62f50b01ad` — revised `frontend/js/admin-dashboard.js` Production Reports calculation.
+- Main technical change: `buildProductionReport()` now explicitly deduplicates `AssignmentID`, validates positive part counts, separates each completed stage, and keeps assignment-level expert contributions additive.
 
-### Commits
-- `262db3815f9bf67f5949145628a78ff26191d2aa` — corrected `frontend/js/admin-dashboard.js` production-report calculation logic.
-- `85306c8de486eefd716d4e2ea53db9f8e8385421` — clarified Production Reports labels/definitions and refreshed cache version in `frontend/admin-dashboard.html`.
+### Backend note
+- `GET /api/admin/dashboard/production-reports?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` still exists in `backend/admin-db.js` with an older SQL aggregation implementation.
+- The current dashboard does not use that endpoint for rendering; it reads the underlying protected admin table rows directly.
+- Do not remove or change the existing endpoint/API contract until a single authoritative backend calculation path is implemented and tested.
 
-### Important backend note
-- Existing `GET /api/admin/dashboard/production-reports?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` remains in `backend/admin-db.js` and still contains the earlier SQL aggregation implementation.
-- The current dashboard intentionally calculates from the underlying protected table rows instead of using those pre-aggregated endpoint fields. This avoids changing DB schema/API contracts during the correction.
-- A future cleanup should consolidate the authoritative calculation into one backend query/service so there is only one production-report calculation path. Do not remove the existing endpoint until that replacement is implemented and tested.
-
-## Verification status for current Production Reports fix
-- `node --check /tmp/new-admin-dashboard.js` passed for the exact new dashboard JavaScript content before committing.
-- GitHub source was inspected, including `SQL/Relation between table.rpt` and `docs/EXPERT_DRAWING_WORKFLOW.md`.
-- Real SQL Server production data was NOT available in this environment; the uploaded `Tables-v04.xlsx` is schema/definition material and contains no production rows in `DrawingRequestExpertWork`.
-- Browser/LAN runtime verification has NOT been performed.
-- Therefore do not claim that the displayed numeric results have been validated against real production records yet.
+## Verification status
+- GitHub source and `SQL/Relation between table.rpt` were inspected before the latest change.
+- `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` confirms `DrawingRequestExpertWork.AssignmentID` has a unique constraint, so one work row per assignment is expected.
+- The uploaded `Tables-v04.xlsx` contains schema definitions but no production data for validating numeric results.
+- The latest `frontend/js/admin-dashboard.js` change was committed, but browser/LAN runtime verification against the user's SQL Server has NOT been performed in this environment.
+- Do not claim that the resulting numeric values are validated against real factory production data until that comparison is performed.
 
 ## Database migration pending
 - `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` has not been executed against the user's SQL Server.
 - Take a DB backup and stop DMS writes before executing it; then verify row counts, column ordinals, PK/FK/unique/check constraints and `TR_DrawingRequestExpertWork_AssignmentSnapshot`.
 
 # NEXT ACTION
-1. Restart the DMS backend and log in as Admin.
-2. Open `admin-dashboard.html`, select a known Jalali range containing real expert-work records, and verify the Production Reports numbers against `dbo.DrawingRequestExpertWork` joined to `dbo.DrawingRequestAssignments`.
-3. Manually verify at least one transferred request: previous expert contribution + new expert contribution must equal the request-level total without overwriting either expert.
-4. Verify one record for each stage: Croquis uses `CroquisPartCount`/`CroquisEndDate`; Modeling uses `ModelingPartCount`/`ModelingEndDate`; Drawing uses `StandardPartCount + DrawnPartCount`/`DrawingEndDate`.
-5. Verify pagination with more than 200 rows and verify date boundaries and zero-result ranges.
-6. Verify Admin-only access: unauthenticated = 401, non-Admin = 403.
-7. After runtime validation, decide whether to consolidate the duplicate backend production-report calculation into `backend/admin-db.js` and remove the old calculation path only after the replacement is tested.
+1. Restart the DMS backend and open the Admin Dashboard.
+2. Select a known Jalali range containing real `DrawingRequestExpertWork` records.
+3. Compare the displayed Croquis/Modeling/Drawing numbers against direct SQL sums grouped by `AssignmentID` and stage `EndDate`.
+4. Verify a transferred request: each expert keeps the production actually completed under that expert's assignment; no assignment is counted twice.
+5. Verify one known Croquis, Modeling and Final Drawing record manually, including `StandardPartCount + DrawnPartCount` for Final Drawing.
+6. Verify a date-boundary case where `EndDate` equals the start or end date.
+7. If any displayed number still differs from SQL, capture the specific `RequestID`, `AssignmentID`, expected value and displayed value before changing the formula again.
 8. Separately run `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` only during the approved maintenance window after backup and DMS write shutdown.
