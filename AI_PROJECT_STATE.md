@@ -159,8 +159,16 @@ Detailed expert-work requirements: `docs/EXPERT_DRAWING_WORKFLOW.md`.
 ## Known limitation / immediate follow-up
 The compatibility correction is committed, but the migration must be executed on the actual `dbDrawingManagment` database before the new table/trigger-backed workflow can operate. Runtime testing is still required.
 
+## Complete Drawing Work — Jalali calendar fix — 2026-10-15
+- Replaced all six native HTML `type="date"` controls in `frontend/js/request-workflow.js` (Croquis, Modeling, Final Drawing start/end) with text fields and an in-form Jalali calendar picker. Calendar month/day selection uses the browser's Persian calendar data and renders Jalali year/month/day.
+- The date text inputs have an empty placeholder, so browser text such as `mm/dd/yyyy` is no longer shown.
+- On save, selected Jalali dates are converted through `DMSDate.fromJalaliInput(value, true)` to Gregorian `YYYY-MM-DD` strings, preserving the existing backend/database contract. Date validation reports invalid Jalali input.
+- Refreshed the `frontend/index.html` workflow script query version to `20261015-jalali-picker`.
+- Commits: `db09c5565daac00cdcde32f8808890555e0c3dc6` (Jalali picker and six fields); index cache-bust commit `680321d5ac149a9f49f8d0979272e4239bd918fb`.
+- Verification: JavaScript syntax parsed successfully with `new Function(...)`; confirmed zero remaining `type="date"` controls in `request-workflow.js`. Live browser interaction and backend save were not tested in this environment.
+
 # NEXT ACTION
-1. Implement a Solar Hijri/Jalali date-picker for all date fields in the Complete Drawing Work form in `frontend/js/request-workflow.js`; preserve ISO/Gregorian values sent to the existing backend API and render stored dates as Jalali.
+1. Test the Complete Drawing Work Jalali picker in a browser: open all six fields, navigate Jalali months, select dates, save progress, and verify the backend receives Gregorian ISO dates.
 2. Audit all frontend forms/date controls and make Solar Hijri the consistent official calendar throughout DMS; avoid changing database schema or API contracts.
 1. Pull latest `main` (final-approval border fix commit `8a2b161d0c72c57cb07df63163e3b83fcda4b68e`) into `H:\\Drawing Management system\\app\\MyTreeApp`.
 2. Run `node --check frontend/js/request-workflow.js` from the project root and refresh the browser with `Ctrl+F5`.
