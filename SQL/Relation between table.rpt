@@ -3,7 +3,7 @@ LineText
 # DMS DATABASE SCHEMA
 
 - Database: `dbDrawingManagment`
-- Generated At: `2026-10-14 11:44:15`
+- Generated At: `2026-10-15 11:27:15`
 - Data Exported: **NO**
 - Purpose: Complete relational database schema and relationship definition
 
@@ -25,9 +25,10 @@ LineText
 |---|---|---:|---|---|
 | `dbo` | `ActionCode` | `370100359` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
 | `dbo` | `DanieliPDF` | `1525580473` | `2026-09-05 11:33:52` | `2026-09-06 08:19:39` |
-| `dbo` | `DrawingRequestAssignments` | `546100986` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
+| `dbo` | `DrawingRequestAssignments` | `546100986` | `2026-10-08 09:59:13` | `2026-10-14 14:44:43` |
+| `dbo` | `DrawingRequestExpertWork` | `1042102753` | `2026-10-14 14:44:43` | `2026-10-14 14:44:43` |
 | `dbo` | `DrawingRequestHistory` | `642101328` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
-| `dbo` | `DrawingRequests` | `418100530` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
+| `dbo` | `DrawingRequests` | `418100530` | `2026-10-08 09:59:13` | `2026-10-14 14:59:05` |
 | `dbo` | `DrawingRequestStatuses` | `322100188` | `2026-10-08 09:59:13` | `2026-10-08 09:59:13` |
 | `dbo` | `Logs` | `274100017` | `2026-09-21 15:03:17` | `2026-09-21 15:03:17` |
 | `dbo` | `Nodes` | `1237579447` | `2026-08-31 14:39:42` | `2026-10-08 09:59:13` |
@@ -83,6 +84,28 @@ LineText
 | 11 | `IsCurrent` | `bit` | 1 | 1 | 0 | NO | NO | `((1))` | NO |
 | 12 | `AssignmentStatus` | `nvarchar(30)` | 60 | 0 | 0 | YES | NO |  | NO |
 | 13 | `Comment` | `nvarchar(1000)` | 2000 | 0 | 0 | YES | NO |  | NO |
+
+---
+
+## `dbo.DrawingRequestExpertWork`
+
+| Ordinal | Column | Data Type | Max Length | Precision | Scale | Nullable | Identity | Default | Computed |
+|---:|---|---|---:|---:|---:|---|---|---|---|
+| 1 | `ExpertWorkID` | `int` | 4 | 10 | 0 | NO | YES (1,1) |  | NO |
+| 2 | `AssignmentID` | `int` | 4 | 10 | 0 | NO | NO |  | NO |
+| 3 | `PredictedPartCount` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 4 | `CroquisStartDate` | `date` | 3 | 10 | 0 | YES | NO |  | NO |
+| 5 | `CroquisEndDate` | `date` | 3 | 10 | 0 | YES | NO |  | NO |
+| 6 | `CroquisPartCount` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 7 | `ModelingStartDate` | `date` | 3 | 10 | 0 | YES | NO |  | NO |
+| 8 | `ModelingEndDate` | `date` | 3 | 10 | 0 | YES | NO |  | NO |
+| 9 | `ModelingPartCount` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 10 | `DrawingStartDate` | `date` | 3 | 10 | 0 | YES | NO |  | NO |
+| 11 | `DrawingEndDate` | `date` | 3 | 10 | 0 | YES | NO |  | NO |
+| 12 | `StandardPartCount` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 13 | `DrawnPartCount` | `int` | 4 | 10 | 0 | YES | NO |  | NO |
+| 14 | `CreatedAt` | `datetime2(3)` | 7 | 23 | 3 | NO | NO | `(sysutcdatetime())` | NO |
+| 15 | `UpdatedAt` | `datetime2(3)` | 7 | 23 | 3 | NO | NO | `(sysutcdatetime())` | NO |
 
 ---
 
@@ -292,6 +315,7 @@ LineText
 | `dbo.ActionCode` | `PK_ActionCode` | `ActionCodeID` |
 | `dbo.DanieliPDF` | `PK_DanieliPDF` | `PDFID` |
 | `dbo.DrawingRequestAssignments` | `PK_DrawingRequestAssignments` | `AssignmentID` |
+| `dbo.DrawingRequestExpertWork` | `PK_DrawingRequestExpertWork` | `ExpertWorkID` |
 | `dbo.DrawingRequestHistory` | `PK_DrawingRequestHistory` | `HistoryID` |
 | `dbo.DrawingRequests` | `PK_DrawingRequests` | `RequestID` |
 | `dbo.DrawingRequestStatuses` | `PK_DrawingRequestStatuses` | `StatusID` |
@@ -318,6 +342,7 @@ LineText
 | `FK_DrawingRequestAssignments_AssignedBy` | `dbo.DrawingRequestAssignments` | `AssignedByUserID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
 | `FK_DrawingRequestAssignments_Expert` | `dbo.DrawingRequestAssignments` | `DrawingExpertUserID` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
 | `FK_DrawingRequestAssignments_Request` | `dbo.DrawingRequestAssignments` | `RequestID` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
+| `FK_DrawingRequestExpertWork_Assignment` | `dbo.DrawingRequestExpertWork` | `AssignmentID` | `dbo.DrawingRequestAssignments` | `AssignmentID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
 | `FK_DrawingRequestHistory_ActionCode` | `dbo.DrawingRequestHistory` | `ActionCode` | `dbo.ActionCode` | `ActionCode` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
 | `FK_DrawingRequestHistory_FromStatus` | `dbo.DrawingRequestHistory` | `FromStatusID` | `dbo.DrawingRequestStatuses` | `StatusID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
 | `FK_DrawingRequestHistory_Request` | `dbo.DrawingRequestHistory` | `RequestID` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` | `YES` | `YES` |
@@ -341,6 +366,7 @@ LineText
 | Table | Constraint | Columns |
 |---|---|---|
 | `dbo.ActionCode` | `UX_ActionCode_ActionCode` | `ActionCode` |
+| `dbo.DrawingRequestExpertWork` | `UQ_DrawingRequestExpertWork_Assignment` | `AssignmentID` |
 | `dbo.DrawingRequests` | `UX_DrawingRequests_RequestNumber` | `RequestNumber` |
 | `dbo.DrawingRequestStatuses` | `UX_DrawingRequestStatuses_StatusCode` | `StatusCode` |
 | `dbo.Notifications` | `UX_Notifications_RequestNumber` | `RequestNumber` |
@@ -360,6 +386,10 @@ LineText
 | `dbo.DrawingRequestAssignments` | `IX_DrawingRequestAssignments_Expert_Current` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `DrawingExpertUserID`, `IsCurrent` | `` |
 | `dbo.DrawingRequestAssignments` | `IX_DrawingRequestAssignments_RequestID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `RequestID` | `` |
 | `dbo.DrawingRequestAssignments` | `PK_DrawingRequestAssignments` | `CLUSTERED` | `YES` | `YES` | `NO` | `AssignmentID` | `` |
+| `dbo.DrawingRequestExpertWork` | `IX_DrawingRequestExpertWork_AssignmentID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `AssignmentID` | `` |
+| `dbo.DrawingRequestExpertWork` | `IX_DrawingRequestExpertWork_Dates` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `CroquisStartDate`, `ModelingStartDate`, `DrawingStartDate` | `` |
+| `dbo.DrawingRequestExpertWork` | `PK_DrawingRequestExpertWork` | `CLUSTERED` | `YES` | `YES` | `NO` | `ExpertWorkID` | `` |
+| `dbo.DrawingRequestExpertWork` | `UQ_DrawingRequestExpertWork_Assignment` | `NONCLUSTERED` | `YES` | `NO` | `YES` | `AssignmentID` | `` |
 | `dbo.DrawingRequestHistory` | `IX_DrawingRequestHistory_RequestID_CreatedAt` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `RequestID`, `CreatedAt` | `` |
 | `dbo.DrawingRequestHistory` | `PK_DrawingRequestHistory` | `CLUSTERED` | `YES` | `YES` | `NO` | `HistoryID` | `` |
 | `dbo.DrawingRequests` | `IX_DrawingRequests_AssignedDrawingExpertID_StatusID` | `NONCLUSTERED` | `NO` | `NO` | `NO` | `AssignedDrawingExpertID`, `StatusID` | `` |
@@ -400,6 +430,14 @@ LineText
 
 | Table | Constraint | Definition | Disabled | Not Trusted |
 |---|---|---|---|---|
+| `dbo.DrawingRequestExpertWork` | `CK_DrawingRequestExpertWork_CroquisDates` | `([CroquisEndDate] IS NULL OR [CroquisStartDate] IS NULL OR [CroquisEndDate]>=[CroquisStartDate])` | `NO` | `NO` |
+| `dbo.DrawingRequestExpertWork` | `CK_DrawingRequestExpertWork_CroquisPartCount` | `([CroquisPartCount] IS NULL OR [CroquisPartCount]>=(0))` | `NO` | `NO` |
+| `dbo.DrawingRequestExpertWork` | `CK_DrawingRequestExpertWork_DrawingDates` | `([DrawingEndDate] IS NULL OR [DrawingStartDate] IS NULL OR [DrawingEndDate]>=[DrawingStartDate])` | `NO` | `NO` |
+| `dbo.DrawingRequestExpertWork` | `CK_DrawingRequestExpertWork_DrawnPartCount` | `([DrawnPartCount] IS NULL OR [DrawnPartCount]>=(0))` | `NO` | `NO` |
+| `dbo.DrawingRequestExpertWork` | `CK_DrawingRequestExpertWork_ModelingDates` | `([ModelingEndDate] IS NULL OR [ModelingStartDate] IS NULL OR [ModelingEndDate]>=[ModelingStartDate])` | `NO` | `NO` |
+| `dbo.DrawingRequestExpertWork` | `CK_DrawingRequestExpertWork_ModelingPartCount` | `([ModelingPartCount] IS NULL OR [ModelingPartCount]>=(0))` | `NO` | `NO` |
+| `dbo.DrawingRequestExpertWork` | `CK_DrawingRequestExpertWork_PredictedPartCount` | `([PredictedPartCount] IS NULL OR [PredictedPartCount]>=(0))` | `NO` | `NO` |
+| `dbo.DrawingRequestExpertWork` | `CK_DrawingRequestExpertWork_StandardPartCount` | `([StandardPartCount] IS NULL OR [StandardPartCount]>=(0))` | `NO` | `NO` |
 
 ---
 
@@ -412,9 +450,33 @@ LineText
 
 | Table | Trigger | Enabled | Type |
 |---|---|---|---|
+| `dbo.DrawingRequests` | `TR_DrawingRequests_ExpertAcceptPrerequisite` | `YES` | `SQL_TRIGGER` |
+| `dbo.DrawingRequests` | `TR_DrawingRequests_ExpertCompletePrerequisite` | `YES` | `SQL_TRIGGER` |
 
 ### Trigger Definitions
 
+#### `dbo.DrawingRequests.TR_DrawingRequests_ExpertAcceptPrerequisite`
+```sql
+CREATE TRIGGER dbo.TR_DrawingRequests_ExpertAcceptPrerequisite
+ON dbo.DrawingRequests
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT UPDATE(StatusID) RETURN;
+
+    IF EXIS
+#### `dbo.DrawingRequests.TR_DrawingRequests_ExpertCompletePrerequisite`
+```sql
+CREATE TRIGGER dbo.TR_DrawingRequests_ExpertCompletePrerequisite
+ON dbo.DrawingRequests
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT UPDATE(StatusID) RETURN;
+
+    IF 
 
 ---
 
@@ -427,6 +489,7 @@ Every line below represents a Child ? Parent relationship.
 - `dbo.DrawingRequestAssignments.AssignedByUserID` ? `dbo.Users.UserID`  (FK: `FK_DrawingRequestAssignments_AssignedBy`)
 - `dbo.DrawingRequestAssignments.DrawingExpertUserID` ? `dbo.Users.UserID`  (FK: `FK_DrawingRequestAssignments_Expert`)
 - `dbo.DrawingRequestAssignments.RequestID` ? `dbo.DrawingRequests.RequestID`  (FK: `FK_DrawingRequestAssignments_Request`)
+- `dbo.DrawingRequestExpertWork.AssignmentID` ? `dbo.DrawingRequestAssignments.AssignmentID`  (FK: `FK_DrawingRequestExpertWork_Assignment`)
 - `dbo.DrawingRequestHistory.ActionCode` ? `dbo.ActionCode.ActionCode`  (FK: `FK_DrawingRequestHistory_ActionCode`)
 - `dbo.DrawingRequestHistory.FromStatusID` ? `dbo.DrawingRequestStatuses.StatusID`  (FK: `FK_DrawingRequestHistory_FromStatus`)
 - `dbo.DrawingRequestHistory.RequestID` ? `dbo.DrawingRequests.RequestID`  (FK: `FK_DrawingRequestHistory_Request`)
@@ -454,6 +517,7 @@ Every line below represents a Child ? Parent relationship.
 | `dbo.DrawingRequestAssignments` | `AssignedByUserID` | `FK_DrawingRequestAssignments_AssignedBy` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
 | `dbo.DrawingRequestAssignments` | `DrawingExpertUserID` | `FK_DrawingRequestAssignments_Expert` | `dbo.Users` | `UserID` | `NO_ACTION` | `NO_ACTION` |
 | `dbo.DrawingRequestAssignments` | `RequestID` | `FK_DrawingRequestAssignments_Request` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` |
+| `dbo.DrawingRequestExpertWork` | `AssignmentID` | `FK_DrawingRequestExpertWork_Assignment` | `dbo.DrawingRequestAssignments` | `AssignmentID` | `NO_ACTION` | `NO_ACTION` |
 | `dbo.DrawingRequestHistory` | `ActionCode` | `FK_DrawingRequestHistory_ActionCode` | `dbo.ActionCode` | `ActionCode` | `NO_ACTION` | `NO_ACTION` |
 | `dbo.DrawingRequestHistory` | `FromStatusID` | `FK_DrawingRequestHistory_FromStatus` | `dbo.DrawingRequestStatuses` | `StatusID` | `NO_ACTION` | `NO_ACTION` |
 | `dbo.DrawingRequestHistory` | `RequestID` | `FK_DrawingRequestHistory_Request` | `dbo.DrawingRequests` | `RequestID` | `NO_ACTION` | `NO_ACTION` |
@@ -476,14 +540,14 @@ Every line below represents a Child ? Parent relationship.
 
 | Object Type | Count |
 |---|---:|
-| Tables | 17 |
+| Tables | 18 |
 | Views | 0 |
-| Primary Keys | 17 |
-| Foreign Keys | 20 |
-| Unique Constraints | 6 |
-| Check Constraints | 0 |
-| Indexes | 222 |
-| Triggers | 0 |
+| Primary Keys | 18 |
+| Foreign Keys | 21 |
+| Unique Constraints | 7 |
+| Check Constraints | 8 |
+| Indexes | 226 |
+| Triggers | 2 |
 
 ---
 
@@ -501,4 +565,4 @@ Every line below represents a Child ? Parent relationship.
 # END OF DATABASE SCHEMA EXPORT
 
 
-Completion time: 2026-10-14T11:44:15.1825230+03:30
+Completion time: 2026-10-15T11:27:16.2231966+03:30
