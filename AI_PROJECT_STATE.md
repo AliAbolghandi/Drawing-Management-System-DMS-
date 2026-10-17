@@ -95,8 +95,13 @@ User reported that the `Production Reports` section calculates incorrect values,
   - `f84d17c1ea420f97f9057e5ecec288e19cd3732f` — expert table columns.
 - Validation: inspected current GitHub source and verified the separate source fields, chart/table references, and matching table headers/column spans. A Node syntax check, live browser test, API test, and SQL data comparison have NOT been run in this session.
 
+## Process instruction change — final change reports (2026-10-17)
+- Updated `DMS_AI_INSTRUCTIONS.md` to require every final response reporting project changes to include a section titled exactly `فایل‌های اصلی تغییرکرده:`, with a Markdown bullet list of the exact repository-relative paths changed in the current task.
+- The list must only contain files actually changed; it must include `AI_PROJECT_STATE.md` whenever state was updated, and `DMS_AI_INSTRUCTIONS.md` whenever the instructions file changed.
+- Final change reports must also state real commit hashes, distinguish structural checks from runtime/database tests, and list remaining actions.
+- Commit: `c9753a5235f3738c402089714c1eaa0ad0c3a724` — Require changed-file list in final reports.
+
 # NEXT ACTION
 
-1. From the repository root, run `node --check frontend/js/admin-dashboard.js` and fix any syntax error before deployment.
-2. Open the Admin Dashboard with a hard refresh, load Production Reports, and confirm Expert Performance and Monthly Production show Standard parts and Drawn parts as separate chart series and table columns; confirm no Rejected Parts column or placeholder appears.
-3. Compare selected-range totals against `DrawingRequestExpertWork.StandardPartCount` and `DrawnPartCount` for rows whose `DrawingEndDate` falls in range; confirm SQL schema and stored data remain unchanged.
+1. For every future DMS change, include the exact **فایل‌های اصلی تغییرکرده:** section in the final report; list only paths actually changed in that task.
+2. Complete the pending Production Reports validation from the previous task: run `node --check frontend/js/admin-dashboard.js`, then perform a hard-refresh browser check and compare report totals with `DrawingRequestExpertWork` rows without modifying the database schema.
