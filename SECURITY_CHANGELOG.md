@@ -31,7 +31,7 @@ The four configured roles are:
 - DrawingExpert
 - VIEWER
 
-VIEWER is configured as read-only in `SQL/security_setup.sql`.
+
 
 ## API protection
 - All protected `/api/*` routes require an authenticated session.
