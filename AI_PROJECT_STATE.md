@@ -121,6 +121,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 ## Admin dashboard UI redesign — 2026-10-17
 - Followed `skills/DMS-UI-SKILL.md` before making UI changes. Audited `frontend/admin-dashboard.html`, `frontend/js/admin-dashboard.js`, and `frontend/css/admin-dashboard.css`; retained the existing HTML structure, JavaScript data loading, report calculations, chart/table IDs, date behavior, and API calls.
+- Updated `frontend/admin-dashboard.html` to cache-bust the dashboard stylesheet (`?v=20261017-industrial-ui-v1`) so the redesign appears after reload. Commit: `e7a6caf966a35870995fd8e7a54fd41d969286e2`.
 - Updated only `frontend/css/admin-dashboard.css` with a restrained industrial dashboard treatment: tighter technical hierarchy, neutral dark surfaces, consistent borders, reduced decorative shadows/rounding, clearer metric cards, improved report tables and filter controls, keyboard focus styles, and reduced-motion support.
 - Preserved distinct production chart colors: Standard parts blue, Drawn parts green, Predicted parts orange; Modeling remains a separate muted gold. Updated chart bars and legends to use matching values.
 - No SQL schema/data, backend, permissions, workflow, or API contracts changed.
