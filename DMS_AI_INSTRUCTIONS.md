@@ -44,6 +44,21 @@ AI_PROJECT_STATE.md must contain actionable technical information:
 
 Do not write vague summaries. Prefer exact file paths, function names, API routes, SQL table/column names, errors, and commit hashes.
 
+## Mandatory final change report format
+Every final response that reports project changes MUST include a section titled exactly **`فایل‌های اصلی تغییرکرده:`**. Under that heading, list the exact repository-relative paths of the main files changed in the current task as Markdown bullets, one file per line, for example:
+
+فایل‌های اصلی تغییرکرده:
+- `frontend/js/admin-dashboard.js`
+- `frontend/admin-dashboard.html`
+- `AI_PROJECT_STATE.md`
+
+Rules:
+- Include only files actually changed in the current task; never copy example paths unless they were changed.
+- Include `AI_PROJECT_STATE.md` whenever it was updated.
+- If the instructions file itself was changed, list `DMS_AI_INSTRUCTIONS.md` too.
+- If no project files were changed, do not imply that changes were made; state that clearly instead.
+- Keep this section in every final change report, alongside commit hash(es), validation/test status (clearly distinguishing structural checks from real runtime/database tests), and any remaining next actions.
+
 ## Preserve user requirements
 Do not silently change established requirements.
 Do not modify established database structures without explicit user approval.
