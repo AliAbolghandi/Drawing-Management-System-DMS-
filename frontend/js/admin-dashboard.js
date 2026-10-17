@@ -190,10 +190,10 @@
     const chart = $('expertPerformanceChart');
     if (!rows.length) chart.innerHTML = '<div class="chart-empty">No expert contributions in this date range.</div>';
     else {
-      const keys = [['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['StandardParts','drawing','Standard parts'],['DrawnParts','predicted','Drawn parts']];
+      const keys = [['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['StandardParts','standard','Standard parts'],['DrawnParts','drawn','Drawn parts']];
       const max = Math.max(1, ...rows.flatMap(x => keys.map(([key]) => reportNum(x,key))));
       chart.innerHTML = rows.map(x => '<div class="report-bar-group"><div class="report-bar-label">' + escapeHtml(x.ExpertName || x.Username) + '</div><div class="report-bar-stack">' + keys.map(([key,cls,label]) => '<div class="report-bar '+cls+'" title="'+label+': '+reportFmt(x[key])+'" style="height:'+Math.max(2,reportNum(x,key)/max*138)+'px"></div>').join('') + '</div><div class="report-bar-value">C '+reportFmt(x.CroquisParts)+' / M '+reportFmt(x.ModelingParts)+' / S '+reportFmt(x.StandardParts)+' / D '+reportFmt(x.DrawnParts)+'</div></div>').join('');
-      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Standard parts</span><span class="legend-predicted">Drawn parts</span></div>');
+      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-standard">Standard parts</span><span class="legend-drawn">Drawn parts</span></div>');
       const legend=chart.previousElementSibling;if(legend?.classList.contains('report-legend'))legend.dataset.reportLegend='expert';
     }
     const body=$('expertPerformanceRows');
@@ -209,10 +209,10 @@
     const chart=$('monthlyProductionChart');
     if(!rows.length) chart.innerHTML='<div class="chart-empty">No production events in this date range.</div>';
     else {
-      const keys=[['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['StandardParts','drawing','Standard parts'],['DrawnParts','predicted','Drawn parts'],['PredictedParts','predicted','Predicted']];
+      const keys=[['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['StandardParts','standard','Standard parts'],['DrawnParts','drawn','Drawn parts'],['PredictedParts','predicted','Predicted']];
       const max=Math.max(1,...rows.flatMap(x=>keys.map(([key])=>reportNum(x,key))));
       chart.innerHTML=rows.map(x=>'<div class="report-bar-group"><div class="report-bar-label">'+escapeHtml(x.JalaliMonth)+'</div><div class="report-bar-stack">'+keys.map(([key,cls,label])=>'<div class="report-bar '+cls+'" title="'+label+': '+reportFmt(x[key])+'" style="height:'+Math.max(2,reportNum(x,key)/max*150)+'px"></div>').join('')+'</div><div class="report-bar-value">C '+reportFmt(x.CroquisParts)+' · M '+reportFmt(x.ModelingParts)+' · S '+reportFmt(x.StandardParts)+' · D '+reportFmt(x.DrawnParts)+' · P '+reportFmt(x.PredictedParts)+'</div></div>').join('');
-      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Standard parts</span><span class="legend-predicted">Drawn parts</span><span class="legend-predicted">Predicted parts</span></div>');
+      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-standard">Standard parts</span><span class="legend-drawn">Drawn parts</span><span class="legend-predicted">Predicted parts</span></div>');
       const legend=chart.previousElementSibling;if(legend?.classList.contains('report-legend'))legend.dataset.reportLegend='monthly';
     }
     const body=$('monthlyProductionRows');
