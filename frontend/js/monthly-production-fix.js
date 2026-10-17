@@ -48,15 +48,25 @@
     return Boolean(date && date >= start && date <= end);
   }
 
+  function jalaliMonthForDate(isoDate) {
+    if (!isoDate) return null;
+    const jalaliDate = window.DMSDate.toJalaliInput(new Date(isoDate + 'T12:00:00'), true);
+    const parts = jalaliDate.split('/');
+    return parts.length === 3 && parts[0].length === 4 && parts[1].length === 2 && parts[2].length === 2
+      ? parts.slice(0, 2).join('/')
+      : null;
+  }
+
   function buildMonthlyProduction(workRows, assignmentRows, startDate, endDate) {
     const assignments = new Map(assignmentRows.map(row => [Number(row.AssignmentID), row]));
     const monthly = new Map();
     const countedAssignments = new Set();
 
     const ensureMonth = date => {
-      const month = date.slice(0, 7) + '-01';
+      const month = jalaliMonthForDate(date);
+      if (!month) return null;
       if (!monthly.has(month)) {
-        monthly.set(month, { MonthStart: month, CroquisParts: 0, ModelingParts: 0, DrawingParts: 0 });
+        monthly.set(month, { JalaliMonth: month, CroquisParts: 0, ModelingParts: 0, DrawingParts: 0 });
       }
       return monthly.get(month);
     };
@@ -69,23 +79,26 @@
 
       const croquisDate = completedDate(work.CroquisEndDate);
       if (inRange(croquisDate, startDate, endDate)) {
-        ensureMonth(croquisDate).CroquisParts += positive(work.CroquisPartCount);
+        const monthRow = ensureMonth(croquisDate);
+        if (monthRow) monthRow.CroquisParts += positive(work.CroquisPartCount);
       }
 
       const modelingDate = completedDate(work.ModelingEndDate);
       if (inRange(modelingDate, startDate, endDate)) {
-        ensureMonth(modelingDate).ModelingParts += positive(work.ModelingPartCount);
+        const monthRow = ensureMonth(modelingDate);
+        if (monthRow) monthRow.ModelingParts += positive(work.ModelingPartCount);
       }
 
       const drawingDate = completedDate(work.DrawingEndDate);
       if (inRange(drawingDate, startDate, endDate)) {
-        ensureMonth(drawingDate).DrawingParts += positive(work.StandardPartCount) + positive(work.DrawnPartCount);
+        const monthRow = ensureMonth(drawingDate);
+        if (monthRow) monthRow.DrawingParts += positive(work.StandardPartCount) + positive(work.DrawnPartCount);
       }
     }
 
     return [...monthly.values()]
       .filter(row => row.CroquisParts > 0 || row.ModelingParts > 0 || row.DrawingParts > 0)
-      .sort((a, b) => a.MonthStart.localeCompare(b.MonthStart));
+      .sort((a, b) => a.JalaliMonth.localeCompare(b.JalaliMonth));
   }
 
   function render(rows) {
@@ -109,7 +122,7 @@
     const max = Math.max(1, ...rows.flatMap(row => keys.map(([key]) => Number(row[key] || 0))));
 
     chart.innerHTML = rows.map(row => {
-      const month = window.DMSDate.toJalaliInput(new Date(row.MonthStart), true).slice(0, 7);
+      const month = row.JalaliMonth;
       const bars = keys.map(([key, cls, label]) => {
         const value = Number(row[key] || 0);
         const height = value > 0 ? Math.max(2, value / max * 150) : 0;
@@ -127,7 +140,7 @@
     }), { c: 0, m: 0, d: 0 });
 
     body.innerHTML = rows.map(row => {
-      const month = window.DMSDate.toJalaliInput(new Date(row.MonthStart), true).slice(0, 7);
+      const month = row.JalaliMonth;
       return `<tr><td>${esc(month)}</td><td>${fmt(row.CroquisParts)}</td><td>${fmt(row.ModelingParts)}</td><td>${fmt(row.DrawingParts)}</td><td><strong>${fmt(Number(row.CroquisParts || 0) + Number(row.ModelingParts || 0) + Number(row.DrawingParts || 0))}</strong></td></tr>`;
     }).join('') + `<tr class="report-total-row"><td>Total</td><td>${fmt(totals.c)}</td><td>${fmt(totals.m)}</td><td>${fmt(totals.d)}</td><td>${fmt(totals.c + totals.m + totals.d)}</td></tr>`;
   }
