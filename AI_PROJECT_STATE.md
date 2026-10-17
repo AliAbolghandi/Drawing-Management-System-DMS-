@@ -119,10 +119,19 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Instruction commit: `ec68763cb7daeff4566cccbebe69e15ffd54d338` — Require DMS UI skill for all UI work.
 - Validation: fetched the existing skill file from `skills/DMS-UI-SKILL.md` and confirmed it exists on `main`; verified the instruction update was committed. No application code changed and no runtime tests were needed for this documentation-only change.
 
+## Admin dashboard UI redesign — 2026-10-17
+- Followed `skills/DMS-UI-SKILL.md` before making UI changes. Audited `frontend/admin-dashboard.html`, `frontend/js/admin-dashboard.js`, and `frontend/css/admin-dashboard.css`; retained the existing HTML structure, JavaScript data loading, report calculations, chart/table IDs, date behavior, and API calls.
+- Updated only `frontend/css/admin-dashboard.css` with a restrained industrial dashboard treatment: tighter technical hierarchy, neutral dark surfaces, consistent borders, reduced decorative shadows/rounding, clearer metric cards, improved report tables and filter controls, keyboard focus styles, and reduced-motion support.
+- Preserved distinct production chart colors: Standard parts blue, Drawn parts green, Predicted parts orange; Modeling remains a separate muted gold. Updated chart bars and legends to use matching values.
+- No SQL schema/data, backend, permissions, workflow, or API contracts changed.
+- Commit: `3a7a5fd9e3cb1b09ac29ad6cdcd62d6f4cebfea8` — Redesign admin dashboard with restrained industrial UI.
+- Validation: GitHub source update succeeded. No local browser rendering, screenshot review, Node check, API test, or live database test was performed in this session. Treat visual verification as pending.
+
 # NEXT ACTION
 
-1. Run `node --check frontend/js/admin-dashboard.js` from the repository root.
-2. Hard-refresh the Admin Dashboard and verify Standard parts are royal blue, Drawn parts are medium sea green, and Predicted parts are orange in both charts and legends.
-3. Continue pending Production Reports data validation against `DrawingRequestExpertWork` without modifying the database schema.
-4. Before any UI/UX work, read and follow `skills/DMS-UI-SKILL.md` from the current `main` branch.
-5. Include the exact **فایل‌های اصلی تغییرکرده:** section in every final change report, listing only files actually changed.
+1. Open `frontend/admin-dashboard.html` in the DMS environment and review at wide desktop, laptop, and narrow viewport widths.
+2. Verify KPI cards, Activity, Workflow Status, System Health, Recent Activity, report filters, both charts, and both tables remain readable and functional.
+3. Confirm Standard parts are blue, Drawn parts green, Predicted parts orange, and Modeling gold in both chart bars and legends.
+4. Run `node --check frontend/js/admin-dashboard.js` from the repository root; then perform a real browser/API test and report those separately from structural checks.
+5. Continue validating Production Reports against `DrawingRequestExpertWork` without changing the database schema.
+6. Include the exact **فایل‌های اصلی تغییرکرده:** section in the final change report, listing only files actually changed.
