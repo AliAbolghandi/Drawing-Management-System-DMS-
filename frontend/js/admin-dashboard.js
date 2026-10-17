@@ -112,7 +112,7 @@
   function addPredictionMonth(monthly,date,count){
     const month=jalaliMonthForDate(date);
     if(!month) return;
-    if(!monthly.has(month)) monthly.set(month,{JalaliMonth:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
+    if(!monthly.has(month)) monthly.set(month,{JalaliMonth:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,StandardParts:0,DrawnParts:0});
     monthly.get(month).PredictedParts+=positivePartCount(count);
   }
 
@@ -130,7 +130,7 @@
     const ensureMonth=(date)=>{
       const month=jalaliMonthForDate(date);
       if(!month) return null;
-      if(!monthly.has(month)) monthly.set(month,{JalaliMonth:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
+      if(!monthly.has(month)) monthly.set(month,{JalaliMonth:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,StandardParts:0,DrawnParts:0});
       return monthly.get(month);
     };
     const addStage=(assignment,stageDate,field,count)=>{
@@ -140,7 +140,7 @@
       const userId=Number(assignment.DrawingExpertUserID);
       const u=users.get(userId)||{};
       const expertName=(String(u.Name||'')+' '+String(u.Family||'')).trim()||assignment.DrawingExpertUsername||u.Username||'Unknown';
-      if(!experts.has(userId)) experts.set(userId,{UserID:userId,Username:u.Username||assignment.DrawingExpertUsername||'',ExpertName:expertName,CroquisParts:0,ModelingParts:0,DrawingParts:0});
+      if(!experts.has(userId)) experts.set(userId,{UserID:userId,Username:u.Username||assignment.DrawingExpertUsername||'',ExpertName:expertName,CroquisParts:0,ModelingParts:0,StandardParts:0,DrawnParts:0});
       experts.get(userId)[field]+=parts;
       const monthRow=ensureMonth(stageDate);
       if(monthRow) monthRow[field]+=parts;
@@ -155,7 +155,7 @@
 
       addStage(a,completedDate(w.CroquisEndDate),'CroquisParts',w.CroquisPartCount);
       addStage(a,completedDate(w.ModelingEndDate),'ModelingParts',w.ModelingPartCount);
-      addStage(a,completedDate(w.DrawingEndDate),'DrawingParts',positivePartCount(w.StandardPartCount)+positivePartCount(w.DrawnPartCount));
+      addStage(a,completedDate(w.DrawingEndDate),'StandardParts',w.StandardPartCount);\n      addStage(a,completedDate(w.DrawingEndDate),'DrawnParts',w.DrawnPartCount);
 
       const prediction=positivePartCount(w.PredictedPartCount);
       if(prediction>0){
@@ -189,38 +189,35 @@
     const chart = $('expertPerformanceChart');
     if (!rows.length) chart.innerHTML = '<div class="chart-empty">No expert contributions in this date range.</div>';
     else {
-      const max = Math.max(1, ...rows.flatMap(x => [reportNum(x,'CroquisParts'),reportNum(x,'ModelingParts'),reportNum(x,'DrawingParts')]));
-      chart.innerHTML = rows.map(x => {
-        const values = [['CroquisParts','', 'Croquis'],['ModelingParts','modeling','Modeling'],['DrawingParts','drawing','Final Drawing']];
-        return '<div class="report-bar-group"><div class="report-bar-label">' + escapeHtml(x.ExpertName || x.Username) + '</div><div class="report-bar-stack">' + values.map(([key, cls, label]) => '<div class="report-bar ' + cls + '" title="' + label + ': ' + reportFmt(x[key]) + '" style="height:' + Math.max(2, reportNum(x,key)/max*138) + 'px"></div>').join('') + '</div><div class="report-bar-value">' + reportFmt(x.CroquisParts) + ' / ' + reportFmt(x.ModelingParts) + ' / ' + reportFmt(x.DrawingParts) + '</div></div>';
-      }).join('');
-      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Final Drawing</span></div>');
-      const legend = chart.previousElementSibling;
-      if (legend?.classList.contains('report-legend')) legend.dataset.reportLegend = 'expert';
+      const keys = [['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['StandardParts','drawing','Standard parts'],['DrawnParts','predicted','Drawn parts']];
+      const max = Math.max(1, ...rows.flatMap(x => keys.map(([key]) => reportNum(x,key))));
+      chart.innerHTML = rows.map(x => '<div class="report-bar-group"><div class="report-bar-label">' + escapeHtml(x.ExpertName || x.Username) + '</div><div class="report-bar-stack">' + keys.map(([key,cls,label]) => '<div class="report-bar '+cls+'" title="'+label+': '+reportFmt(x[key])+'" style="height:'+Math.max(2,reportNum(x,key)/max*138)+'px"></div>').join('') + '</div><div class="report-bar-value">C '+reportFmt(x.CroquisParts)+' / M '+reportFmt(x.ModelingParts)+' / S '+reportFmt(x.StandardParts)+' / D '+reportFmt(x.DrawnParts)+'</div></div>').join('');
+      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Standard parts</span><span class="legend-predicted">Drawn parts</span></div>');
+      const legend=chart.previousElementSibling;if(legend?.classList.contains('report-legend'))legend.dataset.reportLegend='expert';
     }
-    const body = $('expertPerformanceRows');
-    if (!rows.length) body.innerHTML = '<tr><td colspan="5" class="report-empty">No data for the selected filters.</td></tr>';
+    const body=$('expertPerformanceRows');
+    if(!rows.length) body.innerHTML='<tr><td colspan="6" class="report-empty">No data for the selected filters.</td></tr>';
     else {
-      const dataRows = rows.map(x => {const c=reportNum(x,'CroquisParts'),m=reportNum(x,'ModelingParts'),d=reportNum(x,'DrawingParts');return '<tr><td>'+escapeHtml(x.ExpertName||x.Username)+'</td><td>'+reportFmt(c)+'</td><td>'+reportFmt(m)+'</td><td>'+reportFmt(d)+'</td><td><strong>'+reportFmt(c+m+d)+'</strong></td></tr>';}).join('');
-      const totals = rows.reduce((a,x)=>({c:a.c+reportNum(x,'CroquisParts'),m:a.m+reportNum(x,'ModelingParts'),d:a.d+reportNum(x,'DrawingParts')}),{c:0,m:0,d:0});
-      body.innerHTML = dataRows + '<tr class="report-total-row"><td>Total</td><td>'+reportFmt(totals.c)+'</td><td>'+reportFmt(totals.m)+'</td><td>'+reportFmt(totals.d)+'</td><td>'+reportFmt(totals.c+totals.m+totals.d)+'</td></tr>';
+      const dataRows=rows.map(x=>{const c=reportNum(x,'CroquisParts'),m=reportNum(x,'ModelingParts'),s=reportNum(x,'StandardParts'),d=reportNum(x,'DrawnParts');return '<tr><td>'+escapeHtml(x.ExpertName||x.Username)+'</td><td>'+reportFmt(c)+'</td><td>'+reportFmt(m)+'</td><td>'+reportFmt(s)+'</td><td>'+reportFmt(d)+'</td><td><strong>'+reportFmt(c+m+s+d)+'</strong></td></tr>';}).join('');
+      const totals=rows.reduce((a,x)=>({c:a.c+reportNum(x,'CroquisParts'),m:a.m+reportNum(x,'ModelingParts'),s:a.s+reportNum(x,'StandardParts'),d:a.d+reportNum(x,'DrawnParts')}),{c:0,m:0,s:0,d:0});
+      body.innerHTML=dataRows+'<tr class="report-total-row"><td>Total</td><td>'+reportFmt(totals.c)+'</td><td>'+reportFmt(totals.m)+'</td><td>'+reportFmt(totals.s)+'</td><td>'+reportFmt(totals.d)+'</td><td>'+reportFmt(totals.c+totals.m+totals.s+totals.d)+'</td></tr>';
     }
   }
   function renderMonthlyReport() {
-    const rows = reportState.months;
-    const chart = $('monthlyProductionChart');
-    if (!rows.length) chart.innerHTML = '<div class="chart-empty">No production events in this date range.</div>';
+    const rows=reportState.months;
+    const chart=$('monthlyProductionChart');
+    if(!rows.length) chart.innerHTML='<div class="chart-empty">No production events in this date range.</div>';
     else {
-      const keys = [['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['DrawingParts','drawing','Final Drawing'],['PredictedParts','predicted','Predicted']];
-      const max = Math.max(1,...rows.flatMap(x=>keys.map(([key])=>reportNum(x,key))));
-      chart.innerHTML = rows.map(x => {const month=x.JalaliMonth;return '<div class="report-bar-group"><div class="report-bar-label">'+escapeHtml(month)+'</div><div class="report-bar-stack">'+keys.map(([key,cls,label])=>'<div class="report-bar '+cls+'" title="'+label+': '+reportFmt(x[key])+'" style="height:'+Math.max(2,reportNum(x,key)/max*150)+'px"></div>').join('')+'</div><div class="report-bar-value">C '+reportFmt(x.CroquisParts)+' · M '+reportFmt(x.ModelingParts)+' · D '+reportFmt(x.DrawingParts)+' · P '+reportFmt(x.PredictedParts)+'</div></div>';}).join('');
-      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Final Drawing</span><span class="legend-predicted">Predicted parts</span></div>');
+      const keys=[['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['StandardParts','drawing','Standard parts'],['DrawnParts','predicted','Drawn parts'],['PredictedParts','predicted','Predicted']];
+      const max=Math.max(1,...rows.flatMap(x=>keys.map(([key])=>reportNum(x,key))));
+      chart.innerHTML=rows.map(x=>'<div class="report-bar-group"><div class="report-bar-label">'+escapeHtml(x.JalaliMonth)+'</div><div class="report-bar-stack">'+keys.map(([key,cls,label])=>'<div class="report-bar '+cls+'" title="'+label+': '+reportFmt(x[key])+'" style="height:'+Math.max(2,reportNum(x,key)/max*150)+'px"></div>').join('')+'</div><div class="report-bar-value">C '+reportFmt(x.CroquisParts)+' · M '+reportFmt(x.ModelingParts)+' · S '+reportFmt(x.StandardParts)+' · D '+reportFmt(x.DrawnParts)+' · P '+reportFmt(x.PredictedParts)+'</div></div>').join('');
+      chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Standard parts</span><span class="legend-predicted">Drawn parts</span><span>Predicted parts</span></div>');
       const legend=chart.previousElementSibling;if(legend?.classList.contains('report-legend'))legend.dataset.reportLegend='monthly';
     }
     const body=$('monthlyProductionRows');
-    if(!rows.length){body.innerHTML='<tr><td colspan="6" class="report-empty">No data for the selected date range.</td></tr>';return;}
-    const totals=rows.reduce((a,x)=>({p:a.p+reportNum(x,'PredictedParts'),c:a.c+reportNum(x,'CroquisParts'),m:a.m+reportNum(x,'ModelingParts'),d:a.d+reportNum(x,'DrawingParts')}),{p:0,c:0,m:0,d:0});
-    body.innerHTML=rows.map(x=>'<tr><td>'+escapeHtml(x.JalaliMonth)+'</td><td>'+reportFmt(x.PredictedParts)+'</td><td>'+reportFmt(x.CroquisParts)+'</td><td>'+reportFmt(x.ModelingParts)+'</td><td>'+reportFmt(x.DrawingParts)+'</td><td title="No part-level rejection source in current database">نامشخص</td></tr>').join('')+'<tr class="report-total-row"><td>Total</td><td>'+reportFmt(totals.p)+'</td><td>'+reportFmt(totals.c)+'</td><td>'+reportFmt(totals.m)+'</td><td>'+reportFmt(totals.d)+'</td><td>نامشخص</td></tr>';
+    if(!rows.length){body.innerHTML='<tr><td colspan="7" class="report-empty">No data for the selected date range.</td></tr>';return;}
+    const totals=rows.reduce((a,x)=>({p:a.p+reportNum(x,'PredictedParts'),c:a.c+reportNum(x,'CroquisParts'),m:a.m+reportNum(x,'ModelingParts'),s:a.s+reportNum(x,'StandardParts'),d:a.d+reportNum(x,'DrawnParts')}),{p:0,c:0,m:0,s:0,d:0});
+    body.innerHTML=rows.map(x=>'<tr><td>'+escapeHtml(x.JalaliMonth)+'</td><td>'+reportFmt(x.PredictedParts)+'</td><td>'+reportFmt(x.CroquisParts)+'</td><td>'+reportFmt(x.ModelingParts)+'</td><td>'+reportFmt(x.StandardParts)+'</td><td>'+reportFmt(x.DrawnParts)+'</td><td>'+reportFmt(reportNum(x,'CroquisParts')+reportNum(x,'ModelingParts')+reportNum(x,'StandardParts')+reportNum(x,'DrawnParts'))+'</td></tr>').join('')+'<tr class="report-total-row"><td>Total</td><td>'+reportFmt(totals.p)+'</td><td>'+reportFmt(totals.c)+'</td><td>'+reportFmt(totals.m)+'</td><td>'+reportFmt(totals.s)+'</td><td>'+reportFmt(totals.d)+'</td><td>'+reportFmt(totals.c+totals.m+totals.s+totals.d)+'</td></tr>';
   }
   async function loadProductionReports(){
     const message=$('reportMessage');
@@ -230,13 +227,13 @@
       message.textContent='Loading production reports...';
       const [workRows,assignmentRows,userRows]=await Promise.all([getAllRows('DrawingRequestExpertWork','AssignmentID'),getAllRows('DrawingRequestAssignments','AssignmentID'),getAllRows('Users','UserID')]);
       const report=buildProductionReport(workRows,assignmentRows,userRows,startDate,endDate);
-      reportState.experts=report.experts;reportState.months=report.months;reportState.rejectedPartsAvailable=false;
+      reportState.experts=report.experts;reportState.months=report.months;
       const select=$('reportExpertFilter');const previous=select.value;
       select.innerHTML='<option value="all">All experts</option>'+reportState.experts.map(x=>'<option value="'+escapeHtml(x.UserID)+'">'+escapeHtml(x.ExpertName||x.Username)+'</option>').join('');
       if([...select.options].some(o=>o.value===previous))select.value=previous;
       document.querySelectorAll('.report-legend').forEach(el=>el.remove());renderExpertReport();renderMonthlyReport();
       message.textContent='Report period: '+window.DMSDate.toJalaliInput(new Date(startDate),true)+' تا '+window.DMSDate.toJalaliInput(new Date(endDate),true)+'. Production counts use each completed stage EndDate; each assignment is counted once; predictions are counted once per request.';
-    }catch(e){console.error(e);message.textContent=e.message||'Could not load production reports.';$('expertPerformanceChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';$('monthlyProductionChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';$('expertPerformanceRows').innerHTML='<tr><td colspan="5" class="report-empty">Report unavailable.</td></tr>';$('monthlyProductionRows').innerHTML='<tr><td colspan="6" class="report-empty">Report unavailable.</td></tr>';}
+    }catch(e){console.error(e);message.textContent=e.message||'Could not load production reports.';$('expertPerformanceChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';$('monthlyProductionChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';$('expertPerformanceRows').innerHTML='<tr><td colspan="5" class="report-empty">Report unavailable.</td></tr>';$('monthlyProductionRows').innerHTML='<tr><td colspan="7" class="report-empty">Report unavailable.</td></tr>';}
   }
 
   $('refreshButton').addEventListener('click',load);$('backButton').addEventListener('click',()=>location.href='index.html');$('backButtonBottom').addEventListener('click',()=>location.href='index.html');$('managementButton').addEventListener('click',()=>location.href='management.html');
