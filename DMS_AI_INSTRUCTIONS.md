@@ -14,6 +14,10 @@ AI_PROJECT_STATE.md
 
 Then inspect the current GitHub source when needed and verify that the documented state matches the repository.
 
+
+## Mandatory UI/UX Skill
+Whenever creating, modifying, fixing, reviewing, or otherwise working on any DMS user interface (UI) or user experience (UX), you MUST first read and follow `skills/DMS-UI-SKILL.md` from the repository's current `main` branch. Treat it as the authoritative project-specific UI/UX guidance. Preserve existing DMS functionality, permissions/RBAC, workflows, API contracts, database structures, file paths, and technology stack as required by that skill and the project instructions. If a UI task conflicts with the skill, follow the user's latest explicit requirement while preserving other established constraints. Do not claim visual verification unless the rendered UI was actually reviewed in a browser.
+
 ## Mandatory continuity responsibility
 AI_PROJECT_STATE.md is a living project memory and MUST be maintained by every AI working on this project.
 
