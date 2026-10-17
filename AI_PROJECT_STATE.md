@@ -83,8 +83,20 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Preserve the existing endpoint/API contract until the backend report is consolidated and tested. If this endpoint becomes a dashboard source, align its month grouping with the Jalali calendar before use.
 
 
+## Dashboard report change — Standard vs Drawn parts (2026-10-17)
+- Updated `frontend/js/admin-dashboard.js`: completed drawing work is now attributed to `DrawingEndDate` and counted separately from `StandardPartCount` into `StandardParts`, and `DrawnPartCount` into `DrawnParts`.
+- Expert Performance chart/table display Croquis, Modeling, Standard parts, and Drawn parts separately; totals include all four production categories.
+- Monthly Production chart/table display Predicted, Croquis, Modeling, Standard parts, and Drawn parts separately; production total is Croquis + Modeling + Standard + Drawn (predicted remains a separate forecast column and is not included in completed production total).
+- Removed the rejected-parts state flag and the rejected-parts placeholder/cell from the production report. No database schema or stored SQL data was changed.
+- Updated `frontend/admin-dashboard.html` headers and empty-state column spans to match the six-column expert table and seven-column monthly table.
+- Commits:
+  - `2267835c8f19522af5638b530f39409381829a64` — clean report state and repair the drawing-stage line break.
+  - `d03a7b39752293586b30417cc462fff36044d983` — monthly table columns.
+  - `f84d17c1ea420f97f9057e5ecec288e19cd3732f` — expert table columns.
+- Validation: inspected current GitHub source and verified the separate source fields, chart/table references, and matching table headers/column spans. A Node syntax check, live browser test, API test, and SQL data comparison have NOT been run in this session.
+
 # NEXT ACTION
 
-1. Open Admin Dashboard and load Production Reports for a range including Gregorian 2026-09-01 through 2026-10-31.
-2. Verify events dated 2026-09-23 and later appear under Jalali `1405/07`, not `1405/06`; verify the four supplied records against their stage end dates.
-3. Check the browser console and compare chart/table totals. Then decide whether to consolidate the unused `/api/admin/dashboard/production-reports` endpoint into the same authoritative calculation path.
+1. From the repository root, run `node --check frontend/js/admin-dashboard.js` and fix any syntax error before deployment.
+2. Open the Admin Dashboard with a hard refresh, load Production Reports, and confirm Expert Performance and Monthly Production show Standard parts and Drawn parts as separate chart series and table columns; confirm no Rejected Parts column or placeholder appears.
+3. Compare selected-range totals against `DrawingRequestExpertWork.StandardPartCount` and `DrawnPartCount` for rows whose `DrawingEndDate` falls in range; confirm SQL schema and stored data remain unchanged.
