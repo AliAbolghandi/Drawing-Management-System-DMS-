@@ -111,9 +111,18 @@ User reported that the `Production Reports` section calculates incorrect values,
   - `1d6b6564c7ca9c21c13f8f63e990e2e488aa121e` — add distinct series colors.
 - Validation: source-level replacements were inspected. Browser visual verification and runtime tests have NOT been performed.
 
+
+## Mandatory UI/UX skill instruction (2026-10-17)
+- Updated `DMS_AI_INSTRUCTIONS.md` to require every agent to read and follow `skills/DMS-UI-SKILL.md` from the current `main` branch before creating, modifying, fixing, reviewing, or otherwise working on any DMS UI/UX.
+- The skill is authoritative project-specific UI/UX guidance; existing functionality, RBAC, workflow, API contracts, database structures, file paths, and technology stack must remain protected. User's latest explicit requirement takes precedence in conflicts, without silently changing other established constraints.
+- Do not claim visual verification unless the rendered UI was actually reviewed in a browser.
+- Instruction commit: `ec68763cb7daeff4566cccbebe69e15ffd54d338` — Require DMS UI skill for all UI work.
+- Validation: fetched the existing skill file from `skills/DMS-UI-SKILL.md` and confirmed it exists on `main`; verified the instruction update was committed. No application code changed and no runtime tests were needed for this documentation-only change.
+
 # NEXT ACTION
 
 1. Run `node --check frontend/js/admin-dashboard.js` from the repository root.
 2. Hard-refresh the Admin Dashboard and verify Standard parts are royal blue, Drawn parts are medium sea green, and Predicted parts are orange in both charts and legends.
 3. Continue pending Production Reports data validation against `DrawingRequestExpertWork` without modifying the database schema.
-4. Include the exact **فایل‌های اصلی تغییرکرده:** section in every final change report, listing only files actually changed.
+4. Before any UI/UX work, read and follow `skills/DMS-UI-SKILL.md` from the current `main` branch.
+5. Include the exact **فایل‌های اصلی تغییرکرده:** section in every final change report, listing only files actually changed.
