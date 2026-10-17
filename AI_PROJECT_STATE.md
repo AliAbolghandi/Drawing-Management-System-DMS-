@@ -107,7 +107,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Updated `frontend/css/admin-dashboard.css` with distinct chart-bar and legend colors: Standard parts = royal blue, Drawn parts = medium sea green, Predicted parts = orange. This avoids confusing Standard parts with Predicted parts and keeps the legend aligned with each series.
 - No database, API, or production calculation behavior changed.
 - Commits:
-  - `5f987fb38a7d3639a4cd153492ca71e6a3608403` — assign separate chart classes and legend labels.
+  - `6ea8e331b32b054af7378c609b8e1449fa81e9da` — assign separate chart classes and legend labels.
   - `1d6b6564c7ca9c21c13f8f63e990e2e488aa121e` — add distinct series colors.
 - Validation: source-level replacements were inspected. Browser visual verification and runtime tests have NOT been performed.
 
