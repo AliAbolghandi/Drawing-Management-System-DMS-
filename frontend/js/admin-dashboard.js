@@ -77,7 +77,7 @@
     }catch(e){console.error(e);showError(e.message);$('generatedAt').textContent='Load failed';}
   }
 
-  const reportState = { experts: [], months: [], rejectedPartsAvailable: false };
+  const reportState = { experts: [], months: [] };
   const reportFmt = value => Number(value || 0).toLocaleString('en-US');
   const reportNum = (row, key) => Number(row?.[key] || 0);
   function reportDateToIso(value) {
@@ -155,7 +155,8 @@
 
       addStage(a,completedDate(w.CroquisEndDate),'CroquisParts',w.CroquisPartCount);
       addStage(a,completedDate(w.ModelingEndDate),'ModelingParts',w.ModelingPartCount);
-      addStage(a,completedDate(w.DrawingEndDate),'StandardParts',w.StandardPartCount);\n      addStage(a,completedDate(w.DrawingEndDate),'DrawnParts',w.DrawnPartCount);
+      addStage(a,completedDate(w.DrawingEndDate),'StandardParts',w.StandardPartCount);
+      addStage(a,completedDate(w.DrawingEndDate),'DrawnParts',w.DrawnPartCount);
 
       const prediction=positivePartCount(w.PredictedPartCount);
       if(prediction>0){
