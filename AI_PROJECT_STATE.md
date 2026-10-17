@@ -101,7 +101,19 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Final change reports must also state real commit hashes, distinguish structural checks from runtime/database tests, and list remaining actions.
 - Commit: `c9753a5235f3738c402089714c1eaa0ad0c3a724` — Require changed-file list in final reports.
 
+
+## Dashboard chart color fix — Standard parts (2026-10-17)
+- Updated `frontend/js/admin-dashboard.js` so Standard parts use the dedicated `standard` chart class, Drawn parts use `drawn`, and Predicted parts use `predicted` in both Expert Performance and Monthly Production.
+- Updated `frontend/css/admin-dashboard.css` with distinct chart-bar and legend colors: Standard parts = royal blue, Drawn parts = medium sea green, Predicted parts = orange. This avoids confusing Standard parts with Predicted parts and keeps the legend aligned with each series.
+- No database, API, or production calculation behavior changed.
+- Commits:
+  - `5f987fb38a7d3639a4cd153492ca71e6a3608403` — assign separate chart classes and legend labels.
+  - `1d6b6564c7ca9c21c13f8f63e990e2e488aa121e` — add distinct series colors.
+- Validation: source-level replacements were inspected. Browser visual verification and runtime tests have NOT been performed.
+
 # NEXT ACTION
 
-1. For every future DMS change, include the exact **فایل‌های اصلی تغییرکرده:** section in the final report; list only paths actually changed in that task.
-2. Complete the pending Production Reports validation from the previous task: run `node --check frontend/js/admin-dashboard.js`, then perform a hard-refresh browser check and compare report totals with `DrawingRequestExpertWork` rows without modifying the database schema.
+1. Run `node --check frontend/js/admin-dashboard.js` from the repository root.
+2. Hard-refresh the Admin Dashboard and verify Standard parts are royal blue, Drawn parts are medium sea green, and Predicted parts are orange in both charts and legends.
+3. Continue pending Production Reports data validation against `DrawingRequestExpertWork` without modifying the database schema.
+4. Include the exact **فایل‌های اصلی تغییرکرده:** section in every final change report, listing only files actually changed.
