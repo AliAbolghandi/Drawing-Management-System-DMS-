@@ -1,6 +1,6 @@
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-10-15
+Last updated: 2026-10-17
 Repository: AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
@@ -66,15 +66,25 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Monthly Production groups completed stage production by the actual stage `EndDate` month.
 - Rejected part count remains `نامشخص`; the current schema does not contain an authoritative rejected-part quantity.
 
-### Latest code change
-- Commit `780228be106082a83ccda6d795179d62f50b01ad` — revised `frontend/js/admin-dashboard.js` Production Reports calculation.
-- Main technical change: `buildProductionReport()` now explicitly deduplicates `AssignmentID`, validates positive part counts, separates each completed stage, and keeps assignment-level expert contributions additive.
+### Latest code change — Jalali month attribution fix (2026-10-17)
+- Root cause confirmed in `frontend/js/admin-dashboard.js` and `frontend/js/monthly-production-fix.js`: events were grouped by Gregorian `YYYY-MM`, then the Gregorian month-start date was converted to a Jalali label. For example, Gregorian September 2026 was displayed as Jalali `1405/06`, even though events on 2026-09-23 onward belong to Jalali `1405/07`.
+- `frontend/js/admin-dashboard.js` now groups each completed stage and prediction by `DMSDate.toJalaliInput(eventDate).slice(0, 7)`; chart and table use that Jalali month key directly.
+- `frontend/js/monthly-production-fix.js` was aligned with the same Jalali grouping to prevent the old implementation from reintroducing the bug.
+- `frontend/admin-dashboard.html` no longer loads the duplicate `monthly-production-fix.js` renderer. The main dashboard is the sole active monthly renderer; cache-busting version updated.
+- Commits:
+  - `928ec3c7f7f357e5947a44d65ca46837b22fa874` — fix Jalali month grouping in production reports.
+  - `c83fbbf0c045c77a4da839309c25ff9e54a0c7a0` — align monthly production helper with Jalali calendar.
+  - `9ff6170b5ec46af468ff2bb472916446684d3b28` — remove duplicate monthly report renderer.
+- Validation status: source transformations checked for remaining Gregorian month-key logic and duplicate script inclusion. Runtime/browser and live SQL verification were not possible in this session; do not mark the fix as runtime-tested until verified in the DMS environment.
 
 ### Backend note
-- `GET /api/admin/dashboard/production-reports?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` still exists in `backend/admin-db.js` with an older SQL aggregation implementation.
-- The current dashboard does not use that endpoint for rendering; it reads the underlying protected admin table rows directly.
-- Do not remove or change the existing endpoint/API contract until a single authoritative backend calculation path is implemented and tested.
+- `GET /api/admin/dashboard/production-reports?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` remains an older SQL aggregation implementation in `backend/admin-db.js`.
+- The current dashboard does not use that endpoint for rendering; it reads underlying protected admin table rows directly.
+- Preserve the existing endpoint/API contract until the backend report is consolidated and tested. If this endpoint becomes a dashboard source, align its month grouping with the Jalali calendar before use.
 
 
 # NEXT ACTION
 
+1. Open Admin Dashboard and load Production Reports for a range including Gregorian 2026-09-01 through 2026-10-31.
+2. Verify events dated 2026-09-23 and later appear under Jalali `1405/07`, not `1405/06`; verify the four supplied records against their stage end dates.
+3. Check the browser console and compare chart/table totals. Then decide whether to consolidate the unused `/api/admin/dashboard/production-reports` endpoint into the same authoritative calculation path.
