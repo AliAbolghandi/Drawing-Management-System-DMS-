@@ -75,20 +75,9 @@ Login success, login failure and logout are written to `dbo.Logs`.
 `Logs.LogID` should be an IDENTITY column so audit inserts do not need unsafe MAX(LogID)+1 logic.
 
 ## Database
-Run:
+see Relation  between table.rpt
 
-`SQL/security_setup.sql`
 
-The script:
-- Creates missing RBAC tables.
-- Seeds the four defined roles.
-- Seeds the defined permissions.
-- Seeds users from `tblUser.xlsx`.
-- Preserves existing UserIDs by matching usernames.
-- Creates UserRoles and UserManager relationships.
-- Removes orphan RolePermissions.
-- Creates useful indexes.
-- Verifies orphan links and Logs.LogID identity status.
 
 ## Password setup
 Set a password without storing plaintext:
