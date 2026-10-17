@@ -464,7 +464,7 @@ body.admin-dashboard-page {
 }
 
 .report-bar.modeling {
-    background: #fdff8e
+    background: #f6f86d
 }
 
 .report-bar.drawing {
@@ -496,7 +496,7 @@ body.admin-dashboard-page {
     width: 8px;
     height: 8px;
     border-radius: 2px;
-    background: var(--cyan, #6fe3ff);
+    background: var(--danger, #6fe3ff);
     margin-inline-end: 5px
 }
 
@@ -763,10 +763,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .report-bar-label { font-size: 11px; }
 .report-bar-stack { border-bottom-color: #40515c; gap: 3px; }
 .report-bar { opacity: .95; border-radius: 2px 2px 0 0; }
-.report-bar.standard { background: #477de0; }
-.report-bar.drawn { background: #38a978; }
-.report-bar.predicted { background: #e7a344; }
-.report-bar.modeling { background: #c6b85a; }
+.report-bar.standard { background: #5590ff; }
+.report-bar.drawn { background: #48f0a7; }
+.report-bar.predicted { background: #ffa930; }
+.report-bar.modeling { background: #ffe745; }
 .report-legend { gap: 14px; margin: 5px 0 10px; font-size: 11px; }
 .report-legend .legend-standard:before { background: #477de0; }
 .report-legend .legend-drawn:before { background: #38a978; }
