@@ -464,7 +464,7 @@ body.admin-dashboard-page {
 }
 
 .report-bar.modeling {
-    background: #eaff8c
+    background: #fdff8e
 }
 
 .report-bar.drawing {
@@ -601,11 +601,11 @@ body.admin-dashboard-page {
 }
 
 .report-bar.standard {
-    background: rgb(65, 188, 225)
+    background: rgb(98 219 255)
 }
 
 .report-bar.drawn {
-    background: mediumseagreen
+    background: #28df7a
 }
 
 .report-bar.predicted {
