@@ -27,25 +27,6 @@ After every significant change:
 
 Significant changes include features, bug fixes, API changes, database/RBAC changes, authentication changes, UI changes, file/folder behavior changes, important discoveries, and architectural decisions.
 
-## Usage/context capacity warning
-The user explicitly requires advance warning before the AI session approaches its usage/context/capacity limit.
-
-When the AI reasonably determines that the current session is approaching a point where continuing may become unreliable or interrupted:
-
-1. Immediately warn the user in Persian.
-2. Do NOT wait for the session to end.
-3. Update AI_PROJECT_STATE.md before stopping.
-4. Record:
-   - current task
-   - completed work
-   - unfinished work
-   - known bugs
-   - latest commit
-   - exact next action
-5. Commit the updated state file to GitHub.
-
-Suggested warning:
-"⚠️ ظرفیت این نشست رو به اتمام است. برای اینکه ادامه پروژه از بین نرود، الان وضعیت کامل پروژه را در AI_PROJECT_STATE.md به‌روزرسانی می‌کنم و آخرین تغییرات را در GitHub ثبت می‌کنم."
 
 ## Handoff requirements
 AI_PROJECT_STATE.md must contain actionable technical information:
