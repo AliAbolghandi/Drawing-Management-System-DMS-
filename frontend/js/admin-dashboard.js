@@ -101,9 +101,18 @@
     const n=Number(value);
     return Number.isFinite(n)&&n>0?n:0;
   }
+  function jalaliMonthForDate(isoDate) {
+    if (!isoDate) return null;
+    const jalaliDate = window.DMSDate.toJalaliInput(new Date(isoDate + 'T12:00:00'), true);
+    const parts = jalaliDate.split('/');
+    return parts.length === 3 && parts[0].length === 4 && parts[1].length === 2 && parts[2].length === 2
+      ? parts.slice(0, 2).join('/')
+      : null;
+  }
   function addPredictionMonth(monthly,date,count){
-    const month=date.slice(0,7)+'-01';
-    if(!monthly.has(month)) monthly.set(month,{MonthStart:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
+    const month=jalaliMonthForDate(date);
+    if(!month) return;
+    if(!monthly.has(month)) monthly.set(month,{JalaliMonth:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
     monthly.get(month).PredictedParts+=positivePartCount(count);
   }
 
@@ -119,8 +128,9 @@
     const countedWork=new Set();
 
     const ensureMonth=(date)=>{
-      const month=date.slice(0,7)+'-01';
-      if(!monthly.has(month)) monthly.set(month,{MonthStart:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
+      const month=jalaliMonthForDate(date);
+      if(!month) return null;
+      if(!monthly.has(month)) monthly.set(month,{JalaliMonth:month,PredictedParts:0,CroquisParts:0,ModelingParts:0,DrawingParts:0});
       return monthly.get(month);
     };
     const addStage=(assignment,stageDate,field,count)=>{
@@ -132,7 +142,8 @@
       const expertName=(String(u.Name||'')+' '+String(u.Family||'')).trim()||assignment.DrawingExpertUsername||u.Username||'Unknown';
       if(!experts.has(userId)) experts.set(userId,{UserID:userId,Username:u.Username||assignment.DrawingExpertUsername||'',ExpertName:expertName,CroquisParts:0,ModelingParts:0,DrawingParts:0});
       experts.get(userId)[field]+=parts;
-      ensureMonth(stageDate)[field]+=parts;
+      const monthRow=ensureMonth(stageDate);
+      if(monthRow) monthRow[field]+=parts;
     };
 
     for(const w of workRows){
@@ -164,7 +175,7 @@
       if(p.assignedDate&&inReportRange(p.assignedDate,startDate,endDate)) addPredictionMonth(monthly,p.assignedDate,p.prediction);
     }
 
-    const months=[...monthly.values()].sort((a,b)=>a.MonthStart.localeCompare(b.MonthStart));
+    const months=[...monthly.values()].sort((a,b)=>a.JalaliMonth.localeCompare(b.JalaliMonth));
     return {
       experts:[...experts.values()].sort((a,b)=>String(a.ExpertName).localeCompare(String(b.ExpertName))),
       months,
@@ -202,14 +213,14 @@
     else {
       const keys = [['CroquisParts','','Croquis'],['ModelingParts','modeling','Modeling'],['DrawingParts','drawing','Final Drawing'],['PredictedParts','predicted','Predicted']];
       const max = Math.max(1,...rows.flatMap(x=>keys.map(([key])=>reportNum(x,key))));
-      chart.innerHTML = rows.map(x => {const month=window.DMSDate.toJalaliInput(new Date(x.MonthStart),true).slice(0,7);return '<div class="report-bar-group"><div class="report-bar-label">'+escapeHtml(month)+'</div><div class="report-bar-stack">'+keys.map(([key,cls,label])=>'<div class="report-bar '+cls+'" title="'+label+': '+reportFmt(x[key])+'" style="height:'+Math.max(2,reportNum(x,key)/max*150)+'px"></div>').join('')+'</div><div class="report-bar-value">C '+reportFmt(x.CroquisParts)+' · M '+reportFmt(x.ModelingParts)+' · D '+reportFmt(x.DrawingParts)+' · P '+reportFmt(x.PredictedParts)+'</div></div>';}).join('');
+      chart.innerHTML = rows.map(x => {const month=x.JalaliMonth;return '<div class="report-bar-group"><div class="report-bar-label">'+escapeHtml(month)+'</div><div class="report-bar-stack">'+keys.map(([key,cls,label])=>'<div class="report-bar '+cls+'" title="'+label+': '+reportFmt(x[key])+'" style="height:'+Math.max(2,reportNum(x,key)/max*150)+'px"></div>').join('')+'</div><div class="report-bar-value">C '+reportFmt(x.CroquisParts)+' · M '+reportFmt(x.ModelingParts)+' · D '+reportFmt(x.DrawingParts)+' · P '+reportFmt(x.PredictedParts)+'</div></div>';}).join('');
       chart.insertAdjacentHTML('beforebegin','<div class="report-legend"><span>Croquis</span><span class="legend-modeling">Modeling</span><span class="legend-drawing">Final Drawing</span><span class="legend-predicted">Predicted parts</span></div>');
       const legend=chart.previousElementSibling;if(legend?.classList.contains('report-legend'))legend.dataset.reportLegend='monthly';
     }
     const body=$('monthlyProductionRows');
     if(!rows.length){body.innerHTML='<tr><td colspan="6" class="report-empty">No data for the selected date range.</td></tr>';return;}
     const totals=rows.reduce((a,x)=>({p:a.p+reportNum(x,'PredictedParts'),c:a.c+reportNum(x,'CroquisParts'),m:a.m+reportNum(x,'ModelingParts'),d:a.d+reportNum(x,'DrawingParts')}),{p:0,c:0,m:0,d:0});
-    body.innerHTML=rows.map(x=>'<tr><td>'+escapeHtml(window.DMSDate.toJalaliInput(new Date(x.MonthStart),true).slice(0,7))+'</td><td>'+reportFmt(x.PredictedParts)+'</td><td>'+reportFmt(x.CroquisParts)+'</td><td>'+reportFmt(x.ModelingParts)+'</td><td>'+reportFmt(x.DrawingParts)+'</td><td title="No part-level rejection source in current database">نامشخص</td></tr>').join('')+'<tr class="report-total-row"><td>Total</td><td>'+reportFmt(totals.p)+'</td><td>'+reportFmt(totals.c)+'</td><td>'+reportFmt(totals.m)+'</td><td>'+reportFmt(totals.d)+'</td><td>نامشخص</td></tr>';
+    body.innerHTML=rows.map(x=>'<tr><td>'+escapeHtml(x.JalaliMonth)+'</td><td>'+reportFmt(x.PredictedParts)+'</td><td>'+reportFmt(x.CroquisParts)+'</td><td>'+reportFmt(x.ModelingParts)+'</td><td>'+reportFmt(x.DrawingParts)+'</td><td title="No part-level rejection source in current database">نامشخص</td></tr>').join('')+'<tr class="report-total-row"><td>Total</td><td>'+reportFmt(totals.p)+'</td><td>'+reportFmt(totals.c)+'</td><td>'+reportFmt(totals.m)+'</td><td>'+reportFmt(totals.d)+'</td><td>نامشخص</td></tr>';
   }
   async function loadProductionReports(){
     const message=$('reportMessage');
