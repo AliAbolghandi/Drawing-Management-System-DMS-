@@ -75,23 +75,6 @@ User reported that the `Production Reports` section calculates incorrect values,
 - The current dashboard does not use that endpoint for rendering; it reads the underlying protected admin table rows directly.
 - Do not remove or change the existing endpoint/API contract until a single authoritative backend calculation path is implemented and tested.
 
-## Verification status
-- GitHub source and `SQL/Relation between table.rpt` were inspected before the latest change.
-- `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` confirms `DrawingRequestExpertWork.AssignmentID` has a unique constraint, so one work row per assignment is expected.
-- The uploaded `Tables-v04.xlsx` contains schema definitions but no production data for validating numeric results.
-- The latest `frontend/js/admin-dashboard.js` change was committed, but browser/LAN runtime verification against the user's SQL Server has NOT been performed in this environment.
-- Do not claim that the resulting numeric values are validated against real factory production data until that comparison is performed.
-
-## Database migration pending
-- `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` has not been executed against the user's SQL Server.
-- Take a DB backup and stop DMS writes before executing it; then verify row counts, column ordinals, PK/FK/unique/check constraints and `TR_DrawingRequestExpertWork_AssignmentSnapshot`.
 
 # NEXT ACTION
-1. Restart the DMS backend and open the Admin Dashboard.
-2. Select a known Jalali range containing real `DrawingRequestExpertWork` records.
-3. Compare the displayed Croquis/Modeling/Drawing numbers against direct SQL sums grouped by `AssignmentID` and stage `EndDate`.
-4. Verify a transferred request: each expert keeps the production actually completed under that expert's assignment; no assignment is counted twice.
-5. Verify one known Croquis, Modeling and Final Drawing record manually, including `StandardPartCount + DrawnPartCount` for Final Drawing.
-6. Verify a date-boundary case where `EndDate` equals the start or end date.
-7. If any displayed number still differs from SQL, capture the specific `RequestID`, `AssignmentID`, expected value and displayed value before changing the formula again.
-8. Separately run `SQL/Rebuild-DrawingRequestExpertWork-ColumnOrder.sql` only during the approved maintenance window after backup and DMS write shutdown.
+
