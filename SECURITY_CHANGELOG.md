@@ -24,6 +24,7 @@ Protected permissions include:
 - PDF_VIEW
 - FILE_VIEW
 - FILE_Edit
+- DASHBOARD_REPORT_EXPERT
 
 The four configured roles are:
 - Admin
@@ -31,11 +32,17 @@ The four configured roles are:
 - DrawingExpert
 - VIEWER
 
-
+## Expert Reports
+- `GET /api/auth/expert-reports` requires an authenticated session and the effective `DASHBOARD_REPORT_EXPERT` permission.
+- Authorization is checked server-side from the session permission set populated from `UserRoles -> Roles -> RolePermissions -> Permissions`.
+- The Expert Reports endpoint does not use `RoleID` as a substitute for the permission and does not trust a client-supplied permission claim.
+- Unauthenticated requests are rejected with HTTP 401; authenticated users without the permission are rejected with HTTP 403.
+- Report filters are validated as Gregorian ISO dates at the API boundary; the UI converts Jalali dates to the existing Gregorian API contract.
+- Expert production is read-only and uses parameterized SQL inputs.
 
 ## API protection
 - All protected `/api/*` routes require an authenticated session.
-- Server-side permission checks are applied to node, PDF and company-file endpoints.
+- Server-side permission checks are applied to node, PDF, company-file and Expert Reports endpoints.
 - API requests have a lightweight per-IP rate limit.
 - State-changing API requests are checked against the configured Origin/Referer policy.
 - CORS is restricted by `DMS_FRONTEND_ORIGINS`.
@@ -68,6 +75,7 @@ JSON request bodies are limited to 1 MB.
 - `/index.html` requires an authenticated session.
 - Static frontend assets remain available for the login page and authenticated application.
 - Frontend API requests use the session cookie.
+- Expert Reports navigation is hidden unless `/api/auth/me` confirms `DASHBOARD_REPORT_EXPERT`; this is UI visibility only and is not treated as the authorization boundary.
 
 ## Audit
 Login success, login failure and logout are written to `dbo.Logs`.
@@ -76,8 +84,6 @@ Login success, login failure and logout are written to `dbo.Logs`.
 
 ## Database
 see Relation  between table.rpt
-
-
 
 ## Password setup
 Set a password without storing plaintext:
