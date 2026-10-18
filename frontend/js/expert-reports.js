@@ -74,18 +74,34 @@
   }
 
   function installSidebarItem(permissions) {
-    if (!permissions.includes(PERMISSION)) return;
-    const nav = document.querySelector('.dms-sidebar-nav[aria-label="Workspace"]');
-    if (!nav || $('expertReportsNav')) return;
-    const button = document.createElement('button');
+    const allowed = Array.isArray(permissions) && permissions.includes(PERMISSION);
+    const existing = $('expertReportsNav');
+    if (!allowed) {
+      existing?.remove();
+      return;
+    }
+    const sidebar = $('dmsMainSidebar');
+    const nav = sidebar?.querySelector('.dms-sidebar-nav[aria-label="Workspace"]')
+      || sidebar?.querySelector('.dms-sidebar-nav');
+    if (!nav) {
+      console.error('Expert Reports: workspace navigation was not found inside #dmsMainSidebar.');
+      return;
+    }
+    const button = existing || document.createElement('button');
     button.type = 'button';
     button.id = 'expertReportsNav';
     button.className = 'dms-nav-item';
     button.dataset.dmsNav = 'expert-reports';
-    button.innerHTML = '<span class="dms-nav-icon">◫</span><span>Expert Reports</span>';
+    button.innerHTML = '<span class="dms-nav-icon" aria-hidden="true">◫</span><span>Expert Reports</span>';
     button.title = 'Expert Reports';
-    nav.appendChild(button);
-    button.addEventListener('click', () => { document.querySelectorAll('[data-dms-nav]').forEach(node => node.classList.toggle('active', node === button)); openModal(); });
+    if (!button.isConnected) nav.appendChild(button);
+    if (button.dataset.handlerAttached !== 'true') {
+      button.dataset.handlerAttached = 'true';
+      button.addEventListener('click', () => {
+        document.querySelectorAll('[data-dms-nav]').forEach(node => node.classList.toggle('active', node === button));
+        openModal();
+      });
+    }
   }
 
   async function getJson(url) {
@@ -216,12 +232,32 @@
 
   document.addEventListener('keydown', event => { if(event.key==='Escape' && !$('expertReportModal')?.classList.contains('hidden')) closeModal(); });
 
-  document.addEventListener('DOMContentLoaded', async () => {
+  async function refreshExpertReportsPermission() {
     try {
-      const response=await fetch(`${API}/auth/me`,{credentials:'include',cache:'no-store'});
-      if(!response.ok)return;
-      const data=await response.json().catch(()=>({}));
-      installSidebarItem(Array.isArray(data.permissions)?data.permissions:[]);
-    } catch(error) { console.error('Expert Reports permission load failed:',error); }
-  });
+      const response = await fetch(`${API}/auth/me`, {
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (!response.ok) {
+        installSidebarItem([]);
+        if (response.status !== 401 && response.status !== 403) {
+          console.error('Expert Reports permission check failed:', response.status);
+        }
+        return;
+      }
+      const data = await response.json();
+      installSidebarItem(Array.isArray(data.permissions) ? data.permissions : []);
+    } catch (error) {
+      console.error('Expert Reports permission load failed:', error);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', refreshExpertReportsPermission, { once: true });
+  } else {
+    refreshExpertReportsPermission();
+  }
+  // Keep the sidebar aligned with permission changes while this page stays open.
+  window.addEventListener('focus', refreshExpertReportsPermission);
 })();
