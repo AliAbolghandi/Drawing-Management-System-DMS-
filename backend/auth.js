@@ -238,7 +238,7 @@ function createAuth(frontendOrigins) {
   router.get('/expert-reports', authenticate, requirePermission('DASHBOARD_REPORT_EXPERT'), async (req,res) => {
     const startDate = typeof req.query.startDate === 'string' ? req.query.startDate.trim() : '';
     const endDate = typeof req.query.endDate === 'string' ? req.query.endDate.trim() : '';
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(endDate) || startDate > endDate) return res.status(400).json({ error: 'A valid Gregorian date range is required.' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || startDate > endDate) return res.status(400).json({ error: 'A valid Gregorian date range is required.' });
     try {
       const q = new sql.Request();
       q.input('startDate', sql.Date, startDate); q.input('endDate', sql.Date, endDate);
