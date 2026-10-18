@@ -136,3 +136,14 @@ User reported that the `Production Reports` section calculates incorrect values,
 4. Run `node --check frontend/js/admin-dashboard.js` from the repository root; then perform a real browser/API test and report those separately from structural checks.
 5. Continue validating Production Reports against `DrawingRequestExpertWork` without changing the database schema.
 6. Include the exact **فایل‌های اصلی تغییرکرده:** section in the final change report, listing only files actually changed.
+
+## Expert Reports permission visibility fix — 2026-10-18
+
+- Correct permission code: `DASHBOARD_REPORT_EXPERT`.
+- Updated `backend/auth.js` so `GET /api/auth/me` refreshes the effective active permissions from SQL Server on every request using `UserRoles → Roles → RolePermissions → Permissions`; the refreshed permission set replaces the session's cached set. Inactive/missing users have their session invalidated.
+- Updated `frontend/js/expert-reports.js` so the Expert Reports navigation item is installed directly under `#dmsMainSidebar` only when the exact permission is present, removed when it is absent, and rechecked on page focus. Navigation lookup has a fallback within the main sidebar.
+- The expert reports endpoint continues to enforce `DASHBOARD_REPORT_EXPERT` server-side.
+- Files changed: `backend/auth.js`, `frontend/js/expert-reports.js`, `AI_PROJECT_STATE.md`.
+- Structural review: GitHub updates succeeded and the updated files were fetched back for verification. No database schema changes were made.
+- Real testing pending: restart the backend, refresh the browser, test a role with the permission and a role without it, confirm the modal opens, and verify API responses (authorized 200; unauthorized 403). No live SQL Server/browser test was performed here.
+
