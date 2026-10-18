@@ -183,7 +183,57 @@ function createAuth(frontendOrigins) {
   });
 
   router.post('/logout', async (req, res) => { const token=cookies(req).dms_session, session=token?sessions.get(token):null; if(session){await writeAudit(session.user.userId,session.user.username,'LOGOUT',clientIp(req));sessions.delete(token);} clearCookie(res); res.json({success:true}); });
-  router.get('/me', (req,res) => { const token=cookies(req).dms_session, session=token?sessions.get(token):null; if(!session||session.expiresAt<=Date.now()){if(token)sessions.delete(token);return res.status(401).json({authenticated:false});}session.expiresAt=Date.now()+SESSION_TTL_MS;const u=session.user;res.json({authenticated:true,user:{userId:u.userId,username:u.username,name:u.name,family:u.family,isAdmin:u.isAdmin},permissions:[...u.permissions]}); });
+  router.get('/me', async (req,res) => {
+    const token = cookies(req).dms_session;
+    const session = token ? sessions.get(token) : null;
+    if (!session || session.expiresAt <= Date.now()) {
+      if (token) sessions.delete(token);
+      return res.status(401).json({ authenticated: false });
+    }
+    try {
+      // Permissions are intentionally refreshed from SQL on every /me request,
+      // so RolePermissions changes take effect without requiring a new login.
+      const r = new sql.Request();
+      r.input('userId', sql.Int, session.user.userId);
+      const q = await r.query(`
+        SELECT u.UserID, u.Username, u.Name, u.Family, u.IsActive,
+          CAST(CASE WHEN EXISTS (
+            SELECT 1 FROM dbo.UserRoles ur
+            INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID
+            WHERE ur.UserID=u.UserID AND rr.RoleCode=N'Admin' AND rr.IsActive=1
+          ) THEN 1 ELSE 0 END AS bit) AS IsAdmin
+        FROM dbo.Users u WHERE u.UserID=@userId;
+        SELECT DISTINCT p.PermissionCode
+        FROM dbo.UserRoles ur
+        INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1
+        INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID
+        INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1
+        INNER JOIN dbo.Users u ON u.UserID=ur.UserID AND u.IsActive=1
+        WHERE ur.UserID=@userId;
+      `);
+      const userRow = q.recordsets?.[0]?.[0];
+      if (!userRow || Number(userRow.IsActive) !== 1) {
+        sessions.delete(token);
+        clearCookie(res);
+        return res.status(401).json({ authenticated: false });
+      }
+      const u = session.user;
+      u.username = String(userRow.Username || u.username);
+      u.name = userRow.Name || '';
+      u.family = userRow.Family || '';
+      u.isAdmin = Number(userRow.IsAdmin) === 1;
+      u.permissions = new Set((q.recordsets?.[1] || []).map(row => String(row.PermissionCode)));
+      session.expiresAt = Date.now() + SESSION_TTL_MS;
+      return res.set('Cache-Control', 'no-store').json({
+        authenticated: true,
+        user: { userId: u.userId, username: u.username, name: u.name, family: u.family, isAdmin: u.isAdmin },
+        permissions: [...u.permissions]
+      });
+    } catch (e) {
+      console.error('Auth permission refresh failed:', e.message);
+      return res.status(500).json({ error: 'Unable to refresh user permissions.' });
+    }
+  });
 
   router.get('/expert-reports', authenticate, requirePermission('DASHBOARD_REPORT_EXPERT'), async (req,res) => {
     const startDate = typeof req.query.startDate === 'string' ? req.query.startDate.trim() : '';
