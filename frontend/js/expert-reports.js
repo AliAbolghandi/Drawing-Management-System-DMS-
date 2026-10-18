@@ -19,7 +19,7 @@
   function jalaliToIso(value) {
     if (!window.DMSDate) throw new Error('Jalali date utility did not load.');
     const iso = window.DMSDate.fromJalaliInput(String(value || '').trim(), true);
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(iso || ''))) throw new Error('Invalid Jalali date.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) throw new Error('Invalid Jalali date.');
     return iso;
   }
 
@@ -172,7 +172,7 @@
     const byMonth = new Map();
     state.daily.forEach(row => {
       const date = String(row.ProductionDate || '').slice(0,10);
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !window.DMSDate) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !window.DMSDate) return;
       const month = window.DMSDate.toJalaliInput(new Date(date + 'T12:00:00'), true).slice(0,7);
       byMonth.set(month, (byMonth.get(month) || 0) + Number(row.TotalParts || 0));
     });
