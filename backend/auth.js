@@ -185,6 +185,92 @@ function createAuth(frontendOrigins) {
   router.post('/logout', async (req, res) => { const token=cookies(req).dms_session, session=token?sessions.get(token):null; if(session){await writeAudit(session.user.userId,session.user.username,'LOGOUT',clientIp(req));sessions.delete(token);} clearCookie(res); res.json({success:true}); });
   router.get('/me', (req,res) => { const token=cookies(req).dms_session, session=token?sessions.get(token):null; if(!session||session.expiresAt<=Date.now()){if(token)sessions.delete(token);return res.status(401).json({authenticated:false});}session.expiresAt=Date.now()+SESSION_TTL_MS;const u=session.user;res.json({authenticated:true,user:{userId:u.userId,username:u.username,name:u.name,family:u.family,isAdmin:u.isAdmin},permissions:[...u.permissions]}); });
 
+  router.get('/expert-reports', authenticate, requirePermission('DASHBOARD_REPORT_EXPERT'), async (req,res) => {
+    const startDate = typeof req.query.startDate === 'string' ? req.query.startDate.trim() : '';
+    const endDate = typeof req.query.endDate === 'string' ? req.query.endDate.trim() : '';
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(endDate) || startDate > endDate) {
+      return res.status(400).json({ error: 'A valid Gregorian date range is required.' });
+    }
+    try {
+      const q = new sql.Request();
+      q.input('startDate', sql.Date, startDate);
+      q.input('endDate', sql.Date, endDate);
+      const result = await q.query(`
+        WITH CompletedStages AS (
+          SELECT
+            a.AssignmentID,
+            a.RequestID,
+            a.DrawingExpertUserID AS UserID,
+            COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(u.Name, N' ', u.Family))), N''), a.DrawingExpertUsername, u.Username, N'Unknown') AS ExpertName,
+            a.DrawingExpertUsername AS ExpertUsername,
+            w.CroquisEndDate AS ProductionDate,
+            N'Croquis' AS Stage,
+            CASE WHEN w.CroquisPartCount > 0 THEN w.CroquisPartCount ELSE 0 END AS PartCount
+          FROM dbo.DrawingRequestAssignments a
+          INNER JOIN dbo.DrawingRequestExpertWork w ON w.AssignmentID=a.AssignmentID
+          LEFT JOIN dbo.Users u ON u.UserID=a.DrawingExpertUserID
+          WHERE w.CroquisEndDate BETWEEN @startDate AND @endDate
+
+          UNION ALL
+
+          SELECT a.AssignmentID,a.RequestID,a.DrawingExpertUserID,
+            COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(u.Name, N' ', u.Family))), N''), a.DrawingExpertUsername, u.Username, N'Unknown'),
+            a.DrawingExpertUsername,w.ModelingEndDate,N'Modeling',
+            CASE WHEN w.ModelingPartCount > 0 THEN w.ModelingPartCount ELSE 0 END
+          FROM dbo.DrawingRequestAssignments a
+          INNER JOIN dbo.DrawingRequestExpertWork w ON w.AssignmentID=a.AssignmentID
+          LEFT JOIN dbo.Users u ON u.UserID=a.DrawingExpertUserID
+          WHERE w.ModelingEndDate BETWEEN @startDate AND @endDate
+
+          UNION ALL
+
+          SELECT a.AssignmentID,a.RequestID,a.DrawingExpertUserID,
+            COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(u.Name, N' ', u.Family))), N''), a.DrawingExpertUsername, u.Username, N'Unknown'),
+            a.DrawingExpertUsername,w.DrawingEndDate,N'Standard',
+            CASE WHEN w.StandardPartCount > 0 THEN w.StandardPartCount ELSE 0 END
+          FROM dbo.DrawingRequestAssignments a
+          INNER JOIN dbo.DrawingRequestExpertWork w ON w.AssignmentID=a.AssignmentID
+          LEFT JOIN dbo.Users u ON u.UserID=a.DrawingExpertUserID
+          WHERE w.DrawingEndDate BETWEEN @startDate AND @endDate
+
+          UNION ALL
+
+          SELECT a.AssignmentID,a.RequestID,a.DrawingExpertUserID,
+            COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(u.Name, N' ', u.Family))), N''), a.DrawingExpertUsername, u.Username, N'Unknown'),
+            a.DrawingExpertUsername,w.DrawingEndDate,N'Drawn',
+            CASE WHEN w.DrawnPartCount > 0 THEN w.DrawnPartCount ELSE 0 END
+          FROM dbo.DrawingRequestAssignments a
+          INNER JOIN dbo.DrawingRequestExpertWork w ON w.AssignmentID=a.AssignmentID
+          LEFT JOIN dbo.Users u ON u.UserID=a.DrawingExpertUserID
+          WHERE w.DrawingEndDate BETWEEN @startDate AND @endDate
+        ),
+        Daily AS (
+          SELECT ProductionDate, UserID, ExpertName, ExpertUsername, SUM(PartCount) AS TotalParts
+          FROM CompletedStages
+          WHERE PartCount > 0
+          GROUP BY ProductionDate, UserID, ExpertName, ExpertUsername
+        )
+        SELECT UserID, ExpertName, ExpertUsername,
+          SUM(CASE WHEN Stage=N'Croquis' THEN PartCount ELSE 0 END) AS CroquisParts,
+          SUM(CASE WHEN Stage=N'Modeling' THEN PartCount ELSE 0 END) AS ModelingParts,
+          SUM(CASE WHEN Stage=N'Standard' THEN PartCount ELSE 0 END) AS StandardParts,
+          SUM(CASE WHEN Stage=N'Drawn' THEN PartCount ELSE 0 END) AS DrawnParts,
+          SUM(PartCount) AS TotalParts
+        FROM CompletedStages
+        WHERE PartCount > 0
+        GROUP BY UserID, ExpertName, ExpertUsername;
+
+        SELECT ProductionDate, UserID, ExpertName, ExpertUsername, TotalParts
+        FROM Daily
+        ORDER BY ProductionDate, ExpertName;
+      `);
+      res.json({ startDate, endDate, experts: result.recordsets[0] || [], daily: result.recordsets[1] || [] });
+    } catch (e) {
+      console.error('Expert reports load failed:', e);
+      res.status(500).json({ error: 'Expert reports load failed.' });
+    }
+  });
+
   router.get('/pending-drawing-count', authenticate, async (req,res) => {
     const r=new sql.Request();r.input('userId',sql.Int,req.user.userId);r.input('canAssign',sql.Bit,req.user.permissions.has('REQUEST_DRAWING_ASSIGN'));r.input('canFinalApprove',sql.Bit,req.user.permissions.has('REQUEST_DRAWING_FINAL_APPROVE'));
     try { const q=await r.query("SELECT COUNT(DISTINCT dr.RequestID) AS PendingCount FROM dbo.DrawingRequests dr INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID WHERE (s.StatusCode=N'PENDING_MANAGER' AND dr.ManagerUserID=@userId) OR (s.StatusCode IN (N'ASSIGNED',N'TRANSFERRED',N'RETURNED_FOR_CORRECTION') AND dr.AssignedDrawingExpertID=@userId) OR (s.StatusCode=N'PENDING_DRAWING_APPROVAL' AND @canAssign=1) OR (s.StatusCode=N'PENDING_FINAL_APPROVAL' AND @canFinalApprove=1);");res.json({pendingCount:Number(q.recordset[0]?.PendingCount||0)}); }
