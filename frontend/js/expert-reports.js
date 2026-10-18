@@ -236,8 +236,7 @@
     try {
       const response = await fetch(`${API}/auth/me`, {
         credentials: 'include',
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
+        cache: 'no-store'
       });
       if (!response.ok) {
         installSidebarItem([]);
