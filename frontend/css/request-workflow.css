@@ -185,16 +185,21 @@
 }
 
 .request-drawing-btn {
-    padding: 8px 12px;
-    border: 1px solid #2563eb;
-    background: #1d4ed8;
-    color: #fff;
+    flex: 0 0 auto;
+    padding: 7px 14px;
+    border: 1px solid var(--cyan);
     border-radius: 7px;
-    cursor: pointer
+    background: rgba(111, 227, 255, .18);
+    color: var(--cyan);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease
 }
 
 .request-drawing-btn:hover {
-    background: #2563eb
+    background: rgba(111, 227, 255, .3)
 }
 
 .rw-modal {

@@ -1441,3 +1441,141 @@ body.dms-sidebar-collapsed .dms-profile-avatar {
         right: 0;
     }
 }
+
+/* ---- Responsive details panel (#nodeDetails) ----
+   Layout adapts to the width of the panel itself (container query),
+   not only to the viewport. Markup, IDs and JS are unchanged. */
+.details-panel {
+    container-type: inline-size;
+    container-name: details;
+}
+
+.node-details {
+    min-width: 0;
+}
+
+.details-header {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.details-header>div {
+    min-width: 0;
+    flex: 1 1 200px;
+}
+
+.details-header h2 {
+    overflow-wrap: anywhere;
+}
+
+.node-status {
+    flex: none;
+}
+
+.details-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detail-item {
+    min-width: 0;
+}
+
+.detail-item strong {
+    overflow-wrap: anywhere;
+}
+
+.section-heading-row {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.srsc-heading-actions {
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.srsc-heading-actions button {
+    margin-left: 0;
+    min-height: 36px;
+}
+
+.request-drawing-btn:focus-visible,
+.upload-files-btn:focus-visible,
+.Delete-files-btn:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+}
+
+.srsc-folder-grid {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+}
+
+.srsc-browser-header {
+    flex-wrap: wrap;
+}
+
+.srsc-current-folder {
+    flex-wrap: wrap;
+    overflow-wrap: anywhere;
+}
+
+.pdf-item,
+.srsc-file-row {
+    min-width: 0;
+}
+
+.pdf-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@container details (min-width: 760px) {
+    .details-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@container details (max-width: 400px) {
+    .node-details {
+        padding: 14px;
+    }
+
+    .details-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .section-heading-row,
+    .srsc-heading-actions {
+        width: 100%;
+    }
+
+    .srsc-heading-actions button {
+        flex: 1 1 calc(50% - 8px);
+        min-height: 44px;
+    }
+
+    .srsc-file-row {
+        flex-wrap: wrap;
+    }
+
+    .srsc-file-action {
+        margin-left: 40px;
+    }
+}
+
+@media(min-width:901px) and (max-width:1280px) {
+    .main-container {
+        grid-template-columns: minmax(280px, 1fr) minmax(360px, 1fr);
+    }
+
+    .details-panel {
+        padding: 18px;
+    }
+}
+
+@media(max-width:900px) {
+    .details-panel {
+        padding: 14px 14px 86px;
+    }
+}

@@ -146,6 +146,15 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Icons/manifest are public static assets served by `express.static(FRONTEND_DIR)` in `backend/server.js` (needed by the public login page). No backend, CSP, RBAC, API, or SQL change; existing CSP (`img-src 'self'`, default `'self'` for manifest) already allows them.
 - Validation: manifest JSON parse check and link-tag insertion inspected. No browser/runtime test performed. PWA install ("Install app") needs HTTPS or localhost; over plain `http://server:PORT` only tab icon works (a Windows shortcut with the `.ico` is the alternative).
 
+## Responsive #nodeDetails + Add Request theme — 2026-10-19
+
+- Followed `skills/DMS-UI-SKILL.md` (audit first, targeted CSS only; no HTML structure, JS, API, RBAC, workflow or DB change).
+- `frontend/css/style.css` (appended block "Responsive details panel"): `.details-panel` is now a container (`container-type: inline-size`, name `details`); `.details-grid` = 2 columns, 3 columns at panel width >= 760px, 1 column at <= 400px (replaces the old viewport-only 1-column rule at <= 900px); header/section-heading/action-button rows wrap; `.srsc-folder-grid` uses `repeat(auto-fill, minmax(132px, 1fr))` instead of fixed 4 columns; long names wrap (`overflow-wrap`); action buttons get `min-height` 36px (44px at panel <= 400px) and visible `:focus-visible`; at viewport 901-1280px `.main-container` columns are `minmax(280px,1fr) minmax(360px,1fr)` so the details panel is not squeezed; panel padding reduced at <= 1280px and <= 900px (bottom 86px kept for the mobile bottom nav).
+- `frontend/css/request-workflow.css`: `.request-drawing-btn` (`#addRequestBtn`) restyled to the DMS theme tokens (cyan accent, same size/radius/weight as `.upload-files-btn`, stronger tint as the primary action); `:disabled` rule unchanged.
+- `frontend/index.html`: cache-bust versions for `style.css` and `request-workflow.css`.
+- Requires container query support (Chrome/Edge 105+, Firefox 110+, Safari 16+); older browsers fall back to the 2-column grid with wrapping.
+- Validation: CSS brace balance checked and diff inspected only. NO browser rendering, screenshots or runtime test performed; visual verification is pending.
+
 # NEXT ACTION
 
 0. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
@@ -156,6 +165,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 5. Continue validating Production Reports against `DrawingRequestExpertWork` without changing the database schema.
 6. Include the exact **فایل‌های اصلی تغییرکرده:** section in the final change report, listing only files actually changed.
 7. Hard-refresh (Ctrl+F5) and verify tab icon on all 5 pages and `/manifest.json` loads (200, no login needed); test Install app only if served over HTTPS/localhost.
+8. Visually verify `#nodeDetails` at ~1920, ~1280, ~1000, ~768 and ~390 px widths (Ctrl+F5): grid columns, wrapping of Add Request / Upload Files / Delete Files, SRSC folder grid, file rows; confirm Add Request matches the theme (also its disabled state).
 
 ## Expert Reports permission visibility fix — 2026-10-18
 
