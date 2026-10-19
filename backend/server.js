@@ -14,7 +14,9 @@ const { registerAdminDatabaseRoutes } = require('./admin-db');
 const execAsync = util.promisify(exec);
 const app = express();
 
-const FRONTEND_ORIGINS = new Set(String(process.env.DMS_FRONTEND_ORIGINS || 'http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000').split(',').map(x => x.trim()).filter(Boolean));
+// const FRONTEND_ORIGINS = new Set(String(process.env.DMS_FRONTEND_ORIGINS || 'http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000').split(',').map(x => x.trim()).filter(Boolean));
+const FRONTEND_ORIGINS = new Set(String(process.env.DMS_FRONTEND_ORIGINS || 'http://172.30.101.14:3000,http://172.30.101.14:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5500,http://127.0.0.1:5500').split(',').map(x => x.trim()).filter(Boolean));
+
 app.set('trust proxy', process.env.DMS_TRUST_PROXY === '1');
 const auth = createAuth(FRONTEND_ORIGINS);
 const PORT = Number(process.env.PORT) || 3000;
