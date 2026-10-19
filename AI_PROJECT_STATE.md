@@ -128,8 +128,19 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commit: `3a7a5fd9e3cb1b09ac29ad6cdcd62d6f4cebfea8` — Redesign admin dashboard with restrained industrial UI.
 - Validation: GitHub source update succeeded. No local browser rendering, screenshot review, Node check, API test, or live database test was performed in this session. Treat visual verification as pending.
 
+## Relative API base / configurable port — 2026-10-19
+
+- Added `frontend/js/config.js` (loaded first via `<script src="js/config.js">` in `login.html`, `index.html`, `admin-dashboard.html`, `management.html`). It sets `window.DMS_API_BASE`: `''` (relative `/api/...`, same origin as the page) by default; `protocol//hostname:3000` only when the page runs on Live Server ports 5500/5501 (`DEV_BACKEND_PORT` in config.js). A preset `window.DMS_API_BASE` string overrides it.
+- Replaced every hard-coded `http://${host}:3000/api` with `` `${window.DMS_API_BASE || ''}/api` `` in `login.html`, `index.html` (2 places), `js/script.js` (4), `expert-reports.js`, `admin-dashboard.js`, `monthly-production-fix.js`, `request-workflow.js`, `expert-drawing-work.js`. `management.js` already used `window.DMS_API_BASE`; `dashboard.html` left unchanged (already relative, Live Server fallback).
+- `backend/server.js`: `const PORT = Number(process.env.PORT) || 3000;`.
+- `backend/auth.js`: CSP `connect-src` reduced to `'self'` (removed `localhost:3000`/`127.0.0.1:3000`).
+- Unchanged: Origin/Referer policy and CORS still use `DMS_FRONTEND_ORIGINS`; on a new server set it to the real origin (e.g. `http://server:PORT`, plus `http://host:5500` for Live Server). Behind a proxy set `DMS_TRUST_PROXY=1`.
+- Commit: `c567c9d4367243208cd6f1506f0a493fbb14a957` — Use relative /api via frontend/js/config.js; configurable PORT; tighten CSP connect-src.
+- Validation: `node --check` passed for all `frontend/js/*.js` and `backend/*.js`; `grep` confirms no `:3000` left in frontend except the Live Server fallbacks. No browser, API, or SQL Server test was run.
+
 # NEXT ACTION
 
+0. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
 1. Open `frontend/admin-dashboard.html` in the DMS environment and review at wide desktop, laptop, and narrow viewport widths.
 2. Verify KPI cards, Activity, Workflow Status, System Health, Recent Activity, report filters, both charts, and both tables remain readable and functional.
 3. Confirm Standard parts are blue, Drawn parts green, Predicted parts orange, and Modeling gold in both chart bars and legends.
