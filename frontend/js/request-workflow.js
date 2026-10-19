@@ -1,8 +1,7 @@
 (() => {
   'use strict';
 
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   let selectedNode = null;
   let allRequests = [];
   let pendingModalAction = null;

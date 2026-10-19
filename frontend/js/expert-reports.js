@@ -2,8 +2,7 @@
   'use strict';
 
   const PERMISSION = 'DASHBOARD_REPORT_EXPERT';
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   const $ = id => document.getElementById(id);
   const fmt = value => Number(value || 0).toLocaleString('en-US');
   const esc = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');

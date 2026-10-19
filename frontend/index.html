@@ -2,6 +2,7 @@
 <html lang="en" dir="ltr">
 
 <head>
+  <script src="js/config.js"></script>
   <script src="js/date-utils.js?v=20261012-jalali-en"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -77,7 +78,7 @@
   <script src="js/expert-reports.js?v=20261018-expert-reports"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
-  const profileMenu = document.getElementById('dmsProfileMenu'); const userMenu = document.getElementById('userMenu'); const panel = document.getElementById('userMenuPanel'); const logout = document.getElementById('logoutButton'); const sidebar = document.getElementById('dmsMainSidebar'); const host = location.hostname || 'localhost'; const apiBase = 'http://' + host + ':3000/api';
+  const profileMenu = document.getElementById('dmsProfileMenu'); const userMenu = document.getElementById('userMenu'); const panel = document.getElementById('userMenuPanel'); const logout = document.getElementById('logoutButton'); const sidebar = document.getElementById('dmsMainSidebar'); const apiBase = (window.DMS_API_BASE || '') + '/api';
   try { const response = await fetch(apiBase + '/auth/me', { credentials: 'include', cache: 'no-store' }); if (!response.ok) return; const data = await response.json(); const user = data.user || {}; document.getElementById('userNameValue').textContent = user.name || '-'; document.getElementById('userFamilyValue').textContent = user.family || '-'; document.getElementById('userUsernameValue').textContent = user.username || '-'; const profileName = [user.name, user.family].filter(Boolean).join(' ') || user.username || 'User'; document.getElementById('dmsProfileName').textContent = profileName; document.getElementById('dmsProfileAvatar').textContent = (user.name || user.username || 'U').slice(0, 1).toUpperCase(); document.getElementById('dmsProfileRole').textContent = user.username || 'Signed in'; document.querySelector('.dms-sidebar-admin-label')?.classList.toggle('hidden', !user.isAdmin); document.querySelector('.dms-sidebar-admin-nav')?.classList.toggle('hidden', !user.isAdmin); } catch (error) { console.error('Unable to load user profile:', error); }
   profileMenu?.addEventListener('click', event => { event.stopPropagation(); const open = panel.hidden; panel.hidden = !open; profileMenu.setAttribute('aria-expanded', String(open)); });
   function closeSidebar() { document.body.classList.add('dms-sidebar-collapsed'); } function openSidebar() { document.body.classList.remove('dms-sidebar-collapsed'); }
@@ -90,7 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <script>
 (() => {
-  const host = window.location.hostname || 'localhost'; const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   function applyPermissions(permissions) {
     const set = new Set(Array.isArray(permissions) ? permissions : []); const canNodeEdit = set.has('NODE_EDIT') || set.has('NODE_CREATE') || set.has('NODE_DELETE'); const canFileEdit = set.has('FILE_Edit');
     document.getElementById('createNewNodeBtn')?.classList.toggle('hidden', !canNodeEdit); document.getElementById('uploadFilesBtn')?.classList.toggle('hidden', !canFileEdit); document.getElementById('DeleteFilesBtn')?.classList.toggle('hidden', !canFileEdit);

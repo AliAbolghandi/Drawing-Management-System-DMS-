@@ -1,6 +1,5 @@
 (() => {
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   fetch(API + '/auth/me', { credentials: 'include' })
     .then(response => { if (!response.ok) window.location.replace('login.html'); })
     .catch(() => window.location.replace('login.html'));
@@ -8,8 +7,7 @@
 (() => {
   'use strict';
 
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   const SRSC_FOLDERS = ['SLD', 'DOC', 'PIC', 'Catalog'];
 
   const state = {
@@ -389,8 +387,7 @@
 })();
 
 (() => {
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   const dashboardButton = document.querySelector('[data-dms-nav="home"]');
   if (!dashboardButton) return;
   window.__DMS_IS_ADMIN = false;
@@ -413,8 +410,7 @@
 // an action from this logged-in user. It is deliberately calculated server-side
 // so merely hiding/showing the badge can never grant workflow access.
 (() => {
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   const badge = document.getElementById('dmsRequestsBadge');
   if (!badge) return;
 

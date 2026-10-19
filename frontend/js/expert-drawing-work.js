@@ -1,7 +1,6 @@
 (() => {
   'use strict';
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   const $ = id => document.getElementById(id);
   let activeRequestId = null;
   let activeAction = null;

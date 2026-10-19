@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script src="js/config.js"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>DMS | Login</title>
 <link rel="stylesheet" href="css/style.css">
@@ -31,8 +32,7 @@ button{width:100%;margin-top:22px;padding:13px;border:0;border-radius:9px;backgr
 </main>
 <script>
 (() => {
-  const host = window.location.hostname || 'localhost';
-  const API = `http://${host}:3000/api`;
+  const API = `${window.DMS_API_BASE || ''}/api`;
   const form=document.getElementById('loginForm'), button=document.getElementById('submit'), error=document.getElementById('error');
   fetch(API+'/auth/me',{credentials:'include'}).then(r=>{if(r.ok) location.replace('index.html');}).catch(()=>{});
   form.addEventListener('submit',async e=>{

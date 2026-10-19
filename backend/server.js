@@ -17,7 +17,7 @@ const app = express();
 const FRONTEND_ORIGINS = new Set(String(process.env.DMS_FRONTEND_ORIGINS || 'http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000').split(',').map(x => x.trim()).filter(Boolean));
 app.set('trust proxy', process.env.DMS_TRUST_PROXY === '1');
 const auth = createAuth(FRONTEND_ORIGINS);
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 const config = {
   connectionString: 'Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=dbDrawingManagment;Trusted_Connection=Yes;TrustServerCertificate=Yes;',
