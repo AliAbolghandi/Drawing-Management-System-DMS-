@@ -138,6 +138,14 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commit: `c567c9d4367243208cd6f1506f0a493fbb14a957` — Use relative /api via frontend/js/config.js; configurable PORT; tighten CSP connect-src.
 - Validation: `node --check` passed for all `frontend/js/*.js` and `backend/*.js`; `grep` confirms no `:3000` left in frontend except the Live Server fallbacks. No browser, API, or SQL Server test was run.
 
+## App icons / favicon / manifest — 2026-10-19
+
+- Added user-supplied icons: `frontend/assets/icons/favicon.ico` (16/32 px+), `frontend/assets/icons/dms-icon-192.png`, `frontend/assets/icons/dms-icon-512.png`.
+- Added `frontend/manifest.json` (name `Drawing Management System`, short_name `DMS`, `start_url` `/`, `display` standalone, 192/512 icons).
+- Added `<link rel="icon">`, `<link rel="apple-touch-icon">`, `<link rel="manifest">` right after `</title>` in `login.html`, `index.html`, `admin-dashboard.html`, `management.html`, `dashboard.html` (relative paths, same style as `css/`/`js/`).
+- Icons/manifest are public static assets served by `express.static(FRONTEND_DIR)` in `backend/server.js` (needed by the public login page). No backend, CSP, RBAC, API, or SQL change; existing CSP (`img-src 'self'`, default `'self'` for manifest) already allows them.
+- Validation: manifest JSON parse check and link-tag insertion inspected. No browser/runtime test performed. PWA install ("Install app") needs HTTPS or localhost; over plain `http://server:PORT` only tab icon works (a Windows shortcut with the `.ico` is the alternative).
+
 # NEXT ACTION
 
 0. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
@@ -147,6 +155,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 4. Run `node --check frontend/js/admin-dashboard.js` from the repository root; then perform a real browser/API test and report those separately from structural checks.
 5. Continue validating Production Reports against `DrawingRequestExpertWork` without changing the database schema.
 6. Include the exact **فایل‌های اصلی تغییرکرده:** section in the final change report, listing only files actually changed.
+7. Hard-refresh (Ctrl+F5) and verify tab icon on all 5 pages and `/manifest.json` loads (200, no login needed); test Install app only if served over HTTPS/localhost.
 
 ## Expert Reports permission visibility fix — 2026-10-18
 
