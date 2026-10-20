@@ -169,12 +169,20 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Validation: fetched and inspected current source, confirmed the CDN constants were replaced in the edit operation. The workflow has NOT been run yet, so local library files are not confirmed present and offline stamping is not yet verified. No browser or runtime test was performed.
 - Security note: workflow grants `contents: write` only to the workflow job and only writes the pinned library assets. Review repository Actions settings if the workflow is unable to push.
 
+## Stamp workflow integration fixes — 2026-10-20
+
+- Mounted `backend/stamp-routes.js` in `backend/server.js` after the existing authenticated `/api` middleware and admin route registration.
+- Loaded `frontend/js/stamp.js` from `frontend/index.html`; without this script, the Stamp button/worklist/viewer code never ran.
+- Added a binary per-PDF completion endpoint so stamped PDF bytes do not pass through the global 1 MB JSON parser. Each item is marked complete independently; the parent Stamp request and DrawingRequest only transition to completed when every selected PDF is complete.
+- Stamp route errors now preserve explicit HTTP status codes instead of converting validation and authorization errors to HTTP 500.
+- SQL migration `SQL/Stamp-Workflow.sql` is still a required deployment step. This session cannot execute it against the live SQL Server, nor can it run the DMS browser against the factory file server. Do not mark runtime/database acceptance as passed until tested there.
+
 # NEXT ACTION
 
-0. In GitHub Actions, run `Vendor PDF libraries` via **Run workflow**; verify the workflow commits `frontend/lib/pdfjs/pdf.min.mjs`, `frontend/lib/pdfjs/pdf.worker.min.mjs`, `frontend/lib/pdf-lib/pdf-lib.min.js`, and license files. Then test Stamp Drawing with network access disabled.
-1. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
-2. Open `frontend/admin-dashboard.html` in the DMS environment and review at wide desktop, laptop, and narrow viewport widths.
-3. Verify KPI cards, Activity, Workflow Status, System Health, Recent Activity, report filters, both charts, and both tables remain readable and functional.
+0. Apply `SQL/Stamp-Workflow.sql` to a backed-up `dbDrawingManagment` database, then verify `tblPath.PathID=4` resolves to the intended protected output folder.
+1. Test Stamp end-to-end in the DMS environment: node with PDFs, create request attached to an existing DrawingRequest, permission-based approval/rejection, stamp several pages across multiple PDFs, final requester-only downloads, and expiration/cleanup.
+2. Verify security cases: unauthenticated API = 401, authenticated user without `REQUEST_DRAWING_STAMP` = 403, requester-only downloads, and concurrent approval/completion attempts.
+3. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
 4. Confirm Standard parts are blue, Drawn parts green, Predicted parts orange, and Modeling gold in both chart bars and legends.
 5. Run `node --check frontend/js/admin-dashboard.js` from the repository root; then perform a real browser/API test and report those separately from structural checks.
 6. Continue validating Production Reports against `DrawingRequestExpertWork` without changing the database schema.
