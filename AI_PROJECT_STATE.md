@@ -189,24 +189,8 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Structural review: GitHub Actions run 39484251316 passed Node syntax and local-asset/integration checks for commit 6f8dc70, including the audit-table and cleanup changes. Live SQL migration, API authorization tests, and browser/PDF viewer workflow have not been verified in the factory DMS environment.
 # NEXT ACTION
 
-0. Check the `Stamp static validation` GitHub Actions run triggered by this update; resolve any failing syntax/structural checks. Then apply `SQL/Stamp-Workflow.sql` to a backed-up `dbDrawingManagment` database and verify `tblPath.PathID=4` resolves to the intended protected output folder.
-1. Test Stamp end-to-end in the DMS environment: node with PDFs, create request attached to an existing DrawingRequest, permission-based approval/rejection, stamp several pages across multiple PDFs, final requester-only downloads, and expiration/cleanup.
-2. Verify security cases: unauthenticated API = 401, authenticated user without `REQUEST_DRAWING_STAMP` = 403, requester-only downloads, and concurrent approval/completion attempts.
-3. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
-4. Confirm Standard parts are blue, Drawn parts green, Predicted parts orange, and Modeling gold in both chart bars and legends.
-5. Run `node --check frontend/js/admin-dashboard.js` from the repository root; then perform a real browser/API test and report those separately from structural checks.
-6. Continue validating Production Reports against `DrawingRequestExpertWork` without changing the database schema.
-7. Include the exact **فایل‌های اصلی تغییرکرده:** section in the final change report, listing only files actually changed.
-8. Hard-refresh (Ctrl+F5) and verify tab icon on all 5 pages and `/manifest.json` loads (200, no login needed); test Install app only if served over HTTPS/localhost.
-9. Visually verify `#nodeDetails` at ~1920, ~1280, ~1000, ~768 and ~390 px widths (Ctrl+F5): grid columns, wrapping of Add Request / Upload Files / Delete Files, SRSC folder grid, file rows; confirm Add Request matches the theme (also its disabled state).
-
-## Expert Reports permission visibility fix — 2026-10-18
-
-- Correct permission code: `DASHBOARD_REPORT_EXPERT`.
-- Updated `backend/auth.js` so `GET /api/auth/me` refreshes the effective active permissions from SQL Server on every request using `UserRoles → Roles → RolePermissions → Permissions`; the refreshed permission set replaces the session's cached set. Inactive/missing users have their session invalidated.
-- Updated `frontend/js/expert-reports.js` so the Expert Reports navigation item is installed directly under `#dmsMainSidebar` only when the exact permission is present, removed when it is absent, and rechecked on page focus. Navigation lookup has a fallback within the main sidebar.
-- The expert reports endpoint continues to enforce `DASHBOARD_REPORT_EXPERT` server-side.
-- Files changed: `backend/auth.js`, `frontend/js/expert-reports.js`, `AI_PROJECT_STATE.md`.
-- Structural review: GitHub updates succeeded and the updated files were fetched back for verification. No database schema changes were made.
-- Real testing pending: restart the backend, refresh the browser, test a role with the permission and a role without it, confirm the modal opens, and verify API responses (authorized 200; unauthorized 403). No live SQL Server/browser test was performed here.
-
+1. Verify the `Stamp static validation` GitHub Actions run for commit `4cf976fa1fb9ae87c1b18bc314c9730b402f38df`.
+2. Back up `dbDrawingManagment`, apply `SQL/Stamp-Workflow.sql`, and verify `tblPath.PathID=4` points to the intended protected output folder.
+3. In the real DMS environment, test end-to-end: node with PDFs, create request attached to an existing DrawingRequest, approve/reject, stamp pages across multiple PDFs, requester-only downloads, and one-day expiration/cleanup.
+4. Verify API security: unauthenticated calls return 401, users without `REQUEST_DRAWING_STAMP` receive 403, only the requester can download, and concurrent approval/completion attempts cannot duplicate state transitions.
+5. Do not mark Stamp fully accepted until database migration and live browser/API tests pass.
