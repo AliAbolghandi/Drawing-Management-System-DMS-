@@ -79,6 +79,27 @@ BEGIN
     );
 END;
 
+IF OBJECT_ID(N'dbo.DrawingRequestStampAudit',N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.DrawingRequestStampAudit
+    (
+        StampAuditID bigint IDENTITY(1,1) NOT NULL CONSTRAINT PK_DrawingRequestStampAudit PRIMARY KEY,
+        StampRequestID int NULL,
+        StampItemID int NULL,
+        RequestID int NULL,
+        ActorUserID int NULL,
+        ActorUsername nvarchar(100) NOT NULL,
+        ActionCode nvarchar(50) NOT NULL,
+        Details nvarchar(1000) NULL,
+        CreatedAt datetime2(3) NOT NULL CONSTRAINT DF_DrawingRequestStampAudit_CreatedAt DEFAULT(SYSUTCDATETIME())
+    );
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampAudit_Request' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampAudit'))
+    CREATE INDEX IX_DrawingRequestStampAudit_Request ON dbo.DrawingRequestStampAudit(RequestID,CreatedAt DESC);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampAudit_Item' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampAudit'))
+    CREATE INDEX IX_DrawingRequestStampAudit_Item ON dbo.DrawingRequestStampAudit(StampItemID,CreatedAt DESC);
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStamps_RequestID' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStamps'))
     CREATE INDEX IX_DrawingRequestStamps_RequestID ON dbo.DrawingRequestStamps(RequestID,StatusCode,CreatedAt DESC);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampItems_StampRequestID' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampItems'))
