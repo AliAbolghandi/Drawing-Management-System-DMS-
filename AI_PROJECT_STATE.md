@@ -155,17 +155,32 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Requires container query support (Chrome/Edge 105+, Firefox 110+, Safari 16+); older browsers fall back to the 2-column grid with wrapping.
 - Validation: CSS brace balance checked and diff inspected only. NO browser rendering, screenshots or runtime test performed; visual verification is pending.
 
+## Offline PDF stamping libraries — 2026-10-20
+
+- Inspected current `frontend/js/stamp.js`: it used `pdf-lib@1.17.1` and `pdfjs-dist@5.7.284` from jsDelivr.
+- Updated `frontend/js/stamp.js` to load those exact pinned versions from local paths:
+  - `../lib/pdf-lib/pdf-lib.min.js`
+  - `../lib/pdfjs/pdf.min.mjs`
+  - `../lib/pdfjs/pdf.worker.min.mjs`
+- Added `.github/workflows/vendor-pdf-libraries.yml`, manually triggered with `workflow_dispatch`. It downloads the pinned npm packages, copies the required builds and license files into `frontend/lib/`, validates that the files are non-empty, then commits and pushes the assets to `main` using the workflow token.
+- Commits:
+  - `0077134ae96f5b81a95bb2850e5bf88bfd052d7c` — add vendor workflow.
+  - `e5cf8eaf77a681f8943b2bf399c7867f4e926bb4` — use local PDF library paths.
+- Validation: fetched and inspected current source, confirmed the CDN constants were replaced in the edit operation. The workflow has NOT been run yet, so local library files are not confirmed present and offline stamping is not yet verified. No browser or runtime test was performed.
+- Security note: workflow grants `contents: write` only to the workflow job and only writes the pinned library assets. Review repository Actions settings if the workflow is unable to push.
+
 # NEXT ACTION
 
-0. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
-1. Open `frontend/admin-dashboard.html` in the DMS environment and review at wide desktop, laptop, and narrow viewport widths.
-2. Verify KPI cards, Activity, Workflow Status, System Health, Recent Activity, report filters, both charts, and both tables remain readable and functional.
-3. Confirm Standard parts are blue, Drawn parts green, Predicted parts orange, and Modeling gold in both chart bars and legends.
-4. Run `node --check frontend/js/admin-dashboard.js` from the repository root; then perform a real browser/API test and report those separately from structural checks.
-5. Continue validating Production Reports against `DrawingRequestExpertWork` without changing the database schema.
-6. Include the exact **فایل‌های اصلی تغییرکرده:** section in the final change report, listing only files actually changed.
-7. Hard-refresh (Ctrl+F5) and verify tab icon on all 5 pages and `/manifest.json` loads (200, no login needed); test Install app only if served over HTTPS/localhost.
-8. Visually verify `#nodeDetails` at ~1920, ~1280, ~1000, ~768 and ~390 px widths (Ctrl+F5): grid columns, wrapping of Add Request / Upload Files / Delete Files, SRSC folder grid, file rows; confirm Add Request matches the theme (also its disabled state).
+0. In GitHub Actions, run `Vendor PDF libraries` via **Run workflow**; verify the workflow commits `frontend/lib/pdfjs/pdf.min.mjs`, `frontend/lib/pdfjs/pdf.worker.min.mjs`, `frontend/lib/pdf-lib/pdf-lib.min.js`, and license files. Then test Stamp Drawing with network access disabled.
+1. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
+2. Open `frontend/admin-dashboard.html` in the DMS environment and review at wide desktop, laptop, and narrow viewport widths.
+3. Verify KPI cards, Activity, Workflow Status, System Health, Recent Activity, report filters, both charts, and both tables remain readable and functional.
+4. Confirm Standard parts are blue, Drawn parts green, Predicted parts orange, and Modeling gold in both chart bars and legends.
+5. Run `node --check frontend/js/admin-dashboard.js` from the repository root; then perform a real browser/API test and report those separately from structural checks.
+6. Continue validating Production Reports against `DrawingRequestExpertWork` without changing the database schema.
+7. Include the exact **فایل‌های اصلی تغییرکرده:** section in the final change report, listing only files actually changed.
+8. Hard-refresh (Ctrl+F5) and verify tab icon on all 5 pages and `/manifest.json` loads (200, no login needed); test Install app only if served over HTTPS/localhost.
+9. Visually verify `#nodeDetails` at ~1920, ~1280, ~1000, ~768 and ~390 px widths (Ctrl+F5): grid columns, wrapping of Add Request / Upload Files / Delete Files, SRSC folder grid, file rows; confirm Add Request matches the theme (also its disabled state).
 
 ## Expert Reports permission visibility fix — 2026-10-18
 
