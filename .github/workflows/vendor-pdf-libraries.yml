@@ -1,0 +1,56 @@
+name: Vendor PDF libraries
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Download pinned libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/packages" "$RUNNER_TEMP/pdfjs" "$RUNNER_TEMP/pdf-lib"
+          npm pack pdfjs-dist@5.7.284 --pack-destination "$RUNNER_TEMP/packages"
+          npm pack pdf-lib@1.17.1 --pack-destination "$RUNNER_TEMP/packages"
+          tar -xzf "$RUNNER_TEMP/packages/pdfjs-dist-5.7.284.tgz" -C "$RUNNER_TEMP/pdfjs"
+          tar -xzf "$RUNNER_TEMP/packages/pdf-lib-1.17.1.tgz" -C "$RUNNER_TEMP/pdf-lib"
+          mkdir -p frontend/lib/pdfjs frontend/lib/pdf-lib
+          cp "$RUNNER_TEMP/pdfjs/package/legacy/build/pdf.min.mjs" frontend/lib/pdfjs/
+          cp "$RUNNER_TEMP/pdfjs/package/legacy/build/pdf.worker.min.mjs" frontend/lib/pdfjs/
+          cp "$RUNNER_TEMP/pdfjs/package/LICENSE" frontend/lib/pdfjs/LICENSE
+          cp "$RUNNER_TEMP/pdf-lib/package/dist/pdf-lib.min.js" frontend/lib/pdf-lib/
+          if [ -f "$RUNNER_TEMP/pdf-lib/package/LICENSE.md" ]; then
+            cp "$RUNNER_TEMP/pdf-lib/package/LICENSE.md" frontend/lib/pdf-lib/LICENSE.md
+          elif [ -f "$RUNNER_TEMP/pdf-lib/package/LICENSE" ]; then
+            cp "$RUNNER_TEMP/pdf-lib/package/LICENSE" frontend/lib/pdf-lib/LICENSE
+          fi
+          test -s frontend/lib/pdfjs/pdf.min.mjs
+          test -s frontend/lib/pdfjs/pdf.worker.min.mjs
+          test -s frontend/lib/pdf-lib/pdf-lib.min.js
+      - name: Commit vendored libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/lib/pdfjs frontend/lib/pdf-lib
+          if git diff --cached --quiet; then
+            echo "Vendored libraries are already up to date."
+            exit 0
+          fi
+          git commit -m "Vendor pinned PDF stamping libraries for offline LAN use"
+          git push origin HEAD:main
