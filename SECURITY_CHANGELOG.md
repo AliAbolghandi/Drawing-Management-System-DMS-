@@ -86,7 +86,7 @@ The backend sends:
 - Permissions-Policy
 - Content-Security-Policy
 
-The Stamp viewer requires the pinned jsDelivr PDF.js/pdf-lib resources and therefore the application CSP explicitly permits `https://cdn.jsdelivr.net` for script, connection, image and worker resources. For a production factory deployment, these libraries should be vendored under the DMS origin to remove the external CDN dependency.
+The Stamp viewer loads pinned PDF.js/pdf-lib artifacts from `frontend/lib/pdfjs` and `frontend/lib/pdf-lib` on the DMS origin. The vendor workflow is `.github/workflows/vendor-pdf-libraries.yml`; the offline browser workflow still requires runtime verification on the factory LAN.
 
 JSON request bodies are limited to 1 MB.
 
@@ -134,10 +134,10 @@ For production:
 - Rotate/revoke any GitHub PAT that has previously been exposed in chat or source control.
 - Back up the SQL database before applying migrations.
 - Ensure `tblPath.PathID=4` points to the intended protected Stamp output storage.
-- If the Stamp viewer is deployed on an isolated LAN, vendor the pinned PDF.js/pdf-lib resources locally instead of depending on jsDelivr.
+- Keep the vendored PDF.js/pdf-lib versions pinned and review their license files when updating them.
 
 ## Current limitations
 - Sessions are stored in backend memory. Restarting the backend logs users out.
 - Multiple backend instances require a shared session store such as SQL/Redis.
 - The current API rate limiter is in-memory and per-process.
-- The Stamp viewer currently uses pinned jsDelivr resources; local vendoring is the recommended production hardening step.
+- The Stamp approval UI must call the server decision endpoint and confirm `APPROVED` before enabling PDF completion; frontend state alone is not authoritative.
