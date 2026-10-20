@@ -109,6 +109,10 @@ function registerStampRoutes(app, deps) {
         let outputPath=null;
         try {
           const q=new sql.Request(tx); q.input('sid',sql.Int,id); q.input('itemId',sql.Int,itemId);
+          const lockedRequest=await q.query("SELECT TOP 1 StatusCode,ApprovedByUserID FROM dbo.DrawingRequestStamps WITH(UPDLOCK,HOLDLOCK) WHERE StampRequestID=@sid;");
+          if(!lockedRequest.recordset.length)throw bad('Stamp request not found.',404);
+          if(lockedRequest.recordset[0].StatusCode!=='APPROVED')throw bad('Stamp request is not approved.',409);
+          if(Number(lockedRequest.recordset[0].ApprovedByUserID)!==Number(req.user.userId))throw bad('Only the approving Stamp user can complete this request.',403);
           const itemQ=await q.query("SELECT TOP 1 StampItemID,PDFName,StatusCode FROM dbo.DrawingRequestStampItems WITH(UPDLOCK,HOLDLOCK) WHERE StampRequestID=@sid AND StampItemID=@itemId;");
           const item=itemQ.recordset[0];
           if(!item)throw bad('Stamp item not found.',404);
