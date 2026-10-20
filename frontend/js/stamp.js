@@ -7,9 +7,9 @@
   let stampRequests = [];
   let currentUserId = null;
   let pdfjsPromise = null;
-  const LOCAL_PDF_LIB = '../lib/pdf-lib/pdf-lib.min.js';
-  const LOCAL_PDFJS = '../lib/pdfjs/pdf.min.mjs';
-  const LOCAL_PDFJS_WORKER = '../lib/pdfjs/pdf.worker.min.mjs';
+  const LOCAL_PDF_LIB = 'lib/pdf-lib/pdf-lib.min.js';
+  const LOCAL_PDFJS = 'lib/pdfjs/pdf.min.mjs';
+  const LOCAL_PDFJS_WORKER = 'lib/pdfjs/pdf.worker.min.mjs';
 
   async function json(url, options={}) { const r=await fetch(url,{credentials:'include',cache:'no-store',...options});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d; }
   function injectStyle(){if($('dmsStampStyle'))return;const s=document.createElement('style');s.id='dmsStampStyle';s.textContent=`
@@ -40,7 +40,7 @@
       $('dmsStampPng').onchange=e=>{const f=e.target.files?.[0];if(!f)return;if(f.type!=='image/png'){$('dmsStampError').textContent='Stamp must be a PNG file.';return;}const rd=new FileReader();rd.onload=()=>{state.stampImage=rd.result;applyImageToPages();};rd.readAsDataURL(f);};
       $('dmsApplyStamp').onclick=()=>{if(!state.stampImage){$('dmsStampError').textContent='Browse a PNG Stamp first.';return;}applyImageToPages();$('dmsStampError').className='dms-stamp-success';$('dmsStampError').textContent='Stamp applied. Each page can be positioned and resized independently.';};
       $('dmsCompleteStamp').onclick=async()=>{try{if(!state.stampImage)throw new Error('Browse a PNG Stamp first.');const item=data.items.find(x=>Number(x.StampItemID)===Number(state.currentItemId));if(!item)throw new Error('Select a PDF.');const PDFLib=window.PDFLib,pdfDoc=await PDFLib.PDFDocument.load(state.pdfBytes),png=await fetch(state.stampImage).then(r=>r.arrayBuffer()),img=await pdfDoc.embedPng(png),pages=pdfDoc.getPages();for(const [pageNo,p] of state.pages){const mark=p.overlay.querySelector('.dms-stamp-mark');if(!mark)continue;const l=parseFloat(mark.style.left)||0,t=parseFloat(mark.style.top)||0,w=parseFloat(mark.style.width)||0,h=parseFloat(mark.style.height)||0,page=pages[pageNo-1],pw=page.getWidth(),ph=page.getHeight();page.drawImage(img,{x:l/p.width*pw,y:ph-(t+h)/p.height*ph,width:w/p.width*pw,height:h/p.height*ph});}const bytes=await pdfDoc.save();const response=await fetch(`${API}/stamp/requests/${id}/item/${item.StampItemID}/complete`,{method:'POST',credentials:'include',cache:'no-store',headers:{'Content-Type':'application/pdf'},body:bytes});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);state.completed.add(Number(item.StampItemID));const next=data.items.find(x=>!state.completed.has(Number(x.StampItemID)));if(next){$('dmsStampError').className='dms-stamp-success';$('dmsStampError').textContent=`${item.PDFName} saved. Place the stamp on ${next.PDFName}, then click Complete Stamp Request.`;await loadItem(Number(next.StampItemID));}else{closeModal();window.dispatchEvent(new CustomEvent('dms-stamp-refresh'));}}catch(e){$('dmsStampError').className='dms-stamp-error';$('dmsStampError').textContent=e.message;}};
-      document.querySelectorAll('[data-item-id]').forEach(b=>b.onclick=()=>loadItem(Number(b.dataset.itemId)));const first=initialItemId||Number(data.items[0]?.StampItemID);if(first)await loadItem(first);
+      document.querySelectorAll('[data-item-id]').forEach(b=>b.onclick=()=>loadItem(Number(b.dataset.itemId)));const requested=data.items.find(x=>Number(x.StampItemID)===Number(initialItemId)&&x.StatusCode!=='COMPLETED');const first=Number(requested?.StampItemID||data.items.find(x=>x.StatusCode!=='COMPLETED')?.StampItemID||0);if(first)await loadItem(first);else $('dmsStampViewer').textContent='All selected PDFs have already been completed.';
     }catch(e){openModal(`<div class="dms-stamp-error">${esc(e.message)}</div>`);}
   }
   function addNodeButton(){const host=document.querySelector('.srsc-heading-actions');if(!host||$('dmsStampNodeBtn'))return;const btn=document.createElement('button');btn.id='dmsStampNodeBtn';btn.type='button';btn.className='dms-stamp-btn';btn.textContent='Stamp Drawing';btn.disabled=true;btn.title='Select a Node with an attached PDF.';host.appendChild(btn);btn.onclick=()=>currentNodeId&&createStampRequest(currentNodeId);}
