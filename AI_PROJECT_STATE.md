@@ -166,7 +166,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commits:
   - `0077134ae96f5b81a95bb2850e5bf88bfd052d7c` — add vendor workflow.
   - `e5cf8eaf77a681f8943b2bf399c7867f4e926bb4` — use local PDF library paths.
-- Validation: fetched and inspected current source, confirmed the CDN constants were replaced in the edit operation. The workflow has NOT been run yet, so local library files are not confirmed present and offline stamping is not yet verified. No browser or runtime test was performed.
+- Validation: fetched and inspected current source, confirmed the CDN constants were replaced in the edit operation. GitHub Actions run `39480957062` completed successfully; `frontend/lib/pdf-lib/pdf-lib.min.js`, `frontend/lib/pdfjs/pdf.min.mjs`, `frontend/lib/pdfjs/pdf.worker.min.mjs`, and license files were confirmed in the repository tree. Offline stamping has not yet been verified in a browser.
 - Security note: workflow grants `contents: write` only to the workflow job and only writes the pinned library assets. Review repository Actions settings if the workflow is unable to push.
 
 ## Stamp workflow integration fixes — 2026-10-20
@@ -177,9 +177,18 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Stamp route errors now preserve explicit HTTP status codes instead of converting validation and authorization errors to HTTP 500.
 - SQL migration `SQL/Stamp-Workflow.sql` is still a required deployment step. This session cannot execute it against the live SQL Server, nor can it run the DMS browser against the factory file server. Do not mark runtime/database acceptance as passed until tested there.
 
+## Stamp workflow implementation update — 2026-10-20
+
+- `backend/server.js`: mounted `registerStampRoutes` after the existing `/api` authentication middleware.
+- `frontend/index.html`: loaded `frontend/js/stamp.js`; the module had existed but was not loaded by the page.
+- `backend/stamp-routes.js`: added a binary per-PDF completion endpoint (`POST /api/stamp/requests/:stampRequestId/item/:stampItemId/complete`) to avoid the global JSON parser's 1 MB limit; each PDF completes independently and the parent request transitions only when all items are complete. Explicit HTTP errors now preserve their status codes. Added DrawingRequestHistory entries for request creation, each stamped PDF completion, and requester download; approval/rejection audit was already present.
+- `frontend/js/stamp.js`: submits generated PDFs as `application/pdf`, tracks completed items, resumes at the next unfinished PDF, obtains the authenticated user ID from the Stamp API, and uses local PDF library URLs relative to the page URL.
+- Added `.github/workflows/stamp-static-checks.yml` for Node syntax checks and local-library/integration checks.
+- Commits: `ba7f9dc` (server route mount), `2b1bffb` (load UI), `cc95006` (binary completion route), `bf480b2` (frontend binary upload), `daf8988` (requester identity), `21fd361` (PDF completion audit), `66c2dbc` (library URLs/resume), `da36d23` (request/download audit), `5aec048` and `d46566c` (static validation workflow).
+- Structural review only. The static validation workflow result, live SQL migration, API authorization tests, and browser/PDF viewer workflow have not yet been verified in the factory DMS environment.
 # NEXT ACTION
 
-0. Apply `SQL/Stamp-Workflow.sql` to a backed-up `dbDrawingManagment` database, then verify `tblPath.PathID=4` resolves to the intended protected output folder.
+0. Check the `Stamp static validation` GitHub Actions run triggered by this update; resolve any failing syntax/structural checks. Then apply `SQL/Stamp-Workflow.sql` to a backed-up `dbDrawingManagment` database and verify `tblPath.PathID=4` resolves to the intended protected output folder.
 1. Test Stamp end-to-end in the DMS environment: node with PDFs, create request attached to an existing DrawingRequest, permission-based approval/rejection, stamp several pages across multiple PDFs, final requester-only downloads, and expiration/cleanup.
 2. Verify security cases: unauthenticated API = 401, authenticated user without `REQUEST_DRAWING_STAMP` = 403, requester-only downloads, and concurrent approval/completion attempts.
 3. Test relative API: (a) open the app via Node on a non-3000 `PORT` (login, tree, uploads, dashboards), (b) open via Live Server 5500, (c) confirm POST/PUT/DELETE work with `DMS_FRONTEND_ORIGINS` set to the real origin.
