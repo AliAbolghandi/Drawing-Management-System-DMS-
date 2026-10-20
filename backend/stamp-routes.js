@@ -149,7 +149,48 @@ function registerStampRoutes(app, deps) {
 
   app.get('/api/stamp/requests/:stampRequestId/download/:stampItemId', async(req,res)=>{const id=Number(req.params.stampRequestId),itemId=Number(req.params.stampItemId);if(!Number.isInteger(id)||!Number.isInteger(itemId)||id<=0||itemId<=0)return res.status(400).json({error:'Invalid Stamp request or item ID.'});try{const request=await getStampRequest(id);if(!request)return res.status(404).json({error:'Stamp request not found.'});if(Number(request.RequestedByUserID)!==Number(req.user.userId))return res.status(403).json({error:'Only the requester can download the stamped drawing.'});if(String(request.StampStatus)!=='COMPLETED')return res.status(409).json({error:'Stamped drawing is not ready for download.'});if(!request.ExpiresAt||new Date(request.ExpiresAt).getTime()<=Date.now())return res.status(410).json({error:'The stamped drawing download period has expired.'});const r=new sql.Request();r.input('stampRequestId',sql.Int,id);r.input('stampItemId',sql.Int,itemId);const q=await r.query('SELECT TOP 1 StampedFileName,ExpiresAt FROM dbo.DrawingRequestStampItems WHERE StampRequestID=@stampRequestId AND StampItemID=@stampItemId AND StatusCode=N\'COMPLETED\';');const item=q.recordset[0];if(!item||!item.StampedFileName||new Date(item.ExpiresAt).getTime()<=Date.now())return res.status(410).json({error:'The stamped PDF has expired.'});const pathRow=await pathById(4);if(!pathRow?.RootPath)return res.status(500).json({error:'tblPath PathID=4 is not configured.'});const full=path.resolve(String(pathRow.RootPath),safeName(item.StampedFileName));if(!fs.existsSync(full)||!fs.statSync(full).isFile())return res.status(404).json({error:'Stamped PDF file is no longer available.'});const audit=new sql.Request();audit.input('requestId',sql.Int,request.RequestID);audit.input('userId',sql.Int,req.user.userId);audit.input('username',sql.NVarChar(100),req.user.username);await audit.query("INSERT INTO dbo.DrawingRequestHistory(RequestID,RequestNumber,ActionCode,FromStatusID,ToStatusID,ActionByUserID,ActionByUsername,Comment,CreatedAt) SELECT RequestID,RequestNumber,N'STAMP_PDF_DOWNLOADED',StatusID,StatusID,@userId,@username,CONVERT(nvarchar(100),@requestId),SYSUTCDATETIME() FROM dbo.DrawingRequests WHERE RequestID=@requestId;");const stampAudit=new sql.Request();stampAudit.input('sid',sql.Int,id);stampAudit.input('itemId',sql.Int,itemId);stampAudit.input('requestId',sql.Int,request.RequestID);stampAudit.input('userId',sql.Int,req.user.userId);stampAudit.input('username',sql.NVarChar(100),req.user.username);stampAudit.input('fileName',sql.NVarChar(260),item.StampedFileName);await stampAudit.query("INSERT INTO dbo.DrawingRequestStampAudit(StampRequestID,StampItemID,RequestID,ActorUserID,ActorUsername,ActionCode,Details,CreatedAt) VALUES(@sid,@itemId,@requestId,@userId,@username,N'STAMP_PDF_DOWNLOADED',@fileName,SYSUTCDATETIME());");res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="${safeName(item.StampedFileName)}"`);res.sendFile(full);}catch(e){sendStampError(res,'Stamped PDF download failed',e);}});
 
-  async function cleanupExpired(){try{const q=await new sql.Request().query('SELECT StampItemID,StampedFileName FROM dbo.DrawingRequestStampItems WHERE StatusCode=N\'COMPLETED\' AND ExpiresAt IS NOT NULL AND ExpiresAt<=SYSUTCDATETIME() AND StampedFileName IS NOT NULL;');const pathRow=await pathById(4);if(pathRow?.RootPath){const root=path.resolve(String(pathRow.RootPath));for(const row of q.recordset){const full=path.resolve(root,safeName(row.StampedFileName));const rel=path.relative(root,full);if(rel&&rel!=='..'&&!rel.startsWith(`..${path.sep}`)&&!path.isAbsolute(rel))await fs.promises.unlink(full).catch(()=>{});}}await new sql.Request().query('UPDATE dbo.DrawingRequestStampItems SET StampedFileName=NULL,UpdatedAt=SYSUTCDATETIME() WHERE StatusCode=N\'COMPLETED\' AND ExpiresAt IS NOT NULL AND ExpiresAt<=SYSUTCDATETIME();');}catch(e){console.error('Stamp cleanup failed:',e.message);}}
+  async function cleanupExpired() {
+    try {
+      const expired = await new sql.Request().query("SELECT StampItemID,StampRequestID,RequestID,StampedFileName FROM dbo.DrawingRequestStampItems WHERE StatusCode=N'COMPLETED' AND ExpiresAt IS NOT NULL AND ExpiresAt<=SYSUTCDATETIME() AND StampedFileName IS NOT NULL;");
+      const pathRow = await pathById(4);
+      if (!pathRow?.RootPath) return;
+      const root = path.resolve(String(pathRow.RootPath));
+      for (const item of expired.recordset) {
+        const fileName = safeName(item.StampedFileName);
+        const full = path.resolve(root, fileName);
+        const rel = path.relative(root, full);
+        if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+          console.error('Stamp cleanup rejected an unsafe output path.');
+          continue;
+        }
+        try {
+          await fs.promises.unlink(full);
+        } catch (e) {
+          if (e.code !== 'ENOENT') {
+            console.error('Stamp cleanup could not delete an expired file:', e.message);
+            continue;
+          }
+        }
+        const tx = new sql.Transaction();
+        await tx.begin();
+        try {
+          const q = new sql.Request(tx);
+          q.input('itemId', sql.Int, item.StampItemID);
+          q.input('stampRequestId', sql.Int, item.StampRequestID);
+          q.input('requestId', sql.Int, item.RequestID);
+          q.input('fileName', sql.NVarChar(260), item.StampedFileName);
+          q.input('systemUser', sql.NVarChar(100), 'SYSTEM');
+          await q.query("UPDATE dbo.DrawingRequestStampItems SET StampedFileName=NULL,UpdatedAt=SYSUTCDATETIME() WHERE StampItemID=@itemId AND ExpiresAt<=SYSUTCDATETIME(); INSERT INTO dbo.DrawingRequestStampAudit(StampRequestID,StampItemID,RequestID,ActorUserID,ActorUsername,ActionCode,Details,CreatedAt) VALUES(@stampRequestId,@itemId,@requestId,NULL,@systemUser,N'STAMP_PDF_EXPIRED_DELETED',@fileName,SYSUTCDATETIME());");
+          await tx.commit();
+        } catch (e) {
+          await tx.rollback();
+          throw e;
+        }
+      }
+    } catch (e) {
+      console.error('Stamp cleanup failed:', e.message);
+    }
+  }
   setInterval(cleanupExpired,60*60*1000); cleanupExpired();
 }
 module.exports={registerStampRoutes};
