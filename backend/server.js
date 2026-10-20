@@ -10,6 +10,7 @@ const { exec } = require('child_process');
 const multer = require('multer');
 const { createAuth } = require('./auth');
 const { registerAdminDatabaseRoutes } = require('./admin-db');
+const { registerStampRoutes } = require('./stamp-routes');
 
 const execAsync = util.promisify(exec);
 const app = express();
@@ -1098,6 +1099,7 @@ app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
 
 
 registerAdminDatabaseRoutes(app, { sql, auth, crypto, sendServerError });
+registerStampRoutes(app, { sql, auth, sendServerError });
 
 setInterval(() => auth.cleanup(), 10 * 60 * 1000);
 
