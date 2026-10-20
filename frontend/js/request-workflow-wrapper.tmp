@@ -1,0 +1,3 @@
+(() => {
+  document.write('<script src="js/request-workflow-original.js?v=20261020-stamp"><\/script><script src="js/stamp.js?v=20261020-stamp"><\/script>');
+})();
