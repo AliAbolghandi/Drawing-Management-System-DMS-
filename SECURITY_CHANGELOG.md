@@ -46,6 +46,8 @@ The four configured roles are:
 - Completion is restricted to the user who approved the Stamp request.
 - Generated output is validated as a PDF before it is written to the Stamp storage root.
 - The browser Stamp workspace accepts PNG files only.
+- The per-PDF completion endpoint accepts `application/pdf` binary bodies and rechecks the effective Stamp permission, approval ownership, request status, and item status server-side; concurrent item completion is serialized with SQL row locks.
+- Request creation, approval/rejection, per-PDF completion, and requester downloads are recorded in `dbo.DrawingRequestHistory`.
 
 ## Expert Reports
 - `GET /api/auth/expert-reports` requires an authenticated session and the effective `DASHBOARD_REPORT_EXPERT` permission.
