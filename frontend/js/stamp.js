@@ -6,9 +6,9 @@
   let currentNodeId = null;
   let stampRequests = [];
   let pdfjsPromise = null;
-  const CDN_PDF_LIB = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
-  const CDN_PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/legacy/build/pdf.min.mjs';
-  const CDN_PDFJS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/legacy/build/pdf.worker.min.mjs';
+  const LOCAL_PDF_LIB = '../lib/pdf-lib/pdf-lib.min.js';
+  const LOCAL_PDFJS = '../lib/pdfjs/pdf.min.mjs';
+  const LOCAL_PDFJS_WORKER = '../lib/pdfjs/pdf.worker.min.mjs';
 
   async function json(url, options={}) { const r=await fetch(url,{credentials:'include',cache:'no-store',...options});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d; }
   function injectStyle(){if($('dmsStampStyle'))return;const s=document.createElement('style');s.id='dmsStampStyle';s.textContent=`
@@ -18,8 +18,8 @@
   function ensureModal(){if($('dmsStampModal'))return $('dmsStampModal');const m=document.createElement('div');m.id='dmsStampModal';m.className='dms-stamp-modal';m.hidden=true;m.innerHTML=`<div class="dms-stamp-dialog" role="dialog" aria-modal="true" aria-labelledby="dmsStampTitle"><div class="dms-stamp-head"><div><h2 id="dmsStampTitle">Stamp Drawing</h2></div><button type="button" class="dms-stamp-close" id="dmsStampClose" aria-label="Close">×</button></div><div class="dms-stamp-body" id="dmsStampBody"></div></div>`;document.body.appendChild(m);$('dmsStampClose').onclick=closeModal;m.addEventListener('click',e=>{if(e.target===m)closeModal();});return m;}
   function closeModal(){const m=$('dmsStampModal');if(m)m.hidden=true;}
   function openModal(html){const m=ensureModal();$('dmsStampBody').innerHTML=html;m.hidden=false;}
-  async function ensurePdfLib(){if(window.PDFLib)return window.PDFLib;await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=CDN_PDF_LIB;s.onload=resolve;s.onerror=()=>reject(new Error('PDF stamping engine could not be loaded.'));document.head.appendChild(s);});return window.PDFLib;}
-  async function ensurePdfJs(){if(pdfjsPromise)return pdfjsPromise;pdfjsPromise=import(CDN_PDFJS).then(lib=>{lib.GlobalWorkerOptions.workerSrc=CDN_PDFJS_WORKER;return lib;}).catch(e=>{pdfjsPromise=null;throw new Error(`PDF Viewer could not be loaded: ${e.message}`);});return pdfjsPromise;}
+  async function ensurePdfLib(){if(window.PDFLib)return window.PDFLib;await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=LOCAL_PDF_LIB;s.onload=resolve;s.onerror=()=>reject(new Error('PDF stamping engine could not be loaded.'));document.head.appendChild(s);});return window.PDFLib;}
+  async function ensurePdfJs(){if(pdfjsPromise)return pdfjsPromise;pdfjsPromise=import(LOCAL_PDFJS).then(lib=>{lib.GlobalWorkerOptions.workerSrc=LOCAL_PDFJS_WORKER;return lib;}).catch(e=>{pdfjsPromise=null;throw new Error(`PDF Viewer could not be loaded: ${e.message}`);});return pdfjsPromise;}
   function selectedNodeFromTree(){const row=document.querySelector('.node-row.selected');const nodeId=Number(row?.closest('.tree-node')?.dataset.nodeId||0);return Number.isInteger(nodeId)&&nodeId>0?nodeId:null;}
   async function createStampRequest(nodeId){
     const data=await json(`${API}/stamp/node/${encodeURIComponent(nodeId)}/pdfs`);const requests=(await json(`${API}/drawing-requests`)).requests||[];const own=requests.filter(x=>Number(x.NodeID)===Number(nodeId)&&Number(x.RequesterUserID)===Number(window.DMS?.user?.userId||0)&&x.StatusCode!=='CANCELLED');
