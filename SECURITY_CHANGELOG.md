@@ -48,6 +48,7 @@ The four configured roles are:
 - The browser Stamp workspace accepts PNG files only.
 - The per-PDF completion endpoint accepts `application/pdf` binary bodies and rechecks the effective Stamp permission, approval ownership, request status, and item status server-side; concurrent item completion is serialized with SQL row locks.
 - Request creation, approval/rejection, per-PDF completion, and requester downloads are recorded in `dbo.DrawingRequestHistory`.
+- Durable lifecycle audit records are also written to `dbo.DrawingRequestStampAudit`, including system-recorded expiration and deletion of generated PDFs.
 
 ## Expert Reports
 - `GET /api/auth/expert-reports` requires an authenticated session and the effective `DASHBOARD_REPORT_EXPERT` permission.
