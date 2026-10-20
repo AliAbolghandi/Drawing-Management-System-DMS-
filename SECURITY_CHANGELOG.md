@@ -25,12 +25,27 @@ Protected permissions include:
 - FILE_VIEW
 - FILE_Edit
 - DASHBOARD_REPORT_EXPERT
+- REQUEST_DRAWING_STAMP
 
 The four configured roles are:
 - Admin
 - DrawingSupervisor
 - DrawingExpert
 - VIEWER
+
+## Stamp Drawing
+- Stamp approval/processing is authorized server-side by the effective `REQUEST_DRAWING_STAMP` permission.
+- The Stamp authorization query requires both `PermissionID=18` and `PermissionCode=REQUEST_DRAWING_STAMP`; RoleID is not used as a permission substitute.
+- A Stamp request can only be created by the requester of the parent `DrawingRequest`.
+- Selected PDFs are revalidated against the parent Node before they are attached to a Stamp request.
+- Danieli and SRSC source paths are validated server-side and traversal is rejected.
+- Source PDFs are never overwritten by the Stamp workflow.
+- Generated stamped PDFs are stored under `tblPath.PathID=4` and are downloadable only by the original requester while `ExpiresAt` is valid.
+- Stamped files are deleted by a backend cleanup job after the one-day retention period.
+- Stamp decisions use row locking and only a currently `PENDING` Stamp request can be approved or rejected.
+- Completion is restricted to the user who approved the Stamp request.
+- Generated output is validated as a PDF before it is written to the Stamp storage root.
+- The browser Stamp workspace accepts PNG files only.
 
 ## Expert Reports
 - `GET /api/auth/expert-reports` requires an authenticated session and the effective `DASHBOARD_REPORT_EXPERT` permission.
@@ -42,7 +57,7 @@ The four configured roles are:
 
 ## API protection
 - All protected `/api/*` routes require an authenticated session.
-- Server-side permission checks are applied to node, PDF, company-file and Expert Reports endpoints.
+- Server-side permission checks are applied to node, PDF, company-file, Expert Reports and Stamp endpoints.
 - API requests have a lightweight per-IP rate limit.
 - State-changing API requests are checked against the configured Origin/Referer policy.
 - CORS is restricted by `DMS_FRONTEND_ORIGINS`.
@@ -56,6 +71,7 @@ Existing path validation was retained and is enforced for:
 - Uploads
 - Folder creation
 - File/folder deletion
+- Stamp output storage
 
 Relative paths reject traversal such as `..`, absolute paths and invalid Windows filename characters.
 
@@ -67,6 +83,8 @@ The backend sends:
 - Permissions-Policy
 - Content-Security-Policy
 
+The Stamp viewer requires the pinned jsDelivr PDF.js/pdf-lib resources and therefore the application CSP explicitly permits `https://cdn.jsdelivr.net` for script, connection, image and worker resources. For a production factory deployment, these libraries should be vendored under the DMS origin to remove the external CDN dependency.
+
 JSON request bodies are limited to 1 MB.
 
 ## Frontend protection
@@ -76,9 +94,12 @@ JSON request bodies are limited to 1 MB.
 - Static frontend assets remain available for the login page and authenticated application.
 - Frontend API requests use the session cookie.
 - Expert Reports navigation is hidden unless `/api/auth/me` confirms `DASHBOARD_REPORT_EXPERT`; this is UI visibility only and is not treated as the authorization boundary.
+- Stamp UI visibility is not treated as an authorization boundary; Stamp APIs independently enforce permission and ownership.
 
 ## Audit
 Login success, login failure and logout are written to `dbo.Logs`.
+
+Stamp approval/rejection/completion actions are recorded in `dbo.DrawingRequestHistory`.
 
 `Logs.LogID` should be an IDENTITY column so audit inserts do not need unsafe MAX(LogID)+1 logic.
 
@@ -109,8 +130,11 @@ For production:
 - Do not commit passwords, tokens or PATs.
 - Rotate/revoke any GitHub PAT that has previously been exposed in chat or source control.
 - Back up the SQL database before applying migrations.
+- Ensure `tblPath.PathID=4` points to the intended protected Stamp output storage.
+- If the Stamp viewer is deployed on an isolated LAN, vendor the pinned PDF.js/pdf-lib resources locally instead of depending on jsDelivr.
 
 ## Current limitations
 - Sessions are stored in backend memory. Restarting the backend logs users out.
 - Multiple backend instances require a shared session store such as SQL/Redis.
 - The current API rate limiter is in-memory and per-process.
+- The Stamp viewer currently uses pinned jsDelivr resources; local vendoring is the recommended production hardening step.
