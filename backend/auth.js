@@ -324,7 +324,7 @@ function createAuth(frontendOrigins) {
 
 
   // User Management — authorized exclusively by the effective DASHBOARD_USER_MANAGEMENT permission.
-  const userManagementGuard = [authenticate, requirePermission('DASHBOARD_USER_MANAGEMENT')];
+  const userManagementGuard = [rateLimit, csrf, authenticate, requirePermission('DASHBOARD_USER_MANAGEMENT')];
 
   router.get('/user-management/users', ...userManagementGuard, async (req, res) => {
     try {
