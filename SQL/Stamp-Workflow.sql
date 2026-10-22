@@ -3,6 +3,10 @@
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 
+IF NOT EXISTS (SELECT 1 FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'PENDING_STAMP')
+    INSERT INTO dbo.DrawingRequestStatuses(StatusCode,StatusName,Description)
+    VALUES (N'PENDING_STAMP',N'Pending Stamp',N'Separate Stamp Drawing request waiting for a user with REQUEST_DRAWING_STAMP.');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'STAMP_COMPLETED')
     INSERT INTO dbo.DrawingRequestStatuses(StatusCode,StatusName,Description)
     VALUES (N'STAMP_COMPLETED',N'Stamp Completed',N'All selected PDFs in the Stamp request were stamped successfully.');
@@ -95,16 +99,10 @@ BEGIN
     );
 END;
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampAudit_Request' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampAudit'))
-    CREATE INDEX IX_DrawingRequestStampAudit_Request ON dbo.DrawingRequestStampAudit(RequestID,CreatedAt DESC);
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampAudit_Item' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampAudit'))
-    CREATE INDEX IX_DrawingRequestStampAudit_Item ON dbo.DrawingRequestStampAudit(StampItemID,CreatedAt DESC);
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStamps_RequestID' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStamps'))
-    CREATE INDEX IX_DrawingRequestStamps_RequestID ON dbo.DrawingRequestStamps(RequestID,StatusCode,CreatedAt DESC);
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampItems_StampRequestID' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampItems'))
-    CREATE INDEX IX_DrawingRequestStampItems_StampRequestID ON dbo.DrawingRequestStampItems(StampRequestID,StatusCode);
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampItems_ExpiresAt' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampItems'))
-    CREATE INDEX IX_DrawingRequestStampItems_ExpiresAt ON dbo.DrawingRequestStampItems(ExpiresAt) WHERE ExpiresAt IS NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampAudit_Request' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampAudit')) CREATE INDEX IX_DrawingRequestStampAudit_Request ON dbo.DrawingRequestStampAudit(RequestID,CreatedAt DESC);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampAudit_Item' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampAudit')) CREATE INDEX IX_DrawingRequestStampAudit_Item ON dbo.DrawingRequestStampAudit(StampItemID,CreatedAt DESC);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStamps_RequestID' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStamps')) CREATE INDEX IX_DrawingRequestStamps_RequestID ON dbo.DrawingRequestStamps(RequestID,StatusCode,CreatedAt DESC);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampItems_StampRequestID' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampItems')) CREATE INDEX IX_DrawingRequestStampItems_StampRequestID ON dbo.DrawingRequestStampItems(StampRequestID,StatusCode);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_DrawingRequestStampItems_ExpiresAt' AND object_id=OBJECT_ID(N'dbo.DrawingRequestStampItems')) CREATE INDEX IX_DrawingRequestStampItems_ExpiresAt ON dbo.DrawingRequestStampItems(ExpiresAt) WHERE ExpiresAt IS NOT NULL;
 
 COMMIT TRANSACTION;
