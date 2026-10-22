@@ -322,6 +322,90 @@ function createAuth(frontendOrigins) {
     try{const a=await currentExpertAssignment(requestId,req.user.userId,['IN_PROGRESS','RETURNED_FOR_CORRECTION']);if(!a)return res.status(403).json({error:'This request is not currently assigned to you for drawing work.'});const b=req.body||{};const f={CroquisStartDate:validDate(b.croquisStartDate,'Croquis start date'),CroquisEndDate:validDate(b.croquisEndDate,'Croquis end date'),CroquisPartCount:nonNegative(b.croquisPartCount,'Croquis part count'),ModelingStartDate:validDate(b.modelingStartDate,'Modeling start date'),ModelingEndDate:validDate(b.modelingEndDate,'Modeling end date'),ModelingPartCount:nonNegative(b.modelingPartCount,'Modeling part count'),DrawingStartDate:validDate(b.drawingStartDate,'Drawing start date'),DrawingEndDate:validDate(b.drawingEndDate,'Drawing end date'),StandardPartCount:nonNegative(b.standardPartCount,'Standard part count'),DrawnPartCount:nonNegative(b.drawnPartCount,'Drawn part count')};const groups=[['CroquisStartDate','CroquisEndDate','CroquisPartCount','Croquis'],['ModelingStartDate','ModelingEndDate','ModelingPartCount','Modeling'],['DrawingStartDate','DrawingEndDate','StandardPartCount','DrawnPartCount','Drawing']];for(const g of groups){const vals=g.slice(0,-1).map(k=>f[k]);if(vals.some(v=>v!==null)&&vals.some(v=>v===null))throw Object.assign(new Error(g[g.length-1]+' fields must be completed together.'),{statusCode:400});}for(const [start,end,name] of [['CroquisStartDate','CroquisEndDate','Croquis'],['ModelingStartDate','ModelingEndDate','Modeling'],['DrawingStartDate','DrawingEndDate','Drawing']])if(f[start]&&f[end]&&f[end]<f[start])throw Object.assign(new Error(name+' end date cannot precede start date.'),{statusCode:400});const q=new sql.Request();q.input('assignmentId',sql.Int,a.AssignmentID);for(const[k,v]of Object.entries(f))q.input(k,k.includes('Date')?sql.Date:sql.Int,v);await q.query("IF EXISTS(SELECT 1 FROM dbo.DrawingRequestExpertWork WHERE AssignmentID=@assignmentId) UPDATE dbo.DrawingRequestExpertWork SET CroquisStartDate=COALESCE(@CroquisStartDate,CroquisStartDate),CroquisEndDate=COALESCE(@CroquisEndDate,CroquisEndDate),CroquisPartCount=COALESCE(@CroquisPartCount,CroquisPartCount),ModelingStartDate=COALESCE(@ModelingStartDate,ModelingStartDate),ModelingEndDate=COALESCE(@ModelingEndDate,ModelingEndDate),ModelingPartCount=COALESCE(@ModelingPartCount,ModelingPartCount),DrawingStartDate=COALESCE(@DrawingStartDate,DrawingStartDate),DrawingEndDate=COALESCE(@DrawingEndDate,DrawingEndDate),StandardPartCount=COALESCE(@StandardPartCount,StandardPartCount),DrawnPartCount=COALESCE(@DrawnPartCount,DrawnPartCount),UpdatedAt=SYSUTCDATETIME() WHERE AssignmentID=@assignmentId; ELSE INSERT INTO dbo.DrawingRequestExpertWork(AssignmentID,CroquisStartDate,CroquisEndDate,CroquisPartCount,ModelingStartDate,ModelingEndDate,ModelingPartCount,DrawingStartDate,DrawingEndDate,StandardPartCount,DrawnPartCount) VALUES(@assignmentId,@CroquisStartDate,@CroquisEndDate,@CroquisPartCount,@ModelingStartDate,@ModelingEndDate,@ModelingPartCount,@DrawingStartDate,@DrawingEndDate,@StandardPartCount,@DrawnPartCount);");await writeAudit(req.user.userId,req.user.username,'EXPERT_WORK_DATA_SAVED',clientIp(req));res.json({success:true,assignmentId:Number(a.AssignmentID)});}catch(e){console.error('Expert work save failed:',e);res.status(e.statusCode||500).json({error:e.message||'Expert work save failed.'});}
   });
 
+
+  // User Management — authorized exclusively by the effective DASHBOARD_USER_MANAGEMENT permission.
+  const userManagementGuard = [authenticate, requirePermission('DASHBOARD_USER_MANAGEMENT')];
+
+  router.get('/user-management/users', ...userManagementGuard, async (req, res) => {
+    try {
+      const q = await new sql.Request().query(`
+        SELECT u.UserID, u.Username, u.Name, u.Family, u.IsActive, u.CreatedAt, u.UpdatedAt, u.LastLoginAt,
+          STUFF((SELECT N', ' + r.RoleName FROM dbo.UserRoles ur
+            INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID
+            WHERE ur.UserID=u.UserID AND r.IsActive=1 FOR XML PATH(''), TYPE).value('.','nvarchar(max)'),1,2,N'') AS Roles,
+          (SELECT MAX(l.CreatedAt) FROM dbo.Logs l WHERE l.UserID=u.UserID AND l.Action=N'LOGOUT') AS LastLogoutAt
+        FROM dbo.Users u
+        ORDER BY u.Family, u.Name, u.Username;
+      `);
+      res.json({ users: q.recordset });
+    } catch (e) { console.error('User management list failed:', e.message); res.status(500).json({ error: 'Could not load users.' }); }
+  });
+
+  router.get('/user-management/users/:userId', ...userManagementGuard, async (req, res) => {
+    const userId = Number(req.params.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
+    try {
+      const userRequest = new sql.Request(); userRequest.input('userId', sql.Int, userId);
+      const userResult = await userRequest.query(`
+        SELECT u.UserID,u.Username,u.Name,u.Family,u.IsActive,u.CreatedAt,u.UpdatedAt,u.LastLoginAt,
+          (SELECT MAX(l.CreatedAt) FROM dbo.Logs l WHERE l.UserID=u.UserID AND l.Action=N'LOGOUT') AS LastLogoutAt
+        FROM dbo.Users u WHERE u.UserID=@userId;
+        SELECT r.RoleID,r.RoleCode,r.RoleName FROM dbo.UserRoles ur
+          INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID WHERE ur.UserID=@userId ORDER BY r.RoleName;
+        SELECT DISTINCT p.PermissionID,p.PermissionCode,p.PermissionName,r.RoleCode AS GrantedByRole
+          FROM dbo.UserRoles ur
+          INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1
+          INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID
+          INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1
+          WHERE ur.UserID=@userId ORDER BY p.PermissionCode;
+        SELECT TOP 100 l.LogID,l.Action,l.IPAddress,l.CreatedAt
+          FROM dbo.Logs l WHERE l.UserID=@userId
+          ORDER BY l.CreatedAt DESC, l.LogID DESC;
+      `);
+      const user = userResult.recordsets?.[0]?.[0];
+      if (!user) return res.status(404).json({ error: 'User not found.' });
+      res.json({ user, roles: userResult.recordsets[1] || [], permissions: userResult.recordsets[2] || [], activity: userResult.recordsets[3] || [] });
+    } catch (e) { console.error('User management details failed:', e.message); res.status(500).json({ error: 'Could not load user details.' }); }
+  });
+
+  router.put('/user-management/users/:userId/password', ...userManagementGuard, async (req, res) => {
+    const userId = Number(req.params.userId);
+    const password = req.body?.password;
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
+    if (typeof password !== 'string' || password.length < 12 || password.length > 256) return res.status(400).json({ error: 'New password must be between 12 and 256 characters.' });
+    try {
+      const salt = crypto.randomBytes(16), N = 16384, r = 8, p = 1;
+      const derived = await new Promise((resolve, reject) => crypto.scrypt(password, salt, 64, { N, r, p, maxmem: 128 * 1024 * 1024 }, (err, key) => err ? reject(err) : resolve(key)));
+      const passwordHash = ['scrypt',N,r,p,salt.toString('base64'),derived.toString('base64')].join('const now=Date.now();for(const[token,s]of sessions)if(s.expiresAt<=now)sessions.delete(token);for(const[ip,s]of loginAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)loginAttempts.delete(ip);for(const[ip,s]of apiRateLimits)if(now-s.startedAt>API_WINDOW_MS)apiRateLimits.delete(ip);}
+  return { router, securityHeaders, authenticate, requirePermission, requireAdmin, writeAudit, apiSecurity:(req,res,next)=>rateLimit(req,res,err=>{if(err)return next(err);csrf(req,res,next);}), authenticatePage, authenticateAdminPage, cleanup };
+}
+
+module.exports={createAuth};
+);
+      const update = new sql.Request(); update.input('userId',sql.Int,userId); update.input('passwordHash',sql.NVarChar(512),passwordHash);
+      const result = await update.query('UPDATE dbo.Users SET PasswordHash=@passwordHash,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId AND IsActive=1; SELECT @@ROWCOUNT AS Affected;');
+      if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'Active user not found.' });
+      await writeAudit(userId, String(userId), 'USER_PASSWORD_RESET', clientIp(req));
+      for (const [token, session] of sessions) if (session.user.userId === userId) sessions.delete(token);
+      res.json({ success: true, sessionsRevoked: true });
+    } catch (e) { console.error('User password reset failed:', e.message); res.status(500).json({ error: 'Could not reset password.' }); }
+  });
+
+  router.patch('/user-management/users/:userId/status', ...userManagementGuard, async (req, res) => {
+    const userId = Number(req.params.userId), isActive = req.body?.isActive;
+    if (!Number.isSafeInteger(userId) || userId <= 0 || typeof isActive !== 'boolean') return res.status(400).json({ error: 'Invalid user status request.' });
+    if (userId === req.user.userId && !isActive) return res.status(400).json({ error: 'You cannot deactivate your own account.' });
+    try {
+      const update = new sql.Request(); update.input('userId',sql.Int,userId); update.input('isActive',sql.Bit,isActive);
+      const result = await update.query('UPDATE dbo.Users SET IsActive=@isActive,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId; SELECT @@ROWCOUNT AS Affected;');
+      if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'User not found.' });
+      const action = isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED';
+      await writeAudit(userId, String(userId), action, clientIp(req));
+      if (!isActive) for (const [token, session] of sessions) if (session.user.userId === userId) sessions.delete(token);
+      res.json({ success: true, isActive });
+    } catch (e) { console.error('User status update failed:', e.message); res.status(500).json({ error: 'Could not update user status.' }); }
+  });
+
   function cleanup(){const now=Date.now();for(const[token,s]of sessions)if(s.expiresAt<=now)sessions.delete(token);for(const[ip,s]of loginAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)loginAttempts.delete(ip);for(const[ip,s]of apiRateLimits)if(now-s.startedAt>API_WINDOW_MS)apiRateLimits.delete(ip);}
   return { router, securityHeaders, authenticate, requirePermission, requireAdmin, writeAudit, apiSecurity:(req,res,next)=>rateLimit(req,res,err=>{if(err)return next(err);csrf(req,res,next);}), authenticatePage, authenticateAdminPage, cleanup };
 }
