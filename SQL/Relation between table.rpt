@@ -3,7 +3,7 @@ LineText
 # DMS DATABASE SCHEMA
 
 - Database: `dbDrawingManagment`
-- Generated At: `2026-10-20 14:00:25`
+- Generated At: `2026-10-22 11:38:35`
 - Data Exported: **NO**
 - Purpose: Complete relational database schema and relationship definition
 
@@ -576,4 +576,4 @@ Every line below represents a Child ? Parent relationship.
 # END OF DATABASE SCHEMA EXPORT
 
 
-Completion time: 2026-10-20T14:00:26.0602890+03:30
+Completion time: 2026-10-22T11:38:36.8297258+03:30
