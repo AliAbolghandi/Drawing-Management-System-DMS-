@@ -22,10 +22,28 @@
   async function createStampRequest(nodeId){
     try{
       const data=await json(`${API}/stamp/node/${encodeURIComponent(nodeId)}/pdfs`);
-      if(!data.pdfs?.length){openModal('<div class="dms-stamp-section"><strong>No PDF drawing is attached to this Node.</strong></div>');return;}
-      openModal(`<div class="dms-stamp-section"><strong>New Stamp Drawing Request</strong><p>This creates a separate request and does not require Manager approval.</p></div><div class="dms-stamp-section"><strong>Select one or more PDFs</strong><div class="dms-stamp-list">${data.pdfs.map(p=>`<label class="dms-stamp-file"><input type="checkbox" name="stampPdf" data-source="${esc(p.sourceType)}" data-pdf-id="${esc(p.pdfId||'')}" data-file-name="${esc(p.fileName||p.pdfName||'')}"><span><strong>${esc(p.pdfName||p.fileName)}</strong><small>${esc(p.sourceType)}</small></span></label>`).join('')}</div><div id="dmsStampCreateError"></div></div><div class="dms-stamp-actions"><button type="button" class="dms-stamp-danger" id="dmsStampCreateCancel">Cancel</button><button type="button" class="dms-stamp-primary" id="dmsStampCreateSubmit">Submit Stamp Request</button></div>`);
+      const pdfCount=Number(data.pdfCount);
+      if(!Number.isInteger(pdfCount)||pdfCount<=0){
+        openModal('<div class="dms-stamp-section"><strong>No PDF drawing is attached to this Node.</strong></div>');
+        return;
+      }
+      openModal(`<div class="dms-stamp-section"><strong>New Stamp Drawing Request</strong><p>This creates a separate request and does not require Manager approval.</p></div><div class="dms-stamp-section"><strong>${pdfCount} PDF file(s) found</strong><p>All PDF drawings attached to this Node will be included automatically. Individual file selection is not required.</p></div><div id="dmsStampCreateError"></div><div class="dms-stamp-actions"><button type="button" class="dms-stamp-danger" id="dmsStampCreateCancel">Cancel</button><button type="button" class="dms-stamp-primary" id="dmsStampCreateSubmit">Submit Stamp Request</button></div>`);
       $('dmsStampCreateCancel').onclick=closeModal;
-      $('dmsStampCreateSubmit').onclick=async()=>{try{const selected=[...document.querySelectorAll('input[name="stampPdf"]:checked')];if(!selected.length)throw new Error('Select at least one PDF.');await json(`${API}/stamp/requests`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:Number(nodeId),items:selected.map(x=>({sourceType:x.dataset.source,pdfId:x.dataset.pdfId?Number(x.dataset.pdfId):null,fileName:x.dataset.fileName||null}))})});closeModal();window.dispatchEvent(new CustomEvent('dms-stamp-refresh'));}catch(e){const el=$('dmsStampCreateError');if(el){el.className='dms-stamp-error';el.textContent=e.message;}}};
+      $('dmsStampCreateSubmit').onclick=async()=>{
+        const submit=$('dmsStampCreateSubmit');
+        const error=$('dmsStampCreateError');
+        if(submit)submit.disabled=true;
+        if(error)error.textContent='';
+        try{
+          const result=await json(`${API}/stamp/requests`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:Number(nodeId)})});
+          closeModal();
+          window.dispatchEvent(new CustomEvent('dms-stamp-refresh'));
+          if(result.itemCount!==undefined)console.info(`Stamp request ${result.requestNumber} created with ${result.itemCount} PDF(s).`);
+        }catch(e){
+          if(error){error.className='dms-stamp-error';error.textContent=e.message;}
+          if(submit)submit.disabled=false;
+        }
+      };
     }catch(e){openModal(`<div class="dms-stamp-error">${esc(e.message)}</div>`)}
   }
 
