@@ -252,7 +252,8 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
     if(!Number.isInteger(id)||!Number.isInteger(itemId)||id<=0||itemId<=0)return res.status(400).json({error:'Invalid Stamp request or item ID.'});
     try{
       const request=await requestInfo(id);if(!request)return res.status(404).json({error:'Stamp request not found.'});
-      const can=await canStamp(req.user.userId);if(!can&&Number(request.RequestedByUserID)!==Number(req.user.userId))return res.status(403).json({error:'Permission denied.'});
+      if (!(await canStamp(req.user.userId))) return res.status(403).json({error:'Permission denied.'});
+      if (request.StampStatus !== 'APPROVED' || Number(request.ApprovedByUserID) !== Number(req.user.userId)) return res.status(403).json({error:'Only the approving Stamp user can view source PDFs.'});
       const r=new sql.Request();r.input('sid',sql.Int,id);r.input('iid',sql.Int,itemId);
       const q=await r.query(`SELECT TOP 1 i.SourceType,i.PDFName,i.SourceRelativePath,n.FolderPath,COALESCE(dp.RootPath,p.RootPath) AS RootPath FROM dbo.DrawingRequestStampItems i INNER JOIN dbo.Nodes n ON n.NodeID=i.NodeID LEFT JOIN dbo.DanieliPDF d ON d.PDFID=i.PDFID LEFT JOIN dbo.tblPath dp ON dp.PathID=d.PathID LEFT JOIN dbo.tblPath p ON p.PathID=n.PathID WHERE i.StampRequestID=@sid AND i.StampItemID=@iid;`);
       const item=q.recordset[0];if(!item)return res.status(404).json({error:'Stamp item not found.'});
