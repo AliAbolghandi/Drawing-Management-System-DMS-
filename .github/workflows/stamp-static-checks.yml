@@ -41,4 +41,4 @@ jobs:
           grep -q "registerStampRoutes(app" backend/server.js
           grep -q 'js/stamp.js' frontend/index.html
           grep -q '/api/stamp/requests/' frontend/js/stamp.js
-          grep -q 'item/\${state.current.itemId}/complete' frontend/js/stamp.js
+          grep -Fq 'item/${state.current.itemId}/complete' frontend/js/stamp.js
