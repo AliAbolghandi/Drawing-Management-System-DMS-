@@ -187,10 +187,17 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Added `.github/workflows/stamp-static-checks.yml` for Node syntax checks and local-library/integration checks.
 - Commits: `ba7f9dc` (server route mount), `2b1bffb` (load UI), `cc95006` (binary completion route), `bf480b2` (frontend binary upload), `daf8988` (requester identity), `21fd361` (PDF completion audit), `66c2dbc` (library URLs/resume), `da36d23` (request/download audit), `5aec048` and `d46566c` (static validation workflow), `44ca951` (serialize concurrent item completion), `a476f9d` (preserve expiry filtering), `184894f` (security changelog), `0834fb8` (Stamp audit table), `ecb6f6c` (lifecycle audit writes), `55cf539` (expiration/deletion audit), `95ef7bb` (security audit documentation).
 - Structural review: GitHub Actions run 39484251316 passed Node syntax and local-asset/integration checks for commit 6f8dc70, including the audit-table and cleanup changes. Live SQL migration, API authorization tests, and browser/PDF viewer workflow have not been verified in the factory DMS environment.
+## Stamp request parameter and validation fix — 2026-10-22
+
+- `backend/stamp-routes.js`: removed the duplicate `requestId` input binding in `POST /api/stamp/requests`. Commit: `3809861511de07b62a6893198f2da693f120b67d`.
+- `.github/workflows/stamp-static-checks.yml`: corrected the static assertion to match the actual completion endpoint template in `frontend/js/stamp.js`. Commit: `f7f20f9f9d022232f481ff872353eb71fa66a436`.
+- The initial static validation run failed only at the stale grep assertion after all three `node --check` commands and the preceding asset/integration checks passed. The corrected workflow must be rerun and confirmed.
+- Reported `403` responses for `/api/node-hierarchy/:nodeId` and `/api/node-folders/:nodeId` are due to their explicit `FILE_VIEW` permission gate. Preserve the gate; verify the signed-in user's effective permission through `UserRoles -> Roles -> RolePermissions -> Permissions` before considering a role-permission change. Live SQL Server and browser tests have not been run.
+
 # NEXT ACTION
 
-1. Verify the `Stamp static validation` GitHub Actions run for commit `4cf976fa1fb9ae87c1b18bc314c9730b402f38df`.
+1. Verify the `Stamp static validation` GitHub Actions run for commit `f7f20f9f9d022232f481ff872353eb71fa66a436`.
 2. Back up `dbDrawingManagment`, apply `SQL/Stamp-Workflow.sql`, and verify `tblPath.PathID=4` points to the intended protected output folder.
 3. In the real DMS environment, test end-to-end: node with PDFs, create request attached to an existing DrawingRequest, approve/reject, stamp pages across multiple PDFs, requester-only downloads, and one-day expiration/cleanup.
-4. Verify API security: unauthenticated calls return 401, users without `REQUEST_DRAWING_STAMP` receive 403, only the requester can download, and concurrent approval/completion attempts cannot duplicate state transitions.
+4. Diagnose the reported node hierarchy/folder 403 using the user's effective `FILE_VIEW` permission; preserve server-side authorization and only adjust `RolePermissions` after confirming the intended role.
 5. Do not mark Stamp fully accepted until database migration and live browser/API tests pass.
