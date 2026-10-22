@@ -219,7 +219,8 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
       if (!can && Number(request.RequestedByUserID) !== Number(req.user.userId)) return res.status(403).json({ error: 'Permission denied.' });
       const r = new sql.Request(); r.input('id', sql.Int, id);
       const items = await r.query('SELECT StampItemID,StampRequestID,RequestID,NodeID,SourceType,PDFID,PDFName,SourceRelativePath,StatusCode,StampedFileName,CompletedByUserID,StampedAt,ExpiresAt FROM dbo.DrawingRequestStampItems WHERE StampRequestID=@id ORDER BY StampItemID;');
-      res.json({ request, items: items.recordset });
+      const visibleItems = can ? items.recordset : items.recordset.map((item, index) => ({ ...item, PDFID: null, PDFName: `Drawing ${index + 1}`, SourceRelativePath: null }));
+      res.set('Cache-Control', 'no-store').json({ request, items: visibleItems });
     } catch (e) { sendError(res, 'Stamp request detail failed', e); }
   });
 
