@@ -147,3 +147,13 @@ For production:
 - Requesters without `REQUEST_DRAWING_STAMP` receive redacted source-file metadata from Stamp request details.
 - Source PDF streaming is restricted to the user with `REQUEST_DRAWING_STAMP` who approved that Stamp request.
 - SRSC Stamp discovery reads only direct PDF files in the Node's `SLD` folder; it does not traverse subdirectories.
+
+
+## User Management — 2026-10-22
+- Added permission-gated user management APIs under `/api/auth/user-management`.
+- Access requires an authenticated session and effective `DASHBOARD_USER_MANAGEMENT` permission resolved from the current `/api/auth/me` permission set; no RoleID shortcut is used.
+- User list/detail endpoints expose account metadata, assigned roles, effective role-derived permissions, login/logout timestamps, and the latest 100 records from `dbo.Logs`.
+- Password resets use the existing scrypt hash format, require at least 12 characters, never return or store plaintext passwords, and revoke active in-memory sessions for the target user.
+- Account activation/deactivation is permission-gated; users cannot deactivate their own account. Deactivation revokes the target user's in-memory sessions.
+- User Management navigation is only inserted when `/api/auth/me` confirms `DASHBOARD_USER_MANAGEMENT`; this is UI visibility only. Backend endpoints independently enforce authentication and permission.
+- Runtime SQL Server and browser acceptance tests remain pending.
