@@ -21,6 +21,10 @@ IF NOT EXISTS (SELECT 1 FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'PENDI
     INSERT INTO dbo.DrawingRequestStatuses(StatusCode,StatusName,Description)
     VALUES (N'PENDING_STAMP',N'Pending Stamp',N'Separate Stamp Drawing request waiting for a user with REQUEST_DRAWING_STAMP.');
 
+IF NOT EXISTS (SELECT 1 FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'STAMP_REJECTED')
+    INSERT INTO dbo.DrawingRequestStatuses(StatusCode,StatusName,Description)
+    VALUES (N'STAMP_REJECTED',N'Stamp Rejected',N'Stamp request rejected by an authorized Stamp user.');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'STAMP_COMPLETED')
     INSERT INTO dbo.DrawingRequestStatuses(StatusCode,StatusName,Description)
     VALUES (N'STAMP_COMPLETED',N'Stamp Completed',N'All selected PDFs in the Stamp request were stamped successfully.');
