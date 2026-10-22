@@ -1,3 +1,13 @@
+## Stamp workflow corrective pass — 2026-10-22
+
+- `backend/stamp-routes.js`: SRSC PDF discovery is limited to direct PDF files in `SLD`; no subdirectories are scanned. The count endpoint returns only a count and node metadata, not PDF names or paths.
+- `frontend/js/stamp.js`: uses the `pdfCount` API contract when creating a Stamp request.
+- `backend/stamp-routes.js`: requester-facing Stamp details redact source PDF IDs/names/paths when the requester is not a Stamp-authorized user; source PDF streaming is limited to the approving user with `REQUEST_DRAWING_STAMP`.
+- `backend/stamp-routes.js` and `SQL/Stamp-Workflow.sql`: decision query parameters are bound using `mssql.Request.input`; the migration adds `STAMP_REJECTED`.
+- `backend/stamp-routes.js`: completion audit query now binds its request identifier.
+- `.github/workflows/stamp-static-checks.yml`: checks the count contract, direct-only SLD scan, and Stamp permission markers.
+- Runtime acceptance is still pending: run the migration on the target SQL Server and test against real Node folders/PDFs with both requester and Stamp-authorized accounts. GitHub static checks do not prove filesystem/database behavior.
+
 # DMS — AI Project State / Handoff
 
 Last updated: 2026-10-17
