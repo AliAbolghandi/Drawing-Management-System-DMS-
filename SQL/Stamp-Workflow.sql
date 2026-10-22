@@ -3,6 +3,20 @@
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 
+/* Stamp requests bypass Manager approval. The shared DrawingRequests table therefore
+   must allow the Manager fields to be NULL for this request type. */
+IF EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id=OBJECT_ID(N'dbo.DrawingRequests') AND name=N'ManagerUserID' AND is_nullable=0
+)
+    ALTER TABLE dbo.DrawingRequests ALTER COLUMN ManagerUserID INT NULL;
+
+IF EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id=OBJECT_ID(N'dbo.DrawingRequests') AND name=N'ManagerUsername' AND is_nullable=0
+)
+    ALTER TABLE dbo.DrawingRequests ALTER COLUMN ManagerUsername NVARCHAR(100) NULL;
+
 IF NOT EXISTS (SELECT 1 FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'PENDING_STAMP')
     INSERT INTO dbo.DrawingRequestStatuses(StatusCode,StatusName,Description)
     VALUES (N'PENDING_STAMP',N'Pending Stamp',N'Separate Stamp Drawing request waiting for a user with REQUEST_DRAWING_STAMP.');
