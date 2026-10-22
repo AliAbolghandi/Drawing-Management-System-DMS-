@@ -239,6 +239,9 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
         const status = await q.query('SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=@statusCode;');
         if (!status.recordset.length) throw bad(`${nextDrawingStatus} status is missing from DrawingRequestStatuses.`,500);
         q.input('statusId',sql.Int,status.recordset[0].StatusID);
+        q.input('requestId',sql.Int,row.RequestID);
+        q.input('requestNumber',sql.NVarChar(8),row.RequestNumber);
+        q.input('fromStatusId',sql.Int,row.StatusID);
         await q.query(`UPDATE dbo.DrawingRequestStamps SET StatusCode=CASE WHEN @decision=N'approve' THEN N'APPROVED' ELSE N'REJECTED' END,ApprovedByUserID=CASE WHEN @decision=N'approve' THEN @uid ELSE ApprovedByUserID END,ApprovedAt=CASE WHEN @decision=N'approve' THEN SYSUTCDATETIME() ELSE ApprovedAt END,RejectedByUserID=CASE WHEN @decision=N'reject' THEN @uid ELSE RejectedByUserID END,RejectedAt=CASE WHEN @decision=N'reject' THEN SYSUTCDATETIME() ELSE RejectedAt END,Comment=@comment,UpdatedAt=SYSUTCDATETIME() WHERE StampRequestID=@id;`);
         await q.query(`UPDATE dbo.DrawingRequests SET StatusID=@statusId,UpdatedAt=SYSUTCDATETIME() WHERE RequestID=@requestId;`, { requestId: row.RequestID });
         await q.query(`INSERT INTO dbo.DrawingRequestHistory(RequestID,RequestNumber,ActionCode,FromStatusID,ToStatusID,ActionByUserID,ActionByUsername,Comment,CreatedAt) VALUES(@requestId,@requestNumber,CASE WHEN @decision=N'approve' THEN N'STAMP_APPROVED' ELSE N'STAMP_REJECTED' END,@fromStatusId,@statusId,@uid,@uname,@comment,SYSUTCDATETIME());`, { requestId: row.RequestID, requestNumber: row.RequestNumber, fromStatusId: row.StatusID });
