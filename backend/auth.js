@@ -380,12 +380,7 @@ function createAuth(frontendOrigins) {
       if (!targetUsername) return res.status(404).json({ error: 'User not found.' });
       const salt = crypto.randomBytes(16), N = 16384, r = 8, p = 1;
       const derived = await new Promise((resolve, reject) => crypto.scrypt(password, salt, 64, { N, r, p, maxmem: 128 * 1024 * 1024 }, (err, key) => err ? reject(err) : resolve(key)));
-      const passwordHash = ['scrypt',N,r,p,salt.toString('base64'),derived.toString('base64')].join('const now=Date.now();for(const[token,s]of sessions)if(s.expiresAt<=now)sessions.delete(token);for(const[ip,s]of loginAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)loginAttempts.delete(ip);for(const[ip,s]of apiRateLimits)if(now-s.startedAt>API_WINDOW_MS)apiRateLimits.delete(ip);}
-  return { router, securityHeaders, authenticate, requirePermission, requireAdmin, writeAudit, apiSecurity:(req,res,next)=>rateLimit(req,res,err=>{if(err)return next(err);csrf(req,res,next);}), authenticatePage, authenticateAdminPage, cleanup };
-}
-
-module.exports={createAuth};
-);
+      const passwordHash = ['scrypt', N, r, p, salt.toString('base64'), derived.toString('base64')].join('$');
       const update = new sql.Request(); update.input('userId',sql.Int,userId); update.input('passwordHash',sql.NVarChar(512),passwordHash);
       const result = await update.query('UPDATE dbo.Users SET PasswordHash=@passwordHash,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId AND IsActive=1; SELECT @@ROWCOUNT AS Affected;');
       if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'Active user not found.' });
