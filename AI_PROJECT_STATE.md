@@ -214,16 +214,17 @@ User reported that the `Production Reports` section calculates incorrect values,
   - `GET /users/:userId`
   - `PUT /users/:userId/password`
   - `PATCH /users/:userId/status`
-- Each endpoint uses `authenticate` plus `requirePermission('DASHBOARD_USER_MANAGEMENT')`; role access is not hard-coded.
+- Each endpoint uses API rate limiting, the existing Origin/Referer CSRF policy, `authenticate`, and `requirePermission('DASHBOARD_USER_MANAGEMENT')`; role access is not hard-coded.
 - Password reset uses scrypt, requires 12+ characters, and revokes target sessions. Deactivation also revokes target sessions; self-deactivation is rejected.
 - Login/logout values use existing `dbo.Users.LastLoginAt` and `dbo.Logs` records. Logout history only reflects events actually logged by DMS.
-- Main commits for this feature: `0e092740b05d5d922b8d68fd817dc494dfc9d842` (CSS), `45ae2174610467fb8385c29b68355d49f5bc73dd` (UI), `aed1afb57bf0654e27e0fce6a2c9a9d3822eefb3` (asset loading), `c259f9cc8af665370fc7fd9d0efcdcb315d38d3e` (backend and audit).
+- Main commits for this feature: `0e092740b05d5d922b8d68fd817dc494dfc9d842` (CSS), `45ae2174610467fb8385c29b68355d49f5bc73dd` (UI), `aed1afb57bf0654e27e0fce6a2c9a9d3822eefb3` (asset loading), `c259f9cc8af665370fc7fd9d0efcdcb315d38d3e` (backend and audit), `dbfd2ed20f7e6c82d1ec4d95c5b52c5d2d1c3ce1` (CSRF and rate-limit enforcement).
 - Validation status: source paths, RBAC tables/columns, and existing authentication contracts were inspected. Static syntax and live browser/SQL Server acceptance tests are not yet verified in the target DMS runtime.
 
 # NEXT ACTION
 
-1. Verify the `Stamp static validation` GitHub Actions run for commit `f7f20f9f9d022232f481ff872353eb71fa66a436`.
-2. Back up `dbDrawingManagment`, apply `SQL/Stamp-Workflow.sql`, and verify `tblPath.PathID=4` points to the intended protected output folder.
-3. In the real DMS environment, test end-to-end: node with PDFs, create request attached to an existing DrawingRequest, approve/reject, stamp pages across multiple PDFs, requester-only downloads, and one-day expiration/cleanup.
-4. Diagnose the reported node hierarchy/folder 403 using the user's effective `FILE_VIEW` permission; preserve server-side authorization and only adjust `RolePermissions` after confirming the intended role.
-5. Do not mark Stamp fully accepted until database migration and live browser/API tests pass.
+1. Run `node --check backend/auth.js` and `node --check frontend/js/user-management.js`; correct any syntax errors before deployment.
+2. Test with a user whose effective `RolePermissions` grants `DASHBOARD_USER_MANAGEMENT`: navigation visible, list/details load, permissions and audit history render.
+3. Verify unauthenticated requests return 401 and authenticated users without the permission return 403 for all four user-management APIs; test CSRF rejection for disallowed Origin/Referer.
+4. In the target SQL Server, test password reset (scrypt hash and session revocation), deactivation/activation, and LastLoginAt/LOGOUT audit timestamps. Confirm the `dbo.Logs` queries work with production data.
+5. Visually test the modal in the DMS browser at desktop and narrow viewport sizes; keyboard Escape/Tab, search, tab switching, and confirmation flows.
+6. Continue pending Stamp workflow acceptance only after the above User Management checks are recorded; separately run the Stamp migration and live PDF/folder workflow tests.
