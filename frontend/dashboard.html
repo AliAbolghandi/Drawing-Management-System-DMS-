@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DMS Dashboard</title>
+<link rel="icon" href="assets/icons/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/dms-icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/dms-icon-192.png">
+<link rel="manifest" href="manifest.json">
+<!--
+  DMS Admin Dashboard — prototype (frontend/dashboard.html)
+  - Theme tokens copied from frontend/css/style.css (:root) so it matches the live app.
+  - All numbers come from ONE function: loadData(). Today it returns mock data.
+    Replace its body with: fetch(API_BASE + '/api/admin/dashboard?days=' + days, {credentials:'include'})
+  - Nothing here is a security boundary. The real endpoint must be guarded in the backend (requireAdmin).
+  - Charts are inline SVG: no CDN, no library, works on an offline factory network.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1d33; --bg-alt:#0e2540; --panel:#122a47; --panel-2:#0f2239;
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.16); --grid:rgba(255,255,255,.035);
+  --text:#eaf2fb; --text-dim:#9fb3cc; --text-faint:#6b8099;
+  --cyan:#6fe3ff; --cyan-dim:rgba(111,227,255,.35);
+  --amber:#e8a33d; --amber-dim:rgba(232,163,61,.35);
+  --danger:#ef6b6b; --ok:#6fd99a; --ok-dim:rgba(111,217,154,.35);
+  --blue:#7aa8ff;
+  --radius:8px;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --sans:'Space Grotesk',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{
+  font-family:var(--sans);color:var(--text);-webkit-font-smoothing:antialiased;
+  background:
+    linear-gradient(var(--grid) 1px,transparent 1px) 0 0/32px 32px,
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/32px 32px,
+    var(--bg);
+}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+::selection{background:var(--amber-dim)}
+
+/* ---------- page frame ---------- */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:16px 28px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+.top h1{font-size:17px;font-weight:700;letter-spacing:.01em}
+.top p{margin-top:3px;color:var(--text-faint);font-size:12px}
+.tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--radius);overflow:hidden}
+.seg button{background:transparent;border:0;padding:7px 13px;font-size:12px;color:var(--text-dim);cursor:pointer;font-family:var(--mono)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:rgba(111,227,255,.12);color:var(--cyan)}
+.btn{background:transparent;border:1px solid var(--line-strong);border-radius:var(--radius);padding:7px 13px;font-size:12px;cursor:pointer;color:var(--text-dim)}
+.btn:hover{border-color:var(--cyan-dim);color:var(--text)}
+.stamp{font:400 11px var(--mono);color:var(--text-faint)}
+
+main{padding:22px 28px 40px;max-width:1500px;margin:0 auto;display:grid;gap:18px}
+
+.panel{background:linear-gradient(180deg,rgba(255,255,255,.015),transparent 200px),var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;min-width:0}
+.panel h2{font-size:13px;font-weight:700;letter-spacing:.01em}
+.panel .sub{margin-top:3px;font-size:11px;color:var(--text-faint);line-height:1.5}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:14px}
+.head .meta{font:400 11px var(--mono);color:var(--text-faint)}
+
+/* ---------- 1. request pipeline (the one memorable element) ---------- */
+.pipeline{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) 1px minmax(0,1.15fr);gap:0;align-items:stretch}
+.stage{padding:4px 16px 4px 0;position:relative;min-width:0}
+.stage+.stage{padding-left:16px}
+.stage:not(:last-of-type)::after{content:"";position:absolute;right:0;top:34px;width:0;height:0;
+  border-left:7px solid var(--line-strong);border-top:5px solid transparent;border-bottom:5px solid transparent}
+.stage .who{font-size:11px;color:var(--text-dim);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage .n{font:600 30px/1 var(--mono);letter-spacing:-.02em}
+.stage .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.07);margin:12px 0 9px;overflow:hidden}
+.stage .bar i{display:block;height:100%;width:0;border-radius:2px;transition:width .9s cubic-bezier(.2,.7,.2,1)}
+.stage .detail{font-size:11px;color:var(--text-faint);line-height:1.55}
+.stage .detail b{font-weight:500;color:var(--text-dim)}
+.divider{background:var(--line-strong);margin:2px 18px}
+.closed{padding-left:2px;display:grid;gap:10px;align-content:center}
+.closed .row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--text-dim);gap:10px}
+.closed .row b{font:600 17px var(--mono);color:var(--text)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:baseline}
+
+/* ---------- grids ---------- */
+.g2{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr);gap:18px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+
+/* ---------- trend ---------- */
+.legend{display:flex;gap:16px;font-size:11px;color:var(--text-dim);margin-bottom:6px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:14px;height:2px;margin-right:7px;vertical-align:middle;background:var(--c)}
+#trend{width:100%;height:auto;display:block;touch-action:pan-y}
+#trendRead{margin-top:6px;min-height:18px;font:400 11px var(--mono);color:var(--text-dim)}
+svg text{font-family:var(--mono);fill:var(--text-faint);font-size:10px}
+
+/* ---------- attention list ---------- */
+.att{list-style:none;display:grid;gap:2px}
+.att li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:12px}
+.att li:first-child{border-top:0}
+.att .id{font:600 11px var(--mono);color:var(--cyan)}
+.att .what{color:var(--text-dim);line-height:1.4;min-width:0}
+.att .what small{display:block;color:var(--text-faint);font-size:11px}
+.age{font:600 12px var(--mono);white-space:nowrap}
+.age.hot{color:var(--danger)} .age.warm{color:var(--amber)}
+.empty{padding:22px 0;text-align:center;color:var(--text-faint);font-size:12px}
+
+/* ---------- coverage / workload ---------- */
+.cov{display:grid;gap:15px}
+.cov .line{display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);margin-bottom:6px;gap:10px}
+.cov .line b{font:600 12px var(--mono);color:var(--text)}
+.track{height:6px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;display:flex}
+.track i{display:block;height:100%}
+.note{margin-top:14px;padding-top:11px;border-top:1px solid var(--line);font-size:11px;color:var(--text-faint);line-height:1.55}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-weight:500;text-align:left;color:var(--text-faint);font-size:11px;padding:0 10px 8px 0;border-bottom:1px solid var(--line-strong)}
+td{padding:9px 10px 9px 0;border-bottom:1px solid var(--line);color:var(--text-dim);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-family:var(--mono)}
+td.num{color:var(--text)}
+.mini{display:inline-block;height:6px;border-radius:3px;background:var(--blue);vertical-align:middle}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font:600 10px var(--mono);border:1px solid var(--line-strong);color:var(--text-dim)}
+.tag.fail{color:var(--danger);border-color:rgba(239,107,107,.4);background:rgba(239,107,107,.1)}
+.tag.ok{color:var(--ok);border-color:var(--ok-dim);background:rgba(111,217,154,.1)}
+.tag.warn{color:var(--amber);border-color:var(--amber-dim);background:rgba(232,163,61,.1)}
+.scroll{overflow-x:auto}
+td.when{font-family:var(--mono);font-size:11px;white-space:nowrap;color:var(--text-faint)}
+
+.sessions{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.sessions b{font:600 30px/1 var(--mono)}
+.sessions span{font-size:12px;color:var(--text-dim)}
+.users{list-style:none;display:grid;gap:0}
+.users li{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:12px;color:var(--text-dim)}
+.users li:first-child{border-top:0}
+.users .t{font:400 11px var(--mono);color:var(--text-faint)}
+
+.err{display:none;border:1px solid rgba(239,107,107,.4);background:rgba(239,107,107,.08);color:var(--danger);
+  padding:12px 16px;border-radius:var(--radius);font-size:12px}
+.err.on{display:block}
+
+@media (max-width:1100px){
+  .pipeline{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 0}
+  .divider{display:none}
+  .stage:not(:last-of-type)::after{display:none}
+  .closed{grid-column:1/-1;grid-template-columns:repeat(2,1fr);padding-top:6px}
+  .g2,.g3{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  main{padding:16px}.top{padding:14px 16px}
+  .pipeline{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){.stage .bar i{transition:none}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1>Dashboard</h1>
+    <p>Request workflow, drawing coverage and system activity</p>
+  </div>
+  <div class="tools">
+    <span class="stamp" id="stamp">—</span>
+    <div class="seg" role="group" aria-label="Period" id="range">
+      <button type="button" data-days="7" aria-pressed="false">7d</button>
+      <button type="button" data-days="30" aria-pressed="true">30d</button>
+      <button type="button" data-days="90" aria-pressed="false">90d</button>
+    </div>
+    <button class="btn" type="button" id="refresh">Refresh</button>
+  </div>
+</header>
+
+<main>
+  <div class="err" id="err" role="alert"></div>
+
+  <!-- Pipeline: where every open request is waiting right now -->
+  <section class="panel" aria-labelledby="pl-h">
+    <div class="head">
+      <div>
+        <h2 id="pl-h">Where requests are waiting</h2>
+        <p class="sub">Open requests grouped by the person who has to act next. The longest wait in each stage is shown below the count.</p>
+      </div>
+      <span class="meta" id="plMeta"></span>
+    </div>
+    <div class="pipeline" id="pipeline"></div>
+  </section>
+
+  <div class="g2">
+    <section class="panel" aria-labelledby="tr-h">
+      <div class="head">
+        <div><h2 id="tr-h">Requests created and finalized</h2>
+        <p class="sub">Per day, Jalali dates. Finalized means FINAL_APPROVED.</p></div>
+      </div>
+      <div class="legend"><span style="--c:var(--cyan)">Created</span><span style="--c:var(--ok)">Finalized</span></div>
+      <svg id="trend" viewBox="0 0 760 240" role="img" aria-label="Daily created and finalized requests"></svg>
+      <div id="trendRead" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="at-h">
+      <div class="head">
+        <div><h2 id="at-h">Needs attention</h2>
+        <p class="sub">Open requests that stayed in one status longer than 3 days.</p></div>
+      </div>
+      <ul class="att" id="attention"></ul>
+    </section>
+  </div>
+
+  <div class="g3">
+    <section class="panel" aria-labelledby="cv-h">
+      <div class="head"><h2 id="cv-h">Drawing coverage</h2><span class="meta" id="cvMeta"></span></div>
+      <div class="cov" id="coverage"></div>
+      <p class="note">Danieli coverage is counted from <code>DanieliPDF.NodeID</code>. SRSC coverage comes from the node SRSC cache that the file routes already maintain, so this page never scans the network drive.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="wl-h">
+      <div class="head"><h2 id="wl-h">Drawing expert workload</h2></div>
+      <div class="scroll"><table id="workload"></table></div>
+    </section>
+
+    <section class="panel" aria-labelledby="se-h">
+      <div class="head"><h2 id="se-h">Signed-in users</h2></div>
+      <div class="sessions"><b id="sessN">0</b><span>active sessions</span></div>
+      <ul class="users" id="users"></ul>
+      <p class="note">Sessions live in backend memory (8 h). A backend restart signs everyone out and resets this count.</p>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="ac-h">
+    <div class="head">
+      <div><h2 id="ac-h">Recent activity</h2>
+      <p class="sub">Latest rows of <code>dbo.Logs</code>. The log is read-only here.</p></div>
+      <div class="seg" role="group" aria-label="Activity filter" id="actFilter">
+        <button type="button" data-f="all" aria-pressed="true">All</button>
+        <button type="button" data-f="security" aria-pressed="false">Security</button>
+        <button type="button" data-f="workflow" aria-pressed="false">Workflow</button>
+        <button type="button" data-f="admin" aria-pressed="false">Admin</button>
+      </div>
+    </div>
+    <div class="scroll">
+      <table id="activity">
+        <thead><tr><th>Time (Jalali)</th><th>User</th><th>Action</th><th>Target</th><th>Result</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+'use strict';
+
+/* ============================================================
+   DATA LAYER — the only place that would change for production
+   ============================================================ */
+var API_BASE = (location.port==='5500'||location.port==='5501') ? location.protocol+'//'+location.hostname+':3000' : '';
+var USE_MOCK = true;   // set to false once GET /api/admin/dashboard exists
+
+function seeded(seed){ return function(){ seed=(seed*16807)%2147483647; return (seed-1)/2147483646; }; }
+
+function mockData(days){
+  var rnd = seeded(20261013), now = new Date(), series=[], i;
+  for(i=days-1;i>=0;i--){
+    var d=new Date(now); d.setDate(now.getDate()-i);
+    var wk=d.getDay(); var weekend=(wk===5);               // Friday off (Iran)
+    var created=weekend?0:Math.round(1+rnd()*5);
+    var fin=weekend?0:Math.round(rnd()*4);
+    series.push({date:d.toISOString(),created:created,finalized:fin});
+  }
+  function ago(h){ return new Date(Date.now()-h*3600e3).toISOString(); }
+  return {
+    generatedAt:new Date().toISOString(),
+    stages:[
+      {key:'manager', who:'Manager review',          n:7,  oldestHours:30,  note:'PENDING_MANAGER',                         color:'var(--amber)'},
+      {key:'assign',  who:'Supervisor assignment',   n:4,  oldestHours:96,  note:'PENDING_DRAWING_APPROVAL',                color:'var(--amber)'},
+      {key:'expert',  who:'Drawing expert',          n:11, oldestHours:210, note:'ASSIGNED · TRANSFERRED · IN_PROGRESS · RETURNED_FOR_CORRECTION', color:'var(--blue)'},
+      {key:'final',   who:'Final approval',          n:3,  oldestHours:52,  note:'PENDING_FINAL_APPROVAL',                  color:'var(--amber)'},
+      {key:'done',    who:'Finalized in period',     n:38, oldestHours:null,note:'FINAL_APPROVED',                           color:'var(--ok)'}
+    ],
+    closed:{ rejected:6, cancelled:3, avgHoursToFinal:93, medianHoursToManager:7 },
+    series:series,
+    attention:[
+      {id:'DR-0131', status:'IN_PROGRESS',               who:'k.rezaei',  node:'GP0BV001 - Melt Shop', hours:210},
+      {id:'DR-0138', status:'PENDING_DRAWING_APPROVAL',  who:'Supervisor',node:'GP 0BV0010111 - SCRAP BUCKET ASSEMBLY', hours:96},
+      {id:'DR-0144', status:'RETURNED_FOR_CORRECTION',   who:'m.ahmadi',  node:'REBAR - Rolling Mill', hours:81},
+      {id:'DR-0149', status:'PENDING_FINAL_APPROVAL',    who:'Admin',     node:'GP0BV001 - Melt Shop', hours:52}
+    ],
+    coverage:{ totalNodes:106412, activeNodes:104987,
+      withDanieli:{count:18340, partial:0},
+      withSrsc:{count:2215} },
+    workload:[
+      {user:'k.rezaei',  open:5, done:14, avgHours:81},
+      {user:'m.ahmadi',  open:3, done:11, avgHours:96},
+      {user:'s.karimi',  open:2, done:9,  avgHours:74},
+      {user:'a.hosseini',open:1, done:4,  avgHours:120}
+    ],
+    sessions:{ count:6, users:[
+      {user:'a.abolghandi', role:'Admin',  last:ago(0.02)},
+      {user:'k.rezaei',     role:'DrawingExpert', last:ago(0.2)},
+      {user:'m.ahmadi',     role:'DrawingExpert', last:ago(0.6)},
+      {user:'r.moradi',     role:'Manager', last:ago(1.1)},
+      {user:'viewer07',     role:'VIEWER',  last:ago(2.4)}
+    ]},
+    activity:[
+      {t:ago(0.1), user:'a.abolghandi', action:'ADMIN_UPDATE',     target:'Users #12',            cat:'admin',    ok:true},
+      {t:ago(0.4), user:'r.moradi',     action:'REQUEST_APPROVE',  target:'DR-0152',              cat:'workflow', ok:true},
+      {t:ago(0.9), user:'unknown',      action:'LOGIN_FAILED',     target:'username: guest1',     cat:'security', ok:false},
+      {t:ago(1.0), user:'unknown',      action:'LOGIN_FAILED',     target:'username: guest1',     cat:'security', ok:false},
+      {t:ago(1.8), user:'viewer07',     action:'REQUEST_CREATE',   target:'DR-0152 · GP0BV001',   cat:'workflow', ok:true},
+      {t:ago(2.6), user:'k.rezaei',     action:'FILE_UPLOAD',      target:'Node GP 0BV0010111',   cat:'workflow', ok:true},
+      {t:ago(3.2), user:'viewer07',     action:'ACCESS_DENIED',    target:'POST /api/admin/tables', cat:'security', ok:false},
+      {t:ago(5.0), user:'s.karimi',     action:'LOGIN',            target:'—',                    cat:'security', ok:true}
+    ]
+  };
+}
+
+function loadData(days){
+  if(USE_MOCK) return Promise.resolve(mockData(days));
+  return fetch(API_BASE+'/api/admin/dashboard?days='+days,{credentials:'include'})
+    .then(function(r){ if(r.status===403) throw new Error('Admin permission required.');
+                       if(!r.ok) throw new Error('Dashboard request failed ('+r.status+').'); return r.json(); });
+}
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+var jFmt, jFmtTime;
+try{
+  jFmt=new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-latn',{year:'numeric',month:'2-digit',day:'2-digit'});
+  jFmtTime=new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-latn',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+}catch(e){ jFmt=jFmtTime=null; }
+function jal(d,withTime){ d=new Date(d); var f=withTime?jFmtTime:jFmt; return f? f.format(d).replace(/،/g,'') : d.toISOString().slice(0,10); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function dur(h){ if(h==null) return '—'; if(h<24) return Math.round(h)+'h'; var d=Math.floor(h/24), r=Math.round(h-d*24); return d+'d'+(r?' '+r+'h':''); }
+function ago(iso){ var m=Math.max(0,Math.round((Date.now()-new Date(iso))/60000)); if(m<1) return 'now'; if(m<60) return m+' min ago'; var h=Math.round(m/60); return h+' h ago'; }
+function $(id){ return document.getElementById(id); }
+
+/* ============================================================
+   Renderers (all text goes through esc(): data is never trusted as HTML)
+   ============================================================ */
+function renderPipeline(d){
+  var open=d.stages.filter(function(s){return s.key!=='done';});
+  var max=Math.max.apply(null,open.map(function(s){return s.n;}).concat([1]));
+  var total=open.reduce(function(a,s){return a+s.n;},0);
+  $('plMeta').textContent=total+' open';
+  var html='';
+  d.stages.forEach(function(s){
+    var pct=s.key==='done'?100:Math.round(s.n/max*100);
+    html+='<div class="stage">'+
+      '<div class="who">'+esc(s.who)+'</div>'+
+      '<div class="n">'+esc(s.n)+'</div>'+
+      '<div class="bar"><i data-w="'+pct+'" style="background:'+s.color+'"></i></div>'+
+      '<div class="detail">'+(s.oldestHours!=null?'Longest wait <b>'+dur(s.oldestHours)+'</b><br>':'')+esc(s.note)+'</div>'+
+    '</div>';
+  });
+  html+='<div class="divider" aria-hidden="true"></div>'+
+    '<div class="closed">'+
+      '<div class="row"><span><i class="dot" style="background:var(--danger)"></i>Rejected</span><b>'+esc(d.closed.rejected)+'</b></div>'+
+      '<div class="row"><span><i class="dot" style="background:var(--text-faint)"></i>Cancelled</span><b>'+esc(d.closed.cancelled)+'</b></div>'+
+      '<div class="row"><span>Average time to final</span><b>'+dur(d.closed.avgHoursToFinal)+'</b></div>'+
+    '</div>';
+  $('pipeline').innerHTML=html;
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){
+    document.querySelectorAll('.stage .bar i').forEach(function(el){ el.style.width=el.getAttribute('data-w')+'%'; });
+  });});
+}
+
+function renderTrend(d){
+  var svg=$('trend'), W=760,H=240,pl=34,pr=10,pt=10,pb=26, s=d.series, n=s.length;
+  var max=Math.max(4,Math.max.apply(null,s.map(function(p){return Math.max(p.created,p.finalized);})));
+  max=Math.ceil(max/4)*4;
+  function x(i){ return pl+(n===1?0:i*(W-pl-pr)/(n-1)); }
+  function y(v){ return pt+(H-pt-pb)*(1-v/max); }
+  var g='',i;
+  for(i=0;i<=4;i++){ var v=max*i/4, yy=y(v);
+    g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+yy+'" y2="'+yy+'" stroke="rgba(255,255,255,.07)"/>'+
+       '<text x="'+(pl-8)+'" y="'+(yy+3)+'" text-anchor="end">'+Math.round(v)+'</text>'; }
+  var step=Math.max(1,Math.ceil(n/7));
+  for(i=0;i<n;i+=step){ g+='<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="middle">'+jal(s[i].date).slice(5)+'</text>'; }
+  function path(key){ return s.map(function(p,k){return (k?'L':'M')+x(k).toFixed(1)+' '+y(p[key]).toFixed(1);}).join(' '); }
+  g+='<path d="'+path('created')+'" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linejoin="round"/>'+
+     '<path d="'+path('finalized')+'" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linejoin="round"/>'+
+     '<line id="cur" y1="'+pt+'" y2="'+(H-pb)+'" stroke="var(--line-strong)" style="display:none"/>'+
+     '<rect id="hit" x="'+pl+'" y="'+pt+'" width="'+(W-pl-pr)+'" height="'+(H-pt-pb)+'" fill="transparent" tabindex="0"/>';
+  svg.innerHTML=g;
+  var read=$('trendRead'), cur=svg.querySelector('#cur'), hit=svg.querySelector('#hit'), idx=n-1;
+  function show(k){ idx=Math.max(0,Math.min(n-1,k)); var p=s[idx];
+    cur.setAttribute('x1',x(idx)); cur.setAttribute('x2',x(idx)); cur.style.display='';
+    read.textContent=jal(p.date)+'   created '+p.created+'   finalized '+p.finalized; }
+  hit.addEventListener('mousemove',function(e){ var r=svg.getBoundingClientRect(); var px=(e.clientX-r.left)/r.width*W;
+    show(Math.round((px-pl)/((W-pl-pr)/Math.max(1,n-1)))); });
+  hit.addEventListener('mouseleave',function(){ cur.style.display='none'; read.textContent=''; });
+  hit.addEventListener('focus',function(){ show(idx); });
+  hit.addEventListener('keydown',function(e){ if(e.key==='ArrowLeft'){show(idx-1);e.preventDefault();} if(e.key==='ArrowRight'){show(idx+1);e.preventDefault();} });
+  var tc=0,tf=0; s.forEach(function(p){tc+=p.created;tf+=p.finalized;});
+  read.textContent='Period total: '+tc+' created, '+tf+' finalized';
+}
+
+function renderAttention(d){
+  var ul=$('attention');
+  if(!d.attention.length){ ul.innerHTML='<li class="empty" style="display:block">Nothing is stuck. Every open request moved in the last 3 days.</li>'; return; }
+  ul.innerHTML=d.attention.map(function(a){
+    var cls=a.hours>=168?'hot':'warm';
+    return '<li><span class="id">'+esc(a.id)+'</span>'+
+      '<span class="what">'+esc(a.status.replace(/_/g,' ').toLowerCase())+' · '+esc(a.who)+'<small>'+esc(a.node)+'</small></span>'+
+      '<span class="age '+cls+'">'+dur(a.hours)+'</span></li>';
+  }).join('');
+}
+
+function renderCoverage(d){
+  var c=d.coverage, t=c.activeNodes;
+  function row(label,count,color){ var p=t?count/t*100:0;
+    return '<div><div class="line"><span>'+esc(label)+'</span><b>'+count.toLocaleString('en-US')+' <span style="color:var(--text-faint);font-weight:400">('+p.toFixed(1)+'%)</span></b></div>'+
+      '<div class="track"><i style="width:'+Math.min(100,p)+'%;background:'+color+'"></i></div></div>'; }
+  $('cvMeta').textContent=t.toLocaleString('en-US')+' active nodes';
+  $('coverage').innerHTML=row('Nodes with a Danieli PDF',c.withDanieli.count,'var(--amber)')+
+                          row('Nodes with SRSC files',c.withSrsc.count,'var(--ok)');
+}
+
+function renderWorkload(d){
+  var maxOpen=Math.max.apply(null,d.workload.map(function(w){return w.open;}).concat([1]));
+  $('workload').innerHTML='<thead><tr><th>Expert</th><th>Open</th><th class="num">Done</th><th class="num">Avg</th></tr></thead><tbody>'+
+    d.workload.map(function(w){
+      return '<tr><td>'+esc(w.user)+'</td>'+
+        '<td><span class="mini" style="width:'+Math.round(w.open/maxOpen*54)+'px"></span> <span style="font-family:var(--mono);color:var(--text)">'+esc(w.open)+'</span></td>'+
+        '<td class="num">'+esc(w.done)+'</td><td class="num">'+dur(w.avgHours)+'</td></tr>';
+    }).join('')+'</tbody>';
+}
+
+function renderSessions(d){
+  $('sessN').textContent=d.sessions.count;
+  $('users').innerHTML=d.sessions.users.map(function(u){
+    return '<li><span>'+esc(u.user)+' <span class="t">'+esc(u.role)+'</span></span><span class="t">'+ago(u.last)+'</span></li>';
+  }).join('');
+}
+
+var activityData=[], activityFilter='all';
+function renderActivity(){
+  var rows=activityData.filter(function(r){return activityFilter==='all'||r.cat===activityFilter;});
+  var tb=document.querySelector('#activity tbody');
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="5" class="empty">No activity in this category.</td></tr>'; return; }
+  tb.innerHTML=rows.map(function(r){
+    var tag=r.ok?(r.cat==='security'?'<span class="tag ok">ok</span>':'<span class="tag ok">done</span>'):'<span class="tag fail">'+(r.action==='ACCESS_DENIED'?'denied':'failed')+'</span>';
+    return '<tr><td class="when">'+jal(r.t,true)+'</td><td>'+esc(r.user)+'</td><td style="font-family:var(--mono);font-size:11px;color:var(--text)">'+esc(r.action)+'</td><td>'+esc(r.target)+'</td><td>'+tag+'</td></tr>';
+  }).join('');
+}
+
+/* ============================================================
+   Wiring
+   ============================================================ */
+var days=30;
+function refresh(){
+  $('err').classList.remove('on');
+  loadData(days).then(function(d){
+    renderPipeline(d); renderTrend(d); renderAttention(d); renderCoverage(d);
+    renderWorkload(d); renderSessions(d);
+    activityData=d.activity; renderActivity();
+    $('stamp').textContent=(USE_MOCK?'Sample data · ':'')+'Updated '+jal(d.generatedAt,true);
+  }).catch(function(e){
+    var el=$('err'); el.textContent=e.message||'Could not load the dashboard.'; el.classList.add('on');
+  });
+}
+function bindSeg(id,attr,cb){
+  $(id).addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b) return;
+    this.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});
+    cb(b.getAttribute(attr)); });
+}
+bindSeg('range','data-days',function(v){ days=+v; refresh(); });
+bindSeg('actFilter','data-f',function(v){ activityFilter=v; renderActivity(); });
+$('refresh').addEventListener('click',refresh);
+refresh();
+})();
+</script>
+</body>
+</html>

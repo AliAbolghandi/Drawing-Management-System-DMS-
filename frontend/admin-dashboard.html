@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8"><script src="js/config.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DMS Admin Dashboard</title>
+<link rel="icon" href="assets/icons/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/dms-icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/dms-icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/admin-dashboard.css">
+</head>
+<body class="admin-dashboard-page">
+<header class="top-header">
+  <div class="header-title"><div class="brand-mark"></div><div class="brand-text"><h1>DMS Admin Dashboard</h1><span>System statistics, workflow and audit overview</span></div></div>
+  <div class="header-status"><button id="backButton" class="admin-secondary">← DMS</button><span class="status connected">Admin</span></div>
+</header>
+<main class="admin-dashboard">
+  <div class="dashboard-toolbar"><div><span class="eyebrow">ADMINISTRATION</span><h2>System Overview</h2><p id="generatedAt">Loading dashboard data...</p></div><button id="refreshButton" class="admin-primary">Refresh</button></div>
+  <div id="dashboardError" class="dashboard-error hidden"></div>
+  <section class="metric-grid" aria-label="System overview">
+    <article class="metric-card"><span class="metric-label">Total Nodes</span><strong id="totalNodes">-</strong><small id="activeNodes">Database records</small></article>
+    <article class="metric-card"><span class="metric-label">Danieli PDFs</span><strong id="danieliPdfs">-</strong><small>Registered drawings</small></article>
+    <article class="metric-card"><span class="metric-label">Users</span><strong id="totalUsers">-</strong><small id="activeUsers">- active</small></article>
+    <article class="metric-card"><span class="metric-label">Roles</span><strong id="activeRoles">-</strong><small>Role records</small></article>
+    <article class="metric-card"><span class="metric-label">Audit Logs</span><strong id="totalLogs">-</strong><small id="todayLogs">- today</small></article>
+    <article class="metric-card"><span class="metric-label">Drawing Requests</span><strong id="totalRequests">-</strong><small id="activeRequests">-</small></article>
+  </section>
+  <section class="dashboard-grid">
+    <article class="dashboard-panel activity-panel"><div class="panel-heading"><div><h3>Activity — Last 7 Days</h3><span>Recent audit events</span></div></div><div id="activityChart" class="bar-chart"><div class="chart-empty">Loading...</div></div></article>
+    <article class="dashboard-panel workflow-panel"><div class="panel-heading"><div><h3>Workflow Status</h3><span>Current drawing request distribution</span></div></div><div id="workflowChart" class="status-chart"><div class="chart-empty">Loading...</div></div></article>
+  </section>
+  <section class="dashboard-grid lower-grid">
+    <article class="dashboard-panel"><div class="panel-heading"><div><h3>System Health</h3><span>Key operational indicators</span></div></div><div class="health-list"><div><span>Node Records</span><strong id="healthNodes">-</strong></div><div><span>Active Users</span><strong id="healthUsers">-</strong></div><div><span>Unread Notifications</span><strong id="healthNotifications">-</strong></div><div><span>Failed Actions</span><strong id="healthFailed">-</strong></div></div></article>
+    <article class="dashboard-panel recent-panel"><div class="panel-heading"><div><h3>Recent Activity</h3><span>Latest audit events</span></div></div><div id="recentActivity" class="recent-list"><div class="chart-empty">Loading...</div></div></article>
+  </section>
+  <section class="dashboard-panel production-report-panel">
+    <div class="panel-heading"><div><h3>Production Reports</h3><span>Expert performance and monthly production</span></div></div>
+    <div class="report-filters">
+      <label>From date (Jalali)<input id="reportStartDate" type="text" inputmode="numeric" placeholder="1405/07/01" autocomplete="off"></label>
+      <label>To date (Jalali)<input id="reportEndDate" type="text" inputmode="numeric" placeholder="1405/07/30" autocomplete="off"></label>
+      <button id="loadProductionReports" class="admin-primary" type="button">Apply date range</button>
+    </div>
+    <p id="reportMessage" class="report-note" role="status">Choose a Jalali date range to load production reports.</p>
+    <div class="report-section-heading"><div><h3>Expert Performance</h3><span>Completed part contributions by expert, grouped by stage end date</span></div>
+      <label class="report-expert-filter">Expert<select id="reportExpertFilter"><option value="all">All experts</option></select></label>
+    </div>
+    <div id="expertPerformanceChart" class="report-chart"><div class="chart-empty">Select a date range.</div></div>
+    <div class="report-table-wrap"><table class="report-table"><thead><tr><th>Expert</th><th>Croquis parts</th><th>Modeling parts</th><th>Standard parts</th><th>Drawn parts</th><th>Total</th></tr></thead><tbody id="expertPerformanceRows"><tr><td colspan="6" class="report-empty">No report loaded.</td></tr></tbody></table></div>
+    <div class="report-section-heading monthly-heading"><div><h3>Monthly Production</h3><span>Monthly completed production within the selected date range</span></div></div>
+    <div id="monthlyProductionChart" class="report-chart monthly-report-chart"><div class="chart-empty">Select a date range.</div></div>
+    <div class="report-table-wrap"><table class="report-table"><thead><tr><th>Month (Jalali)</th><th>Predicted parts</th><th>Croquis parts</th><th>Modeling parts</th><th>Standard parts</th><th>Drawn parts</th><th>Total</th></tr></thead><tbody id="monthlyProductionRows"><tr><td colspan="7" class="report-empty">No report loaded.</td></tr></tbody></table></div>
+    <p class="report-note">Monthly Production contains only completed Croquis, Modeling and Final Drawing production. A month is shown only when at least one of these stages has completed production in that month.</p>
+  </section>
+  <div class="dashboard-footer"><button id="managementButton" class="admin-secondary">Database Management</button><button id="backButtonBottom" class="admin-secondary">Return to DMS</button></div>
+</main>
+<script src="js/date-utils.js?v=20261015-jalali-report"></script>
+<script src="js/admin-dashboard.js?v=20261017-split-standard-drawn-remove-rejected-v1"></script>
+
+</body>
+</html>
