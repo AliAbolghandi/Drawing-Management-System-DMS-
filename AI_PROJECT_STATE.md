@@ -235,13 +235,12 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Audit actions (`dbo.Logs.Action`, acting user in UserID): `USER_CREATED_TARGET_<id>`, `USER_ROLES_CHANGED_TARGET_<id>`, `ROLE_PERMISSIONS_CHANGED_ROLE_<id>`, `USER_PASSWORD_CHANGED_SELF`, `USER_PASSWORD_CHANGE_FAILED_SELF`.
 - Frontend: `frontend/js/user-management.js` adds New user, Roles & permissions editor, per-user Roles tab, My password; `frontend/css/user-management.css` adds `.user-mgmt-check`, `.user-mgmt-select`; cache-bust `?v=20261022-user-management-v2` in `frontend/index.html`.
 - Not implemented: force password change at next login (needs a new column — requires approval), audit before/after values, password history, MFA, server-side pagination/export, listing individual sessions.
-- Validation: `node --check backend/auth.js` and `node --check frontend/js/user-management.js` passed. No SQL Server, API or browser test was run. Commit hash: none yet (changes not committed/pushed from this session).
+- Validation: `node --check backend/auth.js` and `node --check frontend/js/user-management.js` passed. No SQL Server, API or browser test was run. Commit: `be87f73e9c7420657dc1f8ef99a90c15826cafc6` — User Management Admin-only, role/permission editing, create user, own password change, min password 8.
 
 # NEXT ACTION
 
-1. Commit and push the changed files; record the commit hash here.
-2. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
-3. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
-4. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
-5. Decide whether to add force-change-at-next-login (needs a `Users` column; requires user approval).
-6. Continue pending Stamp workflow acceptance separately.
+1. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
+2. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
+3. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
+4. Decide whether to add force-change-at-next-login (needs a `Users` column; requires user approval).
+5. Continue pending Stamp workflow acceptance separately.
