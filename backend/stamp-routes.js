@@ -84,26 +84,70 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
     const r = new sql.Request();
     r.input('nodeId', sql.Int, nodeId);
     const danieli = await r.query(`
-      SELECT d.PDFID,d.PDFName,p.RootPath FROM dbo.DanieliPDF d
+      SELECT d.PDFID,d.PDFName,p.RootPath
+      FROM dbo.DanieliPDF d
       INNER JOIN dbo.tblPath p ON p.PathID=d.PathID
-      WHERE d.NodeID=@nodeId AND LOWER(RIGHT(d.PDFName,4))=N'.pdf'
+      WHERE d.NodeID=@nodeId AND LOWER(RIGHT(LTRIM(RTRIM(d.PDFName)),4))=N'.pdf'
       ORDER BY d.PDFID;
     `);
+
     const resolved = [];
     for (const row of danieli.recordset) {
       const full = safeChild(row.RootPath, row.PDFName);
-      if (full && fs.existsSync(full) && fs.statSync(full).isFile())
-        resolved.push({ sourceType:'DANIELI', pdfId:Number(row.PDFID), name:row.PDFName, relativePath:row.PDFName });
-    }
-    const root = node.RootPath && node.FolderPath ? path.resolve(String(node.RootPath), String(node.FolderPath), 'SLD') : null;
-    if (root && fs.existsSync(root) && fs.statSync(root).isDirectory()) {
-      for (const entry of fs.readdirSync(root, { withFileTypes:true })) {
-        if (!entry.isFile() || !/\.pdf$/i.test(entry.name)) continue;
-        const full = safeChild(path.resolve(String(node.RootPath), String(node.FolderPath)), `SLD/${entry.name}`);
-        if (full && fs.existsSync(full) && fs.statSync(full).isFile())
-          resolved.push({ sourceType:'SRSC', pdfId:null, name:entry.name, relativePath:`SLD/${entry.name}` });
+      if (!full) continue;
+      try {
+        if (fs.statSync(full).isFile()) {
+          resolved.push({
+            sourceType: 'DANIELI',
+            pdfId: Number(row.PDFID),
+            name: path.basename(String(row.PDFName)),
+            relativePath: String(row.PDFName).replace(/\\\\/g, '/')
+          });
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
       }
     }
+
+    // SRSC PDFs can be nested under SLD (for example SLD/PART/X); scan
+    // recursively but never follow symlinks or leave this Node's storage root.
+    const nodeRoot = safeChild(node.RootPath, node.FolderPath);
+    const sldRoot = nodeRoot ? safeChild(nodeRoot, 'SLD') : null;
+    if (sldRoot) {
+      let rootIsDirectory = false;
+      try { rootIsDirectory = fs.statSync(sldRoot).isDirectory(); }
+      catch (error) {
+        if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
+      }
+      if (rootIsDirectory) {
+        const walk = (directory, relativeDirectory) => {
+          for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+            if (entry.name.startsWith('~$')) continue;
+            const relativePath = path.posix.join(relativeDirectory, entry.name);
+            const full = safeChild(nodeRoot, relativePath);
+            if (!full) continue;
+            if (entry.isDirectory()) {
+              walk(full, relativePath);
+            } else if (entry.isFile() && /\\.pdf$/i.test(entry.name)) {
+              try {
+                if (fs.statSync(full).isFile()) {
+                  resolved.push({
+                    sourceType: 'SRSC',
+                    pdfId: null,
+                    name: entry.name,
+                    relativePath
+                  });
+                }
+              } catch (error) {
+                if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
+              }
+            }
+          }
+        };
+        walk(sldRoot, 'SLD');
+      }
+    }
+
     return resolved;
   }
 
