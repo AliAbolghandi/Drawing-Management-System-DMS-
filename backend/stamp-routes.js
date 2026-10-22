@@ -234,7 +234,7 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
         const q = new sql.Request(tx); q.input('id',sql.Int,id); q.input('uid',sql.Int,req.user.userId); q.input('uname',sql.NVarChar(100),req.user.username); q.input('comment',sql.NVarChar(1000),String(req.body?.comment || '').trim().slice(0,1000)||null); q.input('decision',sql.NVarChar(10),decision);
         const current = await q.query(`SELECT TOP 1 sr.RequestID,sr.StatusCode,dr.RequestNumber,dr.StatusID FROM dbo.DrawingRequestStamps sr WITH(UPDLOCK,HOLDLOCK) INNER JOIN dbo.DrawingRequests dr ON dr.RequestID=sr.RequestID WHERE sr.StampRequestID=@id;`);
         const row = current.recordset[0]; if (!row) throw bad('Stamp request not found.',404); if (row.StatusCode !== 'PENDING') throw bad('Stamp request is no longer pending.',409);
-        const nextDrawingStatus = decision === 'approve' ? 'PENDING_STAMP' : 'REJECTED';
+        const nextDrawingStatus = decision === 'approve' ? 'PENDING_STAMP' : 'STAMP_REJECTED';
         q.input('statusCode', sql.NVarChar(50), nextDrawingStatus);
         const status = await q.query('SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=@statusCode;');
         if (!status.recordset.length) throw bad(`${nextDrawingStatus} status is missing from DrawingRequestStatuses.`,500);
