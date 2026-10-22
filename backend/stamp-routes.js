@@ -235,7 +235,8 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
         const current = await q.query(`SELECT TOP 1 sr.RequestID,sr.StatusCode,dr.RequestNumber,dr.StatusID FROM dbo.DrawingRequestStamps sr WITH(UPDLOCK,HOLDLOCK) INNER JOIN dbo.DrawingRequests dr ON dr.RequestID=sr.RequestID WHERE sr.StampRequestID=@id;`);
         const row = current.recordset[0]; if (!row) throw bad('Stamp request not found.',404); if (row.StatusCode !== 'PENDING') throw bad('Stamp request is no longer pending.',409);
         const nextDrawingStatus = decision === 'approve' ? 'PENDING_STAMP' : 'REJECTED';
-        const status = await q.query('SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=@statusCode;', { statusCode: nextDrawingStatus });
+        q.input('statusCode', sql.NVarChar(50), nextDrawingStatus);
+        const status = await q.query('SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=@statusCode;');
         if (!status.recordset.length) throw bad(`${nextDrawingStatus} status is missing from DrawingRequestStatuses.`,500);
         q.input('statusId',sql.Int,status.recordset[0].StatusID);
         await q.query(`UPDATE dbo.DrawingRequestStamps SET StatusCode=CASE WHEN @decision=N'approve' THEN N'APPROVED' ELSE N'REJECTED' END,ApprovedByUserID=CASE WHEN @decision=N'approve' THEN @uid ELSE ApprovedByUserID END,ApprovedAt=CASE WHEN @decision=N'approve' THEN SYSUTCDATETIME() ELSE ApprovedAt END,RejectedByUserID=CASE WHEN @decision=N'reject' THEN @uid ELSE RejectedByUserID END,RejectedAt=CASE WHEN @decision=N'reject' THEN SYSUTCDATETIME() ELSE RejectedAt END,Comment=@comment,UpdatedAt=SYSUTCDATETIME() WHERE StampRequestID=@id;`);
