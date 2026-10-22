@@ -109,45 +109,26 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
       }
     }
 
-    // SRSC PDFs can be nested under SLD (for example SLD/PART/X); scan
-    // recursively but never follow symlinks or leave this Node's storage root.
+    // Only direct PDF files inside this Node's SLD folder are eligible.
+    // Do not inspect or recurse into any SLD subfolders.
     const nodeRoot = safeChild(node.RootPath, node.FolderPath);
     const sldRoot = nodeRoot ? safeChild(nodeRoot, 'SLD') : null;
     if (sldRoot) {
       let rootIsDirectory = false;
       try { rootIsDirectory = fs.statSync(sldRoot).isDirectory(); }
-      catch (error) {
-        if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
-      }
+      catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
       if (rootIsDirectory) {
-        const walk = (directory, relativeDirectory) => {
-          for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-            if (entry.name.startsWith('~$')) continue;
-            const relativePath = path.posix.join(relativeDirectory, entry.name);
-            const full = safeChild(nodeRoot, relativePath);
-            if (!full) continue;
-            if (entry.isDirectory()) {
-              walk(full, relativePath);
-            } else if (entry.isFile() && /\\.pdf$/i.test(entry.name)) {
-              try {
-                if (fs.statSync(full).isFile()) {
-                  resolved.push({
-                    sourceType: 'SRSC',
-                    pdfId: null,
-                    name: entry.name,
-                    relativePath
-                  });
-                }
-              } catch (error) {
-                if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
-              }
-            }
-          }
-        };
-        walk(sldRoot, 'SLD');
+        for (const entry of fs.readdirSync(sldRoot, { withFileTypes: true })) {
+          if (!entry.isFile() || entry.name.startsWith('~$') || !/\.pdf$/i.test(entry.name)) continue;
+          const relativePath = path.posix.join('SLD', entry.name);
+          const full = safeChild(nodeRoot, relativePath);
+          if (!full) continue;
+          try {
+            if (fs.statSync(full).isFile()) resolved.push({ sourceType: 'SRSC', pdfId: null, name: entry.name, relativePath });
+          } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
+        }
       }
     }
-
     return resolved;
   }
 
