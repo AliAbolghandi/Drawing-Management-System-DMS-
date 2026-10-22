@@ -24,7 +24,7 @@
     modal.addEventListener('click',e=>{if(e.target===modal)close();});
     modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const els=[...modal.querySelectorAll('button:not(:disabled),input:not(:disabled),[tabindex="0"]')].filter(x=>!x.hidden);if(!els.length)return;const first=els[0],last=els[els.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
   }
-  function open(){ensureModal();returnFocus=document.activeElement;modal.hidden=false;document.body.style.overflow='hidden';renderList();modal.querySelector('.user-mgmt-close').focus();}
+  function open(){ensureModal();returnFocus=document.activeElement;modal.hidden=false;document.body.style.overflow='hidden';loadList();modal.querySelector('.user-mgmt-close').focus();}
   function close(){if(!modal||modal.hidden)return;modal.hidden=true;document.body.style.overflow='';if(returnFocus?.focus)returnFocus.focus();}
   function status(active){return Number(active)===1||active===true?'<span class="user-mgmt-status active">Active</span>':'<span class="user-mgmt-status inactive">Inactive</span>';}
   function fullName(u){return [u.Name,u.Family].filter(Boolean).join(' ')||u.Username||'Unnamed user';}
