@@ -204,6 +204,22 @@ User reported that the `Production Reports` section calculates incorrect values,
 - The initial static validation run failed only at the stale grep assertion after all three `node --check` commands and the preceding asset/integration checks passed. The corrected workflow must be rerun and confirmed.
 - Reported `403` responses for `/api/node-hierarchy/:nodeId` and `/api/node-folders/:nodeId` are due to their explicit `FILE_VIEW` permission gate. Preserve the gate; verify the signed-in user's effective permission through `UserRoles -> Roles -> RolePermissions -> Permissions` before considering a role-permission change. Live SQL Server and browser tests have not been run.
 
+
+
+## User Management panel — 2026-10-22
+- Added sidebar entry `User Management`, inserted only when `GET /api/auth/me` includes effective permission code `DASHBOARD_USER_MANAGEMENT` (user specified PermissionID 32; code is the authorization key).
+- Added `frontend/js/user-management.js` and `frontend/css/user-management.css`. The modal includes searchable user list, clickable user names, account metadata, assigned roles, effective role-derived permissions, last login/logout, latest 100 audit events, password reset, and account activation/deactivation.
+- Added APIs in `backend/auth.js` under `/api/auth/user-management`:
+  - `GET /users`
+  - `GET /users/:userId`
+  - `PUT /users/:userId/password`
+  - `PATCH /users/:userId/status`
+- Each endpoint uses `authenticate` plus `requirePermission('DASHBOARD_USER_MANAGEMENT')`; role access is not hard-coded.
+- Password reset uses scrypt, requires 12+ characters, and revokes target sessions. Deactivation also revokes target sessions; self-deactivation is rejected.
+- Login/logout values use existing `dbo.Users.LastLoginAt` and `dbo.Logs` records. Logout history only reflects events actually logged by DMS.
+- Main commits for this feature: `0e092740b05d5d922b8d68fd817dc494dfc9d842` (CSS), `45ae2174610467fb8385c29b68355d49f5bc73dd` (UI), `aed1afb57bf0654e27e0fce6a2c9a9d3822eefb3` (asset loading), `c259f9cc8af665370fc7fd9d0efcdcb315d38d3e` (backend and audit).
+- Validation status: source paths, RBAC tables/columns, and existing authentication contracts were inspected. Static syntax and live browser/SQL Server acceptance tests are not yet verified in the target DMS runtime.
+
 # NEXT ACTION
 
 1. Verify the `Stamp static validation` GitHub Actions run for commit `f7f20f9f9d022232f481ff872353eb71fa66a436`.
