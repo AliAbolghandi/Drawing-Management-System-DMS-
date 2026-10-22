@@ -20,6 +20,8 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
   async function canStamp(userId) {
     const r = new sql.Request();
     r.input('userId', sql.Int, userId);
+    r.input('permissionId', sql.Int, STAMP_PERMISSION_ID);
+    r.input('permissionCode', sql.NVarChar(100), STAMP_PERMISSION);
     const q = await r.query(`
       SELECT TOP 1 p.PermissionID, p.PermissionCode
       FROM dbo.UserRoles ur
@@ -159,7 +161,7 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
           SELECT @rid AS RequestID,@rn AS RequestNumber;
         `);
         const requestId = Number(created.recordset[0].RequestID), requestNumber = created.recordset[0].RequestNumber;
-        const stamp = await q.query(`INSERT INTO dbo.DrawingRequestStamps(RequestID,RequestedByUserID,StatusCode,CreatedAt,UpdatedAt) OUTPUT INSERTED.StampRequestID VALUES(@requestId,@userId,N'PENDING',SYSUTCDATETIME(),SYSUTCDATETIME());`, { requestId });
+        const stamp = await q.query(`INSERT INTO dbo.DrawingRequestStamps(RequestID,RequestedByUserID,StatusCode,CreatedAt,UpdatedAt) OUTPUT INSERTED.StampRequestID VALUES(@rid,@userId,N'PENDING',SYSUTCDATETIME(),SYSUTCDATETIME());`);
         const stampRequestId = Number(stamp.recordset[0].StampRequestID);
         q.input('requestId', sql.Int, requestId); q.input('stampRequestId', sql.Int, stampRequestId); q.input('requestNumber', sql.NVarChar(20), requestNumber);
         for (const item of resolved) {
@@ -218,12 +220,13 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
         const q = new sql.Request(tx); q.input('id',sql.Int,id); q.input('uid',sql.Int,req.user.userId); q.input('uname',sql.NVarChar(100),req.user.username); q.input('comment',sql.NVarChar(1000),String(req.body?.comment || '').trim().slice(0,1000)||null); q.input('decision',sql.NVarChar(10),decision);
         const current = await q.query(`SELECT TOP 1 sr.RequestID,sr.StatusCode,dr.RequestNumber,dr.StatusID FROM dbo.DrawingRequestStamps sr WITH(UPDLOCK,HOLDLOCK) INNER JOIN dbo.DrawingRequests dr ON dr.RequestID=sr.RequestID WHERE sr.StampRequestID=@id;`);
         const row = current.recordset[0]; if (!row) throw bad('Stamp request not found.',404); if (row.StatusCode !== 'PENDING') throw bad('Stamp request is no longer pending.',409);
-        const nextDrawingStatus = decision === 'approve' ? 'PENDING_STAMP' : 'PENDING_STAMP';
+        const nextDrawingStatus = decision === 'approve' ? 'PENDING_STAMP' : 'REJECTED';
         const status = await q.query('SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=@statusCode;', { statusCode: nextDrawingStatus });
-        if (!status.recordset.length) throw bad('PENDING_STAMP status is missing from DrawingRequestStatuses.',500);
+        if (!status.recordset.length) throw bad(`${nextDrawingStatus} status is missing from DrawingRequestStatuses.`,500);
         q.input('statusId',sql.Int,status.recordset[0].StatusID);
         await q.query(`UPDATE dbo.DrawingRequestStamps SET StatusCode=CASE WHEN @decision=N'approve' THEN N'APPROVED' ELSE N'REJECTED' END,ApprovedByUserID=CASE WHEN @decision=N'approve' THEN @uid ELSE ApprovedByUserID END,ApprovedAt=CASE WHEN @decision=N'approve' THEN SYSUTCDATETIME() ELSE ApprovedAt END,RejectedByUserID=CASE WHEN @decision=N'reject' THEN @uid ELSE RejectedByUserID END,RejectedAt=CASE WHEN @decision=N'reject' THEN SYSUTCDATETIME() ELSE RejectedAt END,Comment=@comment,UpdatedAt=SYSUTCDATETIME() WHERE StampRequestID=@id;`);
-        await q.query(`INSERT INTO dbo.DrawingRequestHistory(RequestID,RequestNumber,ActionCode,FromStatusID,ToStatusID,ActionByUserID,ActionByUsername,Comment,CreatedAt) VALUES(@requestId,@requestNumber,CASE WHEN @decision=N'approve' THEN N'STAMP_APPROVED' ELSE N'STAMP_REJECTED' END,@statusId,@statusId,@uid,@uname,@comment,SYSUTCDATETIME());`, { requestId: row.RequestID, requestNumber: row.RequestNumber });
+        await q.query(`UPDATE dbo.DrawingRequests SET StatusID=@statusId,UpdatedAt=SYSUTCDATETIME() WHERE RequestID=@requestId;`, { requestId: row.RequestID });
+        await q.query(`INSERT INTO dbo.DrawingRequestHistory(RequestID,RequestNumber,ActionCode,FromStatusID,ToStatusID,ActionByUserID,ActionByUsername,Comment,CreatedAt) VALUES(@requestId,@requestNumber,CASE WHEN @decision=N'approve' THEN N'STAMP_APPROVED' ELSE N'STAMP_REJECTED' END,@fromStatusId,@statusId,@uid,@uname,@comment,SYSUTCDATETIME());`, { requestId: row.RequestID, requestNumber: row.RequestNumber, fromStatusId: row.StatusID });
         await q.query(`INSERT INTO dbo.DrawingRequestStampAudit(StampRequestID,RequestID,ActorUserID,ActorUsername,ActionCode,Details,CreatedAt) VALUES(@id,@requestId,@uid,@uname,CASE WHEN @decision=N'approve' THEN N'STAMP_APPROVED' ELSE N'STAMP_REJECTED' END,@comment,SYSUTCDATETIME());`, { requestId: row.RequestID });
         await tx.commit(); res.json({ success: true, stampRequestId: id, decision });
       } catch (e) { await tx.rollback(); throw e; }
