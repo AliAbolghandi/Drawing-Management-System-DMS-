@@ -25,6 +25,36 @@ IF NOT EXISTS (SELECT 1 FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'STAMP
     INSERT INTO dbo.DrawingRequestStatuses(StatusCode,StatusName,Description)
     VALUES (N'STAMP_COMPLETED',N'Stamp Completed',N'All selected PDFs in the Stamp request were stamped successfully.');
 
+/* DrawingRequestHistory.ActionCode is a foreign key to dbo.ActionCode.
+   Stamp-specific history codes must therefore exist before the workflow can write history. */
+DECLARE @nextActionCodeID int;
+SELECT @nextActionCodeID=ISNULL(MAX(ActionCodeID),0)+1 FROM dbo.ActionCode WITH (UPDLOCK,HOLDLOCK);
+
+DECLARE @stampActionCodes TABLE(ActionCode nvarchar(50) NOT NULL PRIMARY KEY);
+INSERT INTO @stampActionCodes(ActionCode) VALUES
+(N'STAMP_REQUESTED'),
+(N'STAMP_APPROVED'),
+(N'STAMP_REJECTED'),
+(N'STAMP_COMPLETED'),
+(N'STAMP_PDF_COMPLETED'),
+(N'STAMP_PDF_DOWNLOADED');
+
+DECLARE @code nvarchar(50);
+DECLARE stamp_codes CURSOR LOCAL FAST_FORWARD FOR SELECT ActionCode FROM @stampActionCodes ORDER BY ActionCode;
+OPEN stamp_codes;
+FETCH NEXT FROM stamp_codes INTO @code;
+WHILE @@FETCH_STATUS=0
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM dbo.ActionCode WHERE ActionCode=@code)
+    BEGIN
+        INSERT INTO dbo.ActionCode(ActionCodeID,ActionCode) VALUES(@nextActionCodeID,@code);
+        SET @nextActionCodeID=@nextActionCodeID+1;
+    END;
+    FETCH NEXT FROM stamp_codes INTO @code;
+END;
+CLOSE stamp_codes;
+DEALLOCATE stamp_codes;
+
 IF OBJECT_ID(N'dbo.DrawingRequestStamps',N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.DrawingRequestStamps
