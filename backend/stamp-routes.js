@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 
 function registerStampRoutes(app, { sql, auth, sendServerError }) {
-  const STAMP_PERMISSION_ID = 30;
   const STAMP_PERMISSION = 'REQUEST_DRAWING_STAMP';
   const RETENTION_MS = 24 * 60 * 60 * 1000;
   const MAX_PDF_BYTES = 1024 * 1024 * 1024;
@@ -20,7 +19,6 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
   async function canStamp(userId) {
     const r = new sql.Request();
     r.input('userId', sql.Int, userId);
-    r.input('permissionId', sql.Int, STAMP_PERMISSION_ID);
     r.input('permissionCode', sql.NVarChar(100), STAMP_PERMISSION);
     const q = await r.query(`
       SELECT TOP 1 p.PermissionID, p.PermissionCode
@@ -30,7 +28,6 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
       INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1
       INNER JOIN dbo.Users u ON u.UserID=ur.UserID AND u.IsActive=1
       WHERE ur.UserID=@userId
-        AND p.PermissionID=@permissionId
         AND p.PermissionCode=@permissionCode;
     `);
     return q.recordset.length > 0;
@@ -83,62 +80,52 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
     return q.recordset[0] || null;
   }
 
+  async function listNodePdfs(nodeId, node) {
+    const r = new sql.Request();
+    r.input('nodeId', sql.Int, nodeId);
+    const danieli = await r.query(`
+      SELECT d.PDFID,d.PDFName,p.RootPath FROM dbo.DanieliPDF d
+      INNER JOIN dbo.tblPath p ON p.PathID=d.PathID
+      WHERE d.NodeID=@nodeId AND LOWER(RIGHT(d.PDFName,4))=N'.pdf'
+      ORDER BY d.PDFID;
+    `);
+    const resolved = [];
+    for (const row of danieli.recordset) {
+      const full = safeChild(row.RootPath, row.PDFName);
+      if (full && fs.existsSync(full) && fs.statSync(full).isFile())
+        resolved.push({ sourceType:'DANIELI', pdfId:Number(row.PDFID), name:row.PDFName, relativePath:row.PDFName });
+    }
+    const root = node.RootPath && node.FolderPath ? path.resolve(String(node.RootPath), String(node.FolderPath), 'SLD') : null;
+    if (root && fs.existsSync(root) && fs.statSync(root).isDirectory()) {
+      for (const entry of fs.readdirSync(root, { withFileTypes:true })) {
+        if (!entry.isFile() || !/\.pdf$/i.test(entry.name)) continue;
+        const full = safeChild(path.resolve(String(node.RootPath), String(node.FolderPath)), `SLD/${entry.name}`);
+        if (full && fs.existsSync(full) && fs.statSync(full).isFile())
+          resolved.push({ sourceType:'SRSC', pdfId:null, name:entry.name, relativePath:`SLD/${entry.name}` });
+      }
+    }
+    return resolved;
+  }
+
   app.get('/api/stamp/node/:nodeId/pdfs', auth.requirePermission('REQUEST_DRAWING_CREATE'), async (req, res) => {
     const nodeId = Number(req.params.nodeId);
-    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error: 'Invalid Node ID.' });
+    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error:'Invalid Node ID.' });
     try {
       const node = await nodeInfo(nodeId);
-      if (!node) return res.status(404).json({ error: 'Node not found or inactive.' });
-      const r = new sql.Request();
-      r.input('nodeId', sql.Int, nodeId);
-      const danieli = await r.query('SELECT PDFID,PDFName FROM dbo.DanieliPDF WHERE NodeID=@nodeId ORDER BY PDFID;');
-      const srsc = [];
-      const root = node.RootPath && node.FolderPath ? path.resolve(String(node.RootPath), String(node.FolderPath), 'SLD') : null;
-      if (root && fs.existsSync(root) && fs.statSync(root).isDirectory()) {
-        for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-          if (entry.isFile() && /\.pdf$/i.test(entry.name)) srsc.push({ fileName: entry.name, sourceType: 'SRSC' });
-        }
-      }
-      res.json({ node: { NodeID: node.NodeID, NodeCode: node.NodeCode, NodeName: node.NodeName }, pdfs: [
-        ...danieli.recordset.map(x => ({ pdfId: Number(x.PDFID), pdfName: x.PDFName, sourceType: 'DANIELI' })),
-        ...srsc.sort((a,b) => a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' }))
-      ] });
-    } catch (e) { sendError(res, 'Stamp PDF list failed', e); }
+      if (!node) return res.status(404).json({ error:'Node not found or inactive.' });
+      const pdfs = await listNodePdfs(nodeId, node);
+      res.set('Cache-Control','no-store').json({ node:{NodeID:node.NodeID,NodeCode:node.NodeCode,NodeName:node.NodeName}, pdfCount:pdfs.length });
+    } catch (e) { sendError(res, 'Stamp PDF count failed', e); }
   });
 
   app.post('/api/stamp/requests', auth.requirePermission('REQUEST_DRAWING_CREATE'), async (req, res) => {
     const nodeId = Number(req.body?.nodeId);
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
-    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error: 'Invalid Node ID.' });
-    if (!items.length || items.length > 100) return res.status(400).json({ error: 'Select one or more PDFs for Stamp.' });
+    if (!Number.isInteger(nodeId) || nodeId <= 0) return res.status(400).json({ error:'Invalid Node ID.' });
     try {
       const node = await nodeInfo(nodeId);
-      if (!node) return res.status(404).json({ error: 'Node not found or inactive.' });
-      const resolved = [], seen = new Set();
-      for (const raw of items) {
-        const sourceType = String(raw?.sourceType || '').toUpperCase();
-        if (!['DANIELI','SRSC'].includes(sourceType)) throw bad('Unsupported PDF source type.');
-        const key = sourceType === 'DANIELI' ? `D:${Number(raw?.pdfId)}` : `S:${path.basename(String(raw?.fileName || '').trim()).toLowerCase()}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        if (sourceType === 'DANIELI') {
-          const pdfId = Number(raw?.pdfId);
-          const r = new sql.Request();
-          r.input('pdfId', sql.Int, pdfId); r.input('nodeId', sql.Int, nodeId);
-          const q = await r.query(`SELECT TOP 1 d.PDFID,d.PDFName,p.RootPath FROM dbo.DanieliPDF d INNER JOIN dbo.tblPath p ON p.PathID=d.PathID WHERE d.PDFID=@pdfId AND d.NodeID=@nodeId;`);
-          const row = q.recordset[0];
-          const full = row ? safeChild(row.RootPath, row.PDFName) : null;
-          if (!row || !full || !fs.existsSync(full) || !fs.statSync(full).isFile()) throw bad('Selected Danieli PDF is not available.', 404);
-          resolved.push({ sourceType, pdfId: row.PDFID, name: row.PDFName, relativePath: row.PDFName });
-        } else {
-          const fileName = path.basename(String(raw?.fileName || '').trim());
-          const full = safeChild(path.resolve(String(node.RootPath || ''), String(node.FolderPath || '')), `SLD/${fileName}`);
-          if (!fileName || !/\.pdf$/i.test(fileName) || !full || !fs.existsSync(full) || !fs.statSync(full).isFile()) throw bad('Selected SRSC PDF is not available.', 404);
-          resolved.push({ sourceType, pdfId: null, name: fileName, relativePath: `SLD/${fileName}` });
-        }
-      }
-      if (!resolved.length) throw bad('No valid PDF was selected.');
-
+      if (!node) return res.status(404).json({ error:'Node not found or inactive.' });
+      const resolved = await listNodePdfs(nodeId, node);
+      if (!resolved.length) return res.status(400).json({ error:'No PDF files are attached to this node.' });
       const tx = new sql.Transaction();
       await tx.begin();
       try {
@@ -154,33 +141,33 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
           IF @seq>9999 THROW 51002,'Drawing request number sequence exceeded 9999 for this Jalali year.',1;
           SET @rn=@year+RIGHT(N'0000'+CONVERT(nvarchar(4),@seq),4);
           INSERT INTO dbo.DrawingRequests(RequestNumber,NodeID,NodeCode,RequesterUserID,RequesterUsername,ManagerUserID,ManagerUsername,[Description],StatusID,CreatedAt,UpdatedAt)
-          VALUES(@rn,@nodeId,@nodeCode,@userId,@username,NULL,NULL,N'Stamp Drawing', (SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'PENDING_STAMP'),SYSUTCDATETIME(),SYSUTCDATETIME());
+          VALUES(@rn,@nodeId,@nodeCode,@userId,@username,NULL,NULL,N'Stamp Drawing',(SELECT TOP 1 StatusID FROM dbo.DrawingRequestStatuses WHERE StatusCode=N'PENDING_STAMP'),SYSUTCDATETIME(),SYSUTCDATETIME());
           SET @rid=CONVERT(int,SCOPE_IDENTITY());
           INSERT INTO dbo.DrawingRequestHistory(RequestID,RequestNumber,ActionCode,FromStatusID,ToStatusID,ActionByUserID,ActionByUsername,Comment,CreatedAt)
           SELECT @rid,@rn,N'STAMP_REQUESTED',NULL,s.StatusID,@userId,@username,NULL,SYSUTCDATETIME() FROM dbo.DrawingRequestStatuses s WHERE s.StatusCode=N'PENDING_STAMP';
           SELECT @rid AS RequestID,@rn AS RequestNumber;
         `);
-        const requestId = Number(created.recordset[0].RequestID), requestNumber = created.recordset[0].RequestNumber;
-        q.input('requestId', sql.Int, requestId);
-        const stamp = await q.query(`INSERT INTO dbo.DrawingRequestStamps(RequestID,RequestedByUserID,StatusCode,CreatedAt,UpdatedAt) OUTPUT INSERTED.StampRequestID VALUES(@requestId,@userId,N'PENDING',SYSUTCDATETIME(),SYSUTCDATETIME());`);
-        const stampRequestId = Number(stamp.recordset[0].StampRequestID);
-        q.input('stampRequestId', sql.Int, stampRequestId); q.input('requestNumber', sql.NVarChar(20), requestNumber);
-        for (const item of resolved) {
-          const i = new sql.Request(tx);
-          i.input('sid', sql.Int, stampRequestId); i.input('rid', sql.Int, requestId); i.input('nid', sql.Int, nodeId);
-          i.input('type', sql.NVarChar(20), item.sourceType); i.input('pid', sql.Int, item.pdfId); i.input('name', sql.NVarChar(260), item.name); i.input('rel', sql.NVarChar(1000), item.relativePath);
+        const requestId=Number(created.recordset[0].RequestID), requestNumber=created.recordset[0].RequestNumber;
+        q.input('requestId',sql.Int,requestId);
+        const stamp=await q.query(`INSERT INTO dbo.DrawingRequestStamps(RequestID,RequestedByUserID,StatusCode,CreatedAt,UpdatedAt) OUTPUT INSERTED.StampRequestID VALUES(@requestId,@userId,N'PENDING',SYSUTCDATETIME(),SYSUTCDATETIME());`);
+        const stampRequestId=Number(stamp.recordset[0].StampRequestID);
+        q.input('stampRequestId',sql.Int,stampRequestId); q.input('requestNumber',sql.NVarChar(20),requestNumber);
+        for(const item of resolved){
+          const i=new sql.Request(tx);
+          i.input('sid',sql.Int,stampRequestId); i.input('rid',sql.Int,requestId); i.input('nid',sql.Int,nodeId);
+          i.input('type',sql.NVarChar(20),item.sourceType); i.input('pid',sql.Int,item.pdfId); i.input('name',sql.NVarChar(260),item.name); i.input('rel',sql.NVarChar(1000),item.relativePath);
           await i.query(`INSERT INTO dbo.DrawingRequestStampItems(StampRequestID,RequestID,NodeID,SourceType,PDFID,PDFName,SourceRelativePath,StatusCode,CreatedAt,UpdatedAt) VALUES(@sid,@rid,@nid,@type,@pid,@name,@rel,N'PENDING',SYSUTCDATETIME(),SYSUTCDATETIME());`);
         }
         await q.query(`
           INSERT INTO dbo.Notifications(UserID,Username,RequestID,RequestNumber,NotificationType,Title,Message,IsRead,CreatedAt)
           SELECT u.UserID,u.Username,@requestId,@requestNumber,N'STAMP_REQUEST_CREATED',N'New Stamp Request',CONCAT(N'Stamp request ',@requestNumber,N' requires your Stamp action.'),0,SYSUTCDATETIME()
           FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID AND rr.IsActive=1 INNER JOIN dbo.RolePermissions rp ON rp.RoleID=rr.RoleID INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1
-          WHERE p.PermissionID=30 AND p.PermissionCode=N'REQUEST_DRAWING_STAMP' AND u.IsActive=1;
+          WHERE p.PermissionCode=N'REQUEST_DRAWING_STAMP' AND u.IsActive=1;
         `);
         await tx.commit();
-        res.status(201).json({ success: true, stampRequestId, requestId, requestNumber, statusCode: 'PENDING', itemCount: resolved.length });
-      } catch (e) { await tx.rollback(); throw e; }
-    } catch (e) { sendError(res, 'Stamp request creation failed', e); }
+        res.status(201).json({success:true,stampRequestId,requestId,requestNumber,statusCode:'PENDING',itemCount:resolved.length});
+      } catch(e) { await tx.rollback(); throw e; }
+    } catch(e) { sendError(res,'Stamp request creation failed',e); }
   });
 
   app.get('/api/stamp/requests', async (req, res) => {
