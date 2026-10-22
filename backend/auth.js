@@ -374,6 +374,10 @@ function createAuth(frontendOrigins) {
     if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
     if (typeof password !== 'string' || password.length < 12 || password.length > 256) return res.status(400).json({ error: 'New password must be between 12 and 256 characters.' });
     try {
+      const lookup = new sql.Request(); lookup.input('userId', sql.Int, userId);
+      const target = await lookup.query('SELECT Username FROM dbo.Users WHERE UserID=@userId;');
+      const targetUsername = target.recordset?.[0]?.Username;
+      if (!targetUsername) return res.status(404).json({ error: 'User not found.' });
       const salt = crypto.randomBytes(16), N = 16384, r = 8, p = 1;
       const derived = await new Promise((resolve, reject) => crypto.scrypt(password, salt, 64, { N, r, p, maxmem: 128 * 1024 * 1024 }, (err, key) => err ? reject(err) : resolve(key)));
       const passwordHash = ['scrypt',N,r,p,salt.toString('base64'),derived.toString('base64')].join('const now=Date.now();for(const[token,s]of sessions)if(s.expiresAt<=now)sessions.delete(token);for(const[ip,s]of loginAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)loginAttempts.delete(ip);for(const[ip,s]of apiRateLimits)if(now-s.startedAt>API_WINDOW_MS)apiRateLimits.delete(ip);}
@@ -385,7 +389,7 @@ module.exports={createAuth};
       const update = new sql.Request(); update.input('userId',sql.Int,userId); update.input('passwordHash',sql.NVarChar(512),passwordHash);
       const result = await update.query('UPDATE dbo.Users SET PasswordHash=@passwordHash,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId AND IsActive=1; SELECT @@ROWCOUNT AS Affected;');
       if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'Active user not found.' });
-      await writeAudit(userId, String(userId), 'USER_PASSWORD_RESET', clientIp(req));
+      await writeAudit(userId, targetUsername, 'USER_PASSWORD_RESET', clientIp(req));
       for (const [token, session] of sessions) if (session.user.userId === userId) sessions.delete(token);
       res.json({ success: true, sessionsRevoked: true });
     } catch (e) { console.error('User password reset failed:', e.message); res.status(500).json({ error: 'Could not reset password.' }); }
@@ -397,10 +401,11 @@ module.exports={createAuth};
     if (userId === req.user.userId && !isActive) return res.status(400).json({ error: 'You cannot deactivate your own account.' });
     try {
       const update = new sql.Request(); update.input('userId',sql.Int,userId); update.input('isActive',sql.Bit,isActive);
-      const result = await update.query('UPDATE dbo.Users SET IsActive=@isActive,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId; SELECT @@ROWCOUNT AS Affected;');
+      const result = await update.query('UPDATE dbo.Users SET IsActive=@isActive,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId; SELECT @@ROWCOUNT AS Affected; SELECT Username FROM dbo.Users WHERE UserID=@userId;');
       if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'User not found.' });
       const action = isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED';
-      await writeAudit(userId, String(userId), action, clientIp(req));
+      const targetUsername = result.recordsets?.[1]?.[0]?.Username || String(userId);
+      await writeAudit(userId, targetUsername, action, clientIp(req));
       if (!isActive) for (const [token, session] of sessions) if (session.user.userId === userId) sessions.delete(token);
       res.json({ success: true, isActive });
     } catch (e) { console.error('User status update failed:', e.message); res.status(500).json({ error: 'Could not update user status.' }); }
