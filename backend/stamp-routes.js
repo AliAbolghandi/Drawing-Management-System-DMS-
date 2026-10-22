@@ -164,7 +164,7 @@ function registerStampRoutes(app, { sql, auth, sendServerError }) {
         q.input('requestId', sql.Int, requestId);
         const stamp = await q.query(`INSERT INTO dbo.DrawingRequestStamps(RequestID,RequestedByUserID,StatusCode,CreatedAt,UpdatedAt) OUTPUT INSERTED.StampRequestID VALUES(@requestId,@userId,N'PENDING',SYSUTCDATETIME(),SYSUTCDATETIME());`);
         const stampRequestId = Number(stamp.recordset[0].StampRequestID);
-        q.input('requestId', sql.Int, requestId); q.input('stampRequestId', sql.Int, stampRequestId); q.input('requestNumber', sql.NVarChar(20), requestNumber);
+        q.input('stampRequestId', sql.Int, stampRequestId); q.input('requestNumber', sql.NVarChar(20), requestNumber);
         for (const item of resolved) {
           const i = new sql.Request(tx);
           i.input('sid', sql.Int, stampRequestId); i.input('rid', sql.Int, requestId); i.input('nid', sql.Int, nodeId);
