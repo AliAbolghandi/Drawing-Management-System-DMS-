@@ -220,11 +220,28 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Main commits for this feature: `0e092740b05d5d922b8d68fd817dc494dfc9d842` (CSS), `45ae2174610467fb8385c29b68355d49f5bc73dd` (UI), `aed1afb57bf0654e27e0fce6a2c9a9d3822eefb3` (asset loading), `c259f9cc8af665370fc7fd9d0efcdcb315d38d3e` (backend and audit), `dbfd2ed20f7e6c82d1ec4d95c5b52c5d2d1c3ce1` (CSRF and rate-limit enforcement), `0e3823f6fa0c8b85a6d51006a03bd9b7480f313f` (audit actor attribution), `cee9ec98621f3edd4c860f4bba0efc7fac21dacc` (load user list on modal open).
 - Validation status: source paths, RBAC tables/columns, and existing authentication contracts were inspected. Static syntax and live browser/SQL Server acceptance tests are not yet verified in the target DMS runtime.
 
+## User Management — Admin-only RBAC editing — 2026-10-22
+- User decision: User Management is Admin-only and is NOT assignable via a permission code. `backend/auth.js` `userManagementGuard = [rateLimit, csrf, authenticate, requireAdmin()]` (supersedes the earlier `DASHBOARD_USER_MANAGEMENT` guard). Sidebar entry is shown when `/api/auth/me` returns `user.isAdmin === true` (UI visibility only).
+- User decision: minimum password length 8 (max 256); `validateNewPassword()` also requires upper-case, lower-case and a digit. Used by reset, create-user and self-change.
+- User decision (access model): permissions stay role-based; Admin edits user roles and per-role permissions. No schema change (`dbo.UserRoles(UserRoleID,UserID,RoleID)`, `dbo.RolePermissions(RolePermissionID,RoleID,PermissionID)`).
+- New/changed APIs under `/api/auth` (all Admin-only unless noted):
+  - `PUT /me/password` {currentPassword,newPassword}: Admin changes own password; verifies current password; revokes the same user's other sessions.
+  - `POST /user-management/users` create user (IsActive=1, scrypt hash).
+  - `GET /user-management/roles` roles + permissions + role-permission map.
+  - `GET|PUT /user-management/users/:userId/roles` read/replace user roles in a transaction; blocks removing Admin from the acting Admin or from the last active Admin.
+  - `PUT /user-management/roles/:roleId/permissions` replace role permissions in a transaction.
+  - Pre-existing uncommitted work found in the working tree and kept: `PUT /user-management/users/:userId` (profile), `POST .../unlock`, `DELETE .../sessions`, per-account login lockout (`accountAttempts`), `authenticate` re-validation from SQL every `AUTH_REFRESH_MS` (15 s) incl. IsActive, last-active-Admin guard on deactivation, target-user audit rows (`Action LIKE '%_TARGET_<id>'`).
+  - Role/permission changes set `session.checkedAt = 0` so affected sessions re-resolve permissions on the next request.
+- Audit actions (`dbo.Logs.Action`, acting user in UserID): `USER_CREATED_TARGET_<id>`, `USER_ROLES_CHANGED_TARGET_<id>`, `ROLE_PERMISSIONS_CHANGED_ROLE_<id>`, `USER_PASSWORD_CHANGED_SELF`, `USER_PASSWORD_CHANGE_FAILED_SELF`.
+- Frontend: `frontend/js/user-management.js` adds New user, Roles & permissions editor, per-user Roles tab, My password; `frontend/css/user-management.css` adds `.user-mgmt-check`, `.user-mgmt-select`; cache-bust `?v=20261022-user-management-v2` in `frontend/index.html`.
+- Not implemented: force password change at next login (needs a new column — requires approval), audit before/after values, password history, MFA, server-side pagination/export, listing individual sessions.
+- Validation: `node --check backend/auth.js` and `node --check frontend/js/user-management.js` passed. No SQL Server, API or browser test was run. Commit hash: none yet (changes not committed/pushed from this session).
+
 # NEXT ACTION
 
-1. Run `node --check backend/auth.js` and `node --check frontend/js/user-management.js`; fix syntax errors before deployment.
-2. Test with an account whose effective `RolePermissions` grants `DASHBOARD_USER_MANAGEMENT`: navigation, list, details, roles, effective permissions, and audit history.
-3. Verify unauthenticated API requests return 401 and authenticated users without the permission return 403 for all four endpoints; test CSRF rejection for a disallowed Origin/Referer.
-4. Test password reset, scrypt storage, session revocation, activation/deactivation, and `LastLoginAt`/logout audit timestamps against the target SQL Server.
-5. Visually test desktop/mobile layout, search, tabs, Escape/Tab keyboard behavior, and confirmation flows in the actual DMS browser.
-6. Continue pending Stamp workflow acceptance separately; do not mark it complete until migration and live filesystem/PDF workflow tests pass.
+1. Commit and push the changed files; record the commit hash here.
+2. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
+3. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
+4. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
+5. Decide whether to add force-change-at-next-login (needs a `Users` column; requires user approval).
+6. Continue pending Stamp workflow acceptance separately.

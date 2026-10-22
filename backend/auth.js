@@ -7,12 +7,14 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 8;
 const API_WINDOW_MS = 60 * 1000;
 const API_MAX_REQUESTS = 240;
+const AUTH_REFRESH_MS = 15 * 1000;
 
 function createAuth(frontendOrigins) {
   const router = express.Router();
   const sessions = new Map();
   const loginAttempts = new Map();
   const apiRateLimits = new Map();
+  const accountAttempts = new Map();
 
   const clientIp = req => String(req.ip || req.socket.remoteAddress || '').trim();
 
@@ -38,7 +40,7 @@ function createAuth(frontendOrigins) {
 
   function createSession(user) {
     const token = crypto.randomBytes(48).toString('base64url');
-    sessions.set(token, { user, expiresAt: Date.now() + SESSION_TTL_MS });
+    sessions.set(token, { user, expiresAt: Date.now() + SESSION_TTL_MS, checkedAt: Date.now() });
     return token;
   }
 
@@ -72,12 +74,42 @@ function createAuth(frontendOrigins) {
     } catch (e) { console.warn('Audit log failed:', e.message); }
   }
 
-  function authenticate(req, res, next) {
+  async function loadUserAccess(userId) {
+    const r = new sql.Request();
+    r.input('userId', sql.Int, userId);
+    const q = await r.query(`
+      SELECT u.UserID, u.Username, u.Name, u.Family, u.IsActive,
+        CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.UserRoles ur INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID WHERE ur.UserID=u.UserID AND rr.RoleCode=N'Admin' AND rr.IsActive=1) THEN 1 ELSE 0 END AS bit) AS IsAdmin
+      FROM dbo.Users u WHERE u.UserID=@userId;
+      SELECT DISTINCT p.PermissionCode FROM dbo.UserRoles ur
+        INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1
+        INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID
+        INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1
+        WHERE ur.UserID=@userId;
+    `);
+    const row = q.recordsets?.[0]?.[0];
+    if (!row) return null;
+    return { active: Number(row.IsActive) === 1, username: String(row.Username || ''), name: row.Name || '', family: row.Family || '', isAdmin: Number(row.IsAdmin) === 1, permissions: new Set((q.recordsets?.[1] || []).map(x => String(x.PermissionCode))) };
+  }
+
+  async function authenticate(req, res, next) {
     const token = cookies(req).dms_session;
     const session = token ? sessions.get(token) : null;
     if (!session || session.expiresAt <= Date.now()) {
       if (token) sessions.delete(token);
       return res.status(401).json({ error: 'Authentication required.' });
+    }
+    // Re-validate active state, Admin role and permissions from SQL at most every AUTH_REFRESH_MS.
+    if (!session.checkedAt || Date.now() - session.checkedAt > AUTH_REFRESH_MS) {
+      try {
+        const access = await loadUserAccess(session.user.userId);
+        if (!access || !access.active) { sessions.delete(token); clearCookie(res); return res.status(401).json({ error: 'Authentication required.' }); }
+        Object.assign(session.user, { username: access.username || session.user.username, name: access.name, family: access.family, isAdmin: access.isAdmin, permissions: access.permissions });
+        session.checkedAt = Date.now();
+      } catch (e) {
+        console.error('Session re-validation failed:', e.message);
+        return res.status(503).json({ error: 'Authorization service is unavailable.' });
+      }
     }
     session.expiresAt = Date.now() + SESSION_TTL_MS;
     req.user = session.user;
@@ -165,17 +197,21 @@ function createAuth(frontendOrigins) {
     const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
     if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
+    const accountKey = username.toLowerCase().slice(0, 100);
+    const acct = accountAttempts.get(accountKey) || { count: 0, firstAt: now, blockedUntil: 0 };
+    if (acct.blockedUntil > now) return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
+    if (now - acct.firstAt > LOGIN_WINDOW_MS) { acct.count = 0; acct.firstAt = now; acct.blockedUntil = 0; }
     try {
       const r = new sql.Request(); r.input('username', sql.NVarChar(100), username);
       const q = await r.query("SELECT TOP 1 u.UserID,u.Username,u.Name,u.Family,u.PasswordHash,u.IsActive, CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.UserRoles ur INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID WHERE ur.UserID=u.UserID AND rr.RoleCode='Admin' AND rr.IsActive=1) THEN 1 ELSE 0 END AS bit) AS IsAdmin FROM dbo.Users u WHERE u.Username=@username;");
       const user = q.recordset[0];
       const valid = user && Number(user.IsActive) === 1 && await verifyPassword(password, user.PasswordHash);
-      if (!valid) { state.count++; if (state.count >= LOGIN_MAX_ATTEMPTS) state.blockedUntil = now + LOGIN_WINDOW_MS; loginAttempts.set(ip, state); await writeAudit(user?.UserID || null, username, 'LOGIN_FAILED', ip); return res.status(401).json({ error: 'Invalid username or password.' }); }
+      if (!valid) { acct.count++; if (acct.count >= LOGIN_MAX_ATTEMPTS) acct.blockedUntil = now + LOGIN_WINDOW_MS; accountAttempts.set(accountKey, acct); state.count++; if (state.count >= LOGIN_MAX_ATTEMPTS) state.blockedUntil = now + LOGIN_WINDOW_MS; loginAttempts.set(ip, state); await writeAudit(user?.UserID || null, username, 'LOGIN_FAILED', ip); return res.status(401).json({ error: 'Invalid username or password.' }); }
       const p = new sql.Request(); p.input('userId', sql.Int, user.UserID);
       const pr = await p.query("SELECT DISTINCT p.PermissionCode FROM dbo.UserRoles ur INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1 WHERE ur.UserID=@userId;");
       const permissions = new Set(pr.recordset.map(x => String(x.PermissionCode)));
       const sessionUser = { userId:Number(user.UserID), username:String(user.Username), name:user.Name||'', family:user.Family||'', isAdmin:Number(user.IsAdmin)===1, permissions };
-      setCookie(res, createSession(sessionUser)); loginAttempts.delete(ip);
+      setCookie(res, createSession(sessionUser)); loginAttempts.delete(ip); accountAttempts.delete(accountKey);
       const u = new sql.Request(); u.input('userId', sql.Int, user.UserID); await u.query('UPDATE dbo.Users SET LastLoginAt=SYSUTCDATETIME(), UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId;');
       await writeAudit(user.UserID, user.Username, 'LOGIN_SUCCESS', ip);
       res.json({ success:true, user:{ userId:sessionUser.userId, username:sessionUser.username, name:sessionUser.name, family:sessionUser.family } });
@@ -223,6 +259,7 @@ function createAuth(frontendOrigins) {
       u.family = userRow.Family || '';
       u.isAdmin = Number(userRow.IsAdmin) === 1;
       u.permissions = new Set((q.recordsets?.[1] || []).map(row => String(row.PermissionCode)));
+      session.checkedAt = Date.now();
       session.expiresAt = Date.now() + SESSION_TTL_MS;
       return res.set('Cache-Control', 'no-store').json({
         authenticated: true,
@@ -323,8 +360,25 @@ function createAuth(frontendOrigins) {
   });
 
 
-  // User Management — authorized exclusively by the effective DASHBOARD_USER_MANAGEMENT permission.
-  const userManagementGuard = [rateLimit, csrf, authenticate, requirePermission('DASHBOARD_USER_MANAGEMENT')];
+  // User Management — Admin-only (authenticated, active user holding the active Admin role, verified server-side from SQL).
+  // It is intentionally NOT assignable through a permission code.
+  const userManagementGuard = [rateLimit, csrf, authenticate, requireAdmin()];
+
+  function validateNewPassword(password) {
+    if (typeof password !== 'string' || password.length < 8 || password.length > 256) return 'New password must be between 8 and 256 characters.';
+    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) return 'Password must contain upper-case, lower-case letters and a digit.';
+    return null;
+  }
+
+  // True when userId is currently an active Admin and no other active Admin remains.
+  async function isLastActiveAdmin(userId) {
+    const r = new sql.Request(); r.input('userId', sql.Int, userId);
+    const q = await r.query(`
+      SELECT (SELECT COUNT(DISTINCT u.UserID) FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleCode=N'Admin' WHERE u.IsActive=1) AS TotalAdmins,
+             CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleCode=N'Admin' WHERE u.UserID=@userId AND u.IsActive=1) THEN 1 ELSE 0 END AS bit) AS TargetIsAdmin;`);
+    const row = q.recordset[0];
+    return Number(row.TargetIsAdmin) === 1 && Number(row.TotalAdmins) <= 1;
+  }
 
   router.get('/user-management/users', ...userManagementGuard, async (req, res) => {
     try {
@@ -358,13 +412,15 @@ function createAuth(frontendOrigins) {
           INNER JOIN dbo.RolePermissions rp ON rp.RoleID=r.RoleID
           INNER JOIN dbo.Permissions p ON p.PermissionID=rp.PermissionID AND p.IsActive=1
           WHERE ur.UserID=@userId ORDER BY p.PermissionCode;
-        SELECT TOP 100 l.LogID,l.Action,l.IPAddress,l.CreatedAt
-          FROM dbo.Logs l WHERE l.UserID=@userId
+        SELECT TOP 100 l.LogID,l.Action,l.UserName AS ActorUserName,l.IPAddress,l.CreatedAt
+          FROM dbo.Logs l WHERE l.UserID=@userId OR l.Action LIKE N'%[_]TARGET[_]' + CAST(@userId AS nvarchar(20))
           ORDER BY l.CreatedAt DESC, l.LogID DESC;
       `);
       const user = userResult.recordsets?.[0]?.[0];
       if (!user) return res.status(404).json({ error: 'User not found.' });
-      res.json({ user, roles: userResult.recordsets[1] || [], permissions: userResult.recordsets[2] || [], activity: userResult.recordsets[3] || [] });
+      const key = String(user.Username || '').toLowerCase(), acct = accountAttempts.get(key);
+      const userSessions = [...sessions.values()].filter(x => x.user.userId === userId && x.expiresAt > Date.now());
+      res.json({ user, roles: userResult.recordsets[1] || [], permissions: userResult.recordsets[2] || [], activity: userResult.recordsets[3] || [], locked: !!(acct && acct.blockedUntil > Date.now()), activeSessions: userSessions.length });
     } catch (e) { console.error('User management details failed:', e.message); res.status(500).json({ error: 'Could not load user details.' }); }
   });
 
@@ -372,7 +428,8 @@ function createAuth(frontendOrigins) {
     const userId = Number(req.params.userId);
     const password = req.body?.password;
     if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
-    if (typeof password !== 'string' || password.length < 12 || password.length > 256) return res.status(400).json({ error: 'New password must be between 12 and 256 characters.' });
+    const passwordError = validateNewPassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
     try {
       const lookup = new sql.Request(); lookup.input('userId', sql.Int, userId);
       const target = await lookup.query('SELECT Username FROM dbo.Users WHERE UserID=@userId;');
@@ -395,6 +452,7 @@ function createAuth(frontendOrigins) {
     if (!Number.isSafeInteger(userId) || userId <= 0 || typeof isActive !== 'boolean') return res.status(400).json({ error: 'Invalid user status request.' });
     if (userId === req.user.userId && !isActive) return res.status(400).json({ error: 'You cannot deactivate your own account.' });
     try {
+      if (!isActive && await isLastActiveAdmin(userId)) return res.status(400).json({ error: 'The last active Admin cannot be deactivated.' });
       const update = new sql.Request(); update.input('userId',sql.Int,userId); update.input('isActive',sql.Bit,isActive);
       const result = await update.query('UPDATE dbo.Users SET IsActive=@isActive,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId; SELECT @@ROWCOUNT AS Affected; SELECT Username FROM dbo.Users WHERE UserID=@userId;');
       if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'User not found.' });
@@ -405,7 +463,204 @@ function createAuth(frontendOrigins) {
     } catch (e) { console.error('User status update failed:', e.message); res.status(500).json({ error: 'Could not update user status.' }); }
   });
 
-  function cleanup(){const now=Date.now();for(const[token,s]of sessions)if(s.expiresAt<=now)sessions.delete(token);for(const[ip,s]of loginAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)loginAttempts.delete(ip);for(const[ip,s]of apiRateLimits)if(now-s.startedAt>API_WINDOW_MS)apiRateLimits.delete(ip);}
+  router.put('/user-management/users/:userId', ...userManagementGuard, async (req, res) => {
+    const userId = Number(req.params.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
+    const clean = v => typeof v === 'string' ? v.trim() : null;
+    const username = clean(req.body?.username), name = clean(req.body?.name), family = clean(req.body?.family);
+    if (!username || username.length > 100 || !/^[A-Za-z0-9._@-]+$/.test(username)) return res.status(400).json({ error: 'Username is required (max 100; letters, digits, . _ @ - only).' });
+    if (name === null || family === null || name.length > 100 || family.length > 100) return res.status(400).json({ error: 'Name and family must be text up to 100 characters.' });
+    try {
+      const dup = new sql.Request(); dup.input('userId', sql.Int, userId); dup.input('username', sql.NVarChar(100), username);
+      const d = await dup.query('SELECT TOP 1 1 AS X FROM dbo.Users WHERE Username=@username AND UserID<>@userId;');
+      if (d.recordset.length) return res.status(409).json({ error: 'Username is already in use.' });
+      const up = new sql.Request(); up.input('userId', sql.Int, userId); up.input('username', sql.NVarChar(100), username); up.input('name', sql.NVarChar(100), name); up.input('family', sql.NVarChar(100), family);
+      const result = await up.query('UPDATE dbo.Users SET Username=@username,Name=@name,Family=@family,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId; SELECT @@ROWCOUNT AS Affected;');
+      if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'User not found.' });
+      await writeAudit(req.user.userId, req.user.username, 'USER_PROFILE_UPDATED_TARGET_' + userId, clientIp(req));
+      for (const session of sessions.values()) if (session.user.userId === userId) session.checkedAt = 0;
+      res.json({ success: true });
+    } catch (e) { console.error('User profile update failed:', e.message); res.status(500).json({ error: 'Could not update user.' }); }
+  });
+
+  router.post('/user-management/users/:userId/unlock', ...userManagementGuard, async (req, res) => {
+    const userId = Number(req.params.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
+    try {
+      const r = new sql.Request(); r.input('userId', sql.Int, userId);
+      const q = await r.query('SELECT Username FROM dbo.Users WHERE UserID=@userId;');
+      const username = q.recordset?.[0]?.Username;
+      if (!username) return res.status(404).json({ error: 'User not found.' });
+      accountAttempts.delete(String(username).toLowerCase());
+      await writeAudit(req.user.userId, req.user.username, 'USER_UNLOCKED_TARGET_' + userId, clientIp(req));
+      res.json({ success: true });
+    } catch (e) { console.error('User unlock failed:', e.message); res.status(500).json({ error: 'Could not unlock user.' }); }
+  });
+
+  router.delete('/user-management/users/:userId/sessions', ...userManagementGuard, async (req, res) => {
+    const userId = Number(req.params.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
+    let revoked = 0;
+    for (const [token, session] of sessions) if (session.user.userId === userId) { sessions.delete(token); revoked++; }
+    await writeAudit(req.user.userId, req.user.username, 'USER_SESSIONS_REVOKED_TARGET_' + userId, clientIp(req));
+    res.json({ success: true, revoked });
+  });
+
+
+  async function hashPassword(password) {
+    const salt = crypto.randomBytes(16), N = 16384, r = 8, p = 1;
+    const derived = await new Promise((resolve, reject) => crypto.scrypt(password, salt, 64, { N, r, p, maxmem: 128 * 1024 * 1024 }, (err, key) => err ? reject(err) : resolve(key)));
+    return ['scrypt', N, r, p, salt.toString('base64'), derived.toString('base64')].join('$');
+  }
+
+  function parseIdList(value) {
+    if (!Array.isArray(value) || value.length > 500) return null;
+    const ids = value.map(Number);
+    if (!ids.every(n => Number.isSafeInteger(n) && n > 0)) return null;
+    return [...new Set(ids)];
+  }
+
+  function markSessionsForRefresh(userId) {
+    for (const session of sessions.values()) if (userId == null || session.user.userId === userId) session.checkedAt = 0;
+  }
+
+  // Admin changes their own password (current password required; other sessions of the same user are revoked).
+  router.put('/me/password', rateLimit, csrf, authenticate, requireAdmin(), async (req, res) => {
+    const currentPassword = req.body?.currentPassword, newPassword = req.body?.newPassword;
+    if (typeof currentPassword !== 'string' || !currentPassword) return res.status(400).json({ error: 'Current password is required.' });
+    const passwordError = validateNewPassword(newPassword);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+    if (newPassword === currentPassword) return res.status(400).json({ error: 'New password must differ from the current password.' });
+    try {
+      const r = new sql.Request(); r.input('userId', sql.Int, req.user.userId);
+      const q = await r.query('SELECT PasswordHash FROM dbo.Users WHERE UserID=@userId AND IsActive=1;');
+      const stored = q.recordset?.[0]?.PasswordHash;
+      if (!stored || !(await verifyPassword(currentPassword, stored))) {
+        await writeAudit(req.user.userId, req.user.username, 'USER_PASSWORD_CHANGE_FAILED_SELF', clientIp(req));
+        return res.status(400).json({ error: 'Current password is incorrect.' });
+      }
+      const u = new sql.Request(); u.input('userId', sql.Int, req.user.userId); u.input('passwordHash', sql.NVarChar(512), await hashPassword(newPassword));
+      await u.query('UPDATE dbo.Users SET PasswordHash=@passwordHash,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId;');
+      await writeAudit(req.user.userId, req.user.username, 'USER_PASSWORD_CHANGED_SELF', clientIp(req));
+      for (const [token, session] of sessions) if (session.user.userId === req.user.userId && token !== req.sessionToken) sessions.delete(token);
+      res.json({ success: true });
+    } catch (e) { console.error('Own password change failed:', e.message); res.status(500).json({ error: 'Could not change password.' }); }
+  });
+
+  router.post('/user-management/users', ...userManagementGuard, async (req, res) => {
+    const clean = v => typeof v === 'string' ? v.trim() : null;
+    const username = clean(req.body?.username), name = clean(req.body?.name), family = clean(req.body?.family), password = req.body?.password;
+    if (!username || username.length > 100 || !/^[A-Za-z0-9._@-]+$/.test(username)) return res.status(400).json({ error: 'Username is required (max 100; letters, digits, . _ @ - only).' });
+    if (name === null || family === null || name.length > 100 || family.length > 100) return res.status(400).json({ error: 'Name and family must be text up to 100 characters.' });
+    const passwordError = validateNewPassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+    try {
+      const dup = new sql.Request(); dup.input('username', sql.NVarChar(100), username);
+      if ((await dup.query('SELECT TOP 1 1 AS X FROM dbo.Users WHERE Username=@username;')).recordset.length) return res.status(409).json({ error: 'Username is already in use.' });
+      const ins = new sql.Request(); ins.input('username', sql.NVarChar(100), username); ins.input('name', sql.NVarChar(100), name); ins.input('family', sql.NVarChar(100), family); ins.input('passwordHash', sql.NVarChar(512), await hashPassword(password));
+      const result = await ins.query('INSERT INTO dbo.Users (Username,Name,Family,PasswordHash,IsActive,CreatedAt) OUTPUT inserted.UserID VALUES (@username,@name,@family,@passwordHash,1,SYSUTCDATETIME());');
+      const newId = Number(result.recordset[0].UserID);
+      await writeAudit(req.user.userId, req.user.username, 'USER_CREATED_TARGET_' + newId, clientIp(req));
+      res.status(201).json({ success: true, userId: newId });
+    } catch (e) { console.error('User creation failed:', e.message); res.status(500).json({ error: 'Could not create user.' }); }
+  });
+
+  router.get('/user-management/roles', ...userManagementGuard, async (req, res) => {
+    try {
+      const q = await new sql.Request().query(`
+        SELECT r.RoleID,r.RoleCode,r.RoleName,r.Description,r.IsActive,(SELECT COUNT(*) FROM dbo.UserRoles ur WHERE ur.RoleID=r.RoleID) AS UserCount FROM dbo.Roles r ORDER BY r.RoleName;
+        SELECT PermissionID,PermissionCode,PermissionName,Description,IsActive FROM dbo.Permissions ORDER BY PermissionCode;
+        SELECT RoleID,PermissionID FROM dbo.RolePermissions;
+      `);
+      res.json({ roles: q.recordsets[0] || [], permissions: q.recordsets[1] || [], rolePermissions: q.recordsets[2] || [] });
+    } catch (e) { console.error('Roles load failed:', e.message); res.status(500).json({ error: 'Could not load roles.' }); }
+  });
+
+  router.get('/user-management/users/:userId/roles', ...userManagementGuard, async (req, res) => {
+    const userId = Number(req.params.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
+    try {
+      const r = new sql.Request(); r.input('userId', sql.Int, userId);
+      const q = await r.query('SELECT RoleID FROM dbo.UserRoles WHERE UserID=@userId;');
+      res.json({ roleIds: q.recordset.map(x => Number(x.RoleID)) });
+    } catch (e) { console.error('User roles load failed:', e.message); res.status(500).json({ error: 'Could not load user roles.' }); }
+  });
+
+  // Replace the set of roles assigned to a user.
+  router.put('/user-management/users/:userId/roles', ...userManagementGuard, async (req, res) => {
+    const userId = Number(req.params.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
+    const roleIds = parseIdList(req.body?.roleIds);
+    if (!roleIds) return res.status(400).json({ error: 'roleIds must be an array of role IDs.' });
+    let tx;
+    try {
+      const ex = new sql.Request(); ex.input('userId', sql.Int, userId);
+      if (!(await ex.query('SELECT TOP 1 1 AS X FROM dbo.Users WHERE UserID=@userId;')).recordset.length) return res.status(404).json({ error: 'User not found.' });
+      if (roleIds.length) {
+        const rr = new sql.Request(); roleIds.forEach((id, i) => rr.input('r' + i, sql.Int, id));
+        const found = await rr.query(`SELECT COUNT(*) AS C FROM dbo.Roles WHERE RoleID IN (${roleIds.map((_, i) => '@r' + i).join(',')});`);
+        if (Number(found.recordset[0].C) !== roleIds.length) return res.status(400).json({ error: 'One or more roles do not exist.' });
+      }
+      // Never remove the Admin role from the last active Admin, or from the acting Admin themself.
+      let keepsAdmin = false;
+      if (roleIds.length) {
+        const ar = new sql.Request(); roleIds.forEach((id, i) => ar.input('r' + i, sql.Int, id));
+        keepsAdmin = (await ar.query(`SELECT TOP 1 1 AS X FROM dbo.Roles WHERE RoleCode=N'Admin' AND IsActive=1 AND RoleID IN (${roleIds.map((_, i) => '@r' + i).join(',')});`)).recordset.length > 0;
+      }
+      if (!keepsAdmin) {
+        if (userId === req.user.userId) return res.status(400).json({ error: 'You cannot remove the Admin role from your own account.' });
+        if (await isLastActiveAdmin(userId)) return res.status(400).json({ error: 'The Admin role cannot be removed from the last active Admin.' });
+      }
+      tx = new sql.Transaction(); await tx.begin();
+      const del = new sql.Request(tx); del.input('userId', sql.Int, userId);
+      await del.query('DELETE FROM dbo.UserRoles WHERE UserID=@userId;');
+      for (const roleId of roleIds) {
+        const ins = new sql.Request(tx); ins.input('userId', sql.Int, userId); ins.input('roleId', sql.Int, roleId);
+        await ins.query('INSERT INTO dbo.UserRoles (UserID,RoleID) VALUES (@userId,@roleId);');
+      }
+      await tx.commit(); tx = null;
+      markSessionsForRefresh(userId);
+      await writeAudit(req.user.userId, req.user.username, 'USER_ROLES_CHANGED_TARGET_' + userId, clientIp(req));
+      res.json({ success: true });
+    } catch (e) {
+      if (tx) { try { await tx.rollback(); } catch (_) {} }
+      console.error('User roles update failed:', e.message); res.status(500).json({ error: 'Could not update user roles.' });
+    }
+  });
+
+  // Replace the set of permissions granted to a role.
+  router.put('/user-management/roles/:roleId/permissions', ...userManagementGuard, async (req, res) => {
+    const roleId = Number(req.params.roleId);
+    if (!Number.isSafeInteger(roleId) || roleId <= 0) return res.status(400).json({ error: 'Invalid Role ID.' });
+    const permissionIds = parseIdList(req.body?.permissionIds);
+    if (!permissionIds) return res.status(400).json({ error: 'permissionIds must be an array of permission IDs.' });
+    let tx;
+    try {
+      const ex = new sql.Request(); ex.input('roleId', sql.Int, roleId);
+      if (!(await ex.query('SELECT TOP 1 1 AS X FROM dbo.Roles WHERE RoleID=@roleId;')).recordset.length) return res.status(404).json({ error: 'Role not found.' });
+      if (permissionIds.length) {
+        const pr = new sql.Request(); permissionIds.forEach((id, i) => pr.input('p' + i, sql.Int, id));
+        const found = await pr.query(`SELECT COUNT(*) AS C FROM dbo.Permissions WHERE PermissionID IN (${permissionIds.map((_, i) => '@p' + i).join(',')});`);
+        if (Number(found.recordset[0].C) !== permissionIds.length) return res.status(400).json({ error: 'One or more permissions do not exist.' });
+      }
+      tx = new sql.Transaction(); await tx.begin();
+      const del = new sql.Request(tx); del.input('roleId', sql.Int, roleId);
+      await del.query('DELETE FROM dbo.RolePermissions WHERE RoleID=@roleId;');
+      for (const permissionId of permissionIds) {
+        const ins = new sql.Request(tx); ins.input('roleId', sql.Int, roleId); ins.input('permissionId', sql.Int, permissionId);
+        await ins.query('INSERT INTO dbo.RolePermissions (RoleID,PermissionID) VALUES (@roleId,@permissionId);');
+      }
+      await tx.commit(); tx = null;
+      markSessionsForRefresh(null);
+      await writeAudit(req.user.userId, req.user.username, 'ROLE_PERMISSIONS_CHANGED_ROLE_' + roleId, clientIp(req));
+      res.json({ success: true });
+    } catch (e) {
+      if (tx) { try { await tx.rollback(); } catch (_) {} }
+      console.error('Role permissions update failed:', e.message); res.status(500).json({ error: 'Could not update role permissions.' });
+    }
+  });
+
+  function cleanup(){const now=Date.now();for(const[token,s]of sessions)if(s.expiresAt<=now)sessions.delete(token);for(const[ip,s]of loginAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)loginAttempts.delete(ip);for(const[k,s]of accountAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)accountAttempts.delete(k);for(const[ip,s]of apiRateLimits)if(now-s.startedAt>API_WINDOW_MS)apiRateLimits.delete(ip);}
   return { router, securityHeaders, authenticate, requirePermission, requireAdmin, writeAudit, apiSecurity:(req,res,next)=>rateLimit(req,res,err=>{if(err)return next(err);csrf(req,res,next);}), authenticatePage, authenticateAdminPage, cleanup };
 }
 

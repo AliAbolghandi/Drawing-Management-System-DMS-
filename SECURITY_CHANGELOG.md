@@ -150,10 +150,11 @@ For production:
 
 
 ## User Management — 2026-10-22
-- Added permission-gated user management APIs under `/api/auth/user-management`.
-- Access requires an authenticated session and effective `DASHBOARD_USER_MANAGEMENT` permission resolved from the current `/api/auth/me` permission set; no RoleID shortcut is used.
-- User list/detail endpoints expose account metadata, assigned roles, effective role-derived permissions, login/logout timestamps, and the latest 100 records from `dbo.Logs`.
-- Password resets use the existing scrypt hash format, require at least 12 characters, never return or store plaintext passwords, and revoke active in-memory sessions for the target user.
-- Account activation/deactivation is permission-gated; users cannot deactivate their own account. Deactivation revokes the target user's in-memory sessions. Administrative audit events are attributed to the acting user and include the target UserID in the action because the existing `dbo.Logs` schema has no separate actor/target columns.
-- User Management navigation is only inserted when `/api/auth/me` confirms `DASHBOARD_USER_MANAGEMENT`; this is UI visibility only. Backend endpoints independently enforce authentication and permission.
-- Runtime SQL Server and browser acceptance tests remain pending.
+- User Management APIs under `/api/auth/user-management` and `PUT /api/auth/me/password` are Admin-only: authenticated session plus active `Admin` role verified from SQL by `requireAdmin()`; they are not assignable through a permission code. All use rate limiting and the Origin/Referer CSRF policy.
+- Admin can create users, edit profiles, assign roles, edit role permissions, reset passwords, unlock accounts and revoke sessions. Role/permission inputs are validated server-side and written in SQL transactions with parameterized queries.
+- Password policy: 8–256 characters with upper-case, lower-case and a digit; scrypt hashing; plaintext is never stored or returned. Resets and deactivation revoke the target's sessions; own-password change requires the current password and revokes the user's other sessions.
+- Safeguards: an Admin cannot deactivate themself or remove their own Admin role; the last active Admin cannot be deactivated or lose the Admin role.
+- Sessions re-validate active state, Admin role and permissions from SQL at most every 15 seconds; role/permission edits force re-validation of affected sessions.
+- Login is rate-limited per IP and per account; an Admin can unlock an account.
+- Administrative events are logged in `dbo.Logs` under the acting user with the target ID in the action string (`..._TARGET_<id>`); target users' activity lists include them.
+- User Management navigation is UI visibility only. Runtime SQL Server and browser acceptance tests remain pending.
