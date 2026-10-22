@@ -141,3 +141,9 @@ For production:
 - Multiple backend instances require a shared session store such as SQL/Redis.
 - The current API rate limiter is in-memory and per-process.
 - The Stamp approval UI must call the server decision endpoint and confirm `APPROVED` before enabling PDF completion; frontend state alone is not authoritative.
+
+## Stamp access correction — 2026-10-22
+- The Stamp PDF-count endpoint returns a count only; it does not return source PDF names or paths.
+- Requesters without `REQUEST_DRAWING_STAMP` receive redacted source-file metadata from Stamp request details.
+- Source PDF streaming is restricted to the user with `REQUEST_DRAWING_STAMP` who approved that Stamp request.
+- SRSC Stamp discovery reads only direct PDF files in the Node's `SLD` folder; it does not traverse subdirectories.
