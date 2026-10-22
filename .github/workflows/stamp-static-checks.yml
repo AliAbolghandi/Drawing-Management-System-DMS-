@@ -40,4 +40,5 @@ jobs:
           test -s frontend/lib/pdfjs/pdf.worker.min.mjs
           grep -q "registerStampRoutes(app" backend/server.js
           grep -q 'js/stamp.js' frontend/index.html
-          grep -Fq '/item/${item.StampItemID}/complete' frontend/js/stamp.js
+          grep -q '/api/stamp/requests/' frontend/js/stamp.js
+          grep -q 'item/\${itemId}/complete' frontend/js/stamp.js
