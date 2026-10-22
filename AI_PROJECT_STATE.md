@@ -216,15 +216,15 @@ User reported that the `Production Reports` section calculates incorrect values,
   - `PATCH /users/:userId/status`
 - Each endpoint uses API rate limiting, the existing Origin/Referer CSRF policy, `authenticate`, and `requirePermission('DASHBOARD_USER_MANAGEMENT')`; role access is not hard-coded.
 - Password reset uses scrypt, requires 12+ characters, and revokes target sessions. Deactivation also revokes target sessions; self-deactivation is rejected.
-- Login/logout values use existing `dbo.Users.LastLoginAt` and `dbo.Logs` records. Logout history only reflects events actually logged by DMS.
-- Main commits for this feature: `0e092740b05d5d922b8d68fd817dc494dfc9d842` (CSS), `45ae2174610467fb8385c29b68355d49f5bc73dd` (UI), `aed1afb57bf0654e27e0fce6a2c9a9d3822eefb3` (asset loading), `c259f9cc8af665370fc7fd9d0efcdcb315d38d3e` (backend and audit), `dbfd2ed20f7e6c82d1ec4d95c5b52c5d2d1c3ce1` (CSRF and rate-limit enforcement).
+- Login/logout values use existing `dbo.Users.LastLoginAt` and `dbo.Logs` records. Logout history only reflects events actually logged by DMS. Administrative events are logged under the acting user and include the target UserID in the action string because `dbo.Logs` has no separate actor/target columns.
+- Main commits for this feature: `0e092740b05d5d922b8d68fd817dc494dfc9d842` (CSS), `45ae2174610467fb8385c29b68355d49f5bc73dd` (UI), `aed1afb57bf0654e27e0fce6a2c9a9d3822eefb3` (asset loading), `c259f9cc8af665370fc7fd9d0efcdcb315d38d3e` (backend and audit), `dbfd2ed20f7e6c82d1ec4d95c5b52c5d2d1c3ce1` (CSRF and rate-limit enforcement), `0e3823f6fa0c8b85a6d51006a03bd9b7480f313f` (audit actor attribution).
 - Validation status: source paths, RBAC tables/columns, and existing authentication contracts were inspected. Static syntax and live browser/SQL Server acceptance tests are not yet verified in the target DMS runtime.
 
 # NEXT ACTION
 
-1. Run `node --check backend/auth.js` and `node --check frontend/js/user-management.js`; correct any syntax errors before deployment.
-2. Test with a user whose effective `RolePermissions` grants `DASHBOARD_USER_MANAGEMENT`: navigation visible, list/details load, permissions and audit history render.
-3. Verify unauthenticated requests return 401 and authenticated users without the permission return 403 for all four user-management APIs; test CSRF rejection for disallowed Origin/Referer.
-4. In the target SQL Server, test password reset (scrypt hash and session revocation), deactivation/activation, and LastLoginAt/LOGOUT audit timestamps. Confirm the `dbo.Logs` queries work with production data.
-5. Visually test the modal in the DMS browser at desktop and narrow viewport sizes; keyboard Escape/Tab, search, tab switching, and confirmation flows.
-6. Continue pending Stamp workflow acceptance only after the above User Management checks are recorded; separately run the Stamp migration and live PDF/folder workflow tests.
+1. Run `node --check backend/auth.js` and `node --check frontend/js/user-management.js`; fix syntax errors before deployment.
+2. Test with an account whose effective `RolePermissions` grants `DASHBOARD_USER_MANAGEMENT`: navigation, list, details, roles, effective permissions, and audit history.
+3. Verify unauthenticated API requests return 401 and authenticated users without the permission return 403 for all four endpoints; test CSRF rejection for a disallowed Origin/Referer.
+4. Test password reset, scrypt storage, session revocation, activation/deactivation, and `LastLoginAt`/logout audit timestamps against the target SQL Server.
+5. Visually test desktop/mobile layout, search, tabs, Escape/Tab keyboard behavior, and confirmation flows in the actual DMS browser.
+6. Continue pending Stamp workflow acceptance separately; do not mark it complete until migration and live filesystem/PDF workflow tests pass.
