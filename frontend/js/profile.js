@@ -218,10 +218,10 @@
     cropObjectUrl = URL.createObjectURL(file);
     cropImage = document.getElementById('dmsProfileCropImage');
     cropImage.onload = () => {
+      document.getElementById('dmsProfileCropModal').classList.remove('hidden');
       const size = cropViewportSize();
       cropBaseScale = Math.max(size / cropImage.naturalWidth, size / cropImage.naturalHeight);
       cropZoom = 1; cropX = 0; cropY = 0; renderCrop();
-      document.getElementById('dmsProfileCropModal').classList.remove('hidden');
     };
     cropImage.onerror = () => showMessage('The selected file is not a readable image.', true);
     cropImage.src = cropObjectUrl;
