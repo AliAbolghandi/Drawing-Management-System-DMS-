@@ -420,7 +420,7 @@ function createAuth(frontendOrigins) {
         const { extension } = validateProfileImage(req.file);
         const profile = await getProfileStorage(req.user.userId);
         if (profile.error) return res.status(profile.status).json({ error: profile.error });
-        temporaryFile = path.resolve(profile.root, safeProfileFilename(profile.user.Username, '.tmp-' + crypto.randomBytes(6).toString('hex')));
+        temporaryFile = path.resolve(profile.root, '.' + profile.user.Username + '.profile-tmp-' + crypto.randomBytes(6).toString('hex'));
         if (!isInsideProfileRoot(profile.root, temporaryFile)) return res.status(500).json({ error: 'Invalid profile image destination.' });
         await fs.promises.writeFile(temporaryFile, req.file.buffer, { flag: 'wx', mode: 0o600 });
         for (const item of profile.files) {
