@@ -70,18 +70,5 @@
 
   window.DMSDate = Object.freeze({ format, toJalaliInput, fromJalaliInput, normalizeDigits });
 
-  // Profile is loaded here because date-utils is already a shared, same-origin module
-  // on the main DMS page; the profile module itself activates only when the profile menu exists.
-  if (document.querySelector) {
-    const loadProfile = () => {
-      if (!document.getElementById('dmsProfileMenu') || document.getElementById('dms-profile-module')) return;
-      const script = document.createElement('script');
-      script.id = 'dms-profile-module';
-      script.src = 'js/profile.js?v=20261024-profile-v1';
-      script.defer = true;
-      document.head.appendChild(script);
-    };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadProfile, { once: true });
-    else loadProfile();
-  }
+
 })();
