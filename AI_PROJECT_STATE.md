@@ -242,11 +242,18 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commits: `a87a62b4d9da3b8eb062bfbbb1688e5c6bc00b5c`, `d09958777beb5731080d3f7753d1f54f1de83601`, `2475707f4c95635b9847a4f8d74a3add7d870d04`, `10882e05e7d2f220443f0aac41b2edb21da5d387`, `a8b86a6869bf6e6a1fedf0f870323a60ec7c1418`, `1fdac0573bef31d515cc7b66b61b3be8adb6545c`, `62c30f7e308b53c7474e7598bb8516b90676b9d1`.
 - Validation: confirmed each targeted backdrop handler was updated. JavaScript syntax checks and browser/runtime tests have not yet been run.
 
+## Drawing Requests worklist backdrop text-selection fix — 2026-10-24
+
+- Updated `frontend/js/request-workflow.js` in the `init()` handler for `#rwWorklistModal`: it now closes from the backdrop only when both pointer-down and pointer-up occur on the backdrop. Selecting text inside `.rw-worklist-dialog` and releasing outside should no longer dismiss the worklist; a normal backdrop click still closes it.
+- Commit: `183ebe187cc00585b09c3a697eda2ba8e84f0edb`.
+- Validation: confirmed the exact handler was replaced in current GitHub source. JavaScript syntax check and browser/runtime test have not been run.
+
 # NEXT ACTION
 
-1. Browser-test modal backdrop behavior: ordinary backdrop click closes; select text inside each affected modal and release outside, and confirm the modal stays open.
-2. Browser-test password modal layering: click Change Password, enter valid values, click Done, confirm the confirmation modal appears in front; Cancel must return to password entry without changing the password.
-3. Confirm Yes, Change Password updates the password, closes the confirmation/password modals, and reveals `dms-profile-dialog`; test API failure and ensure an error remains visible.
-4. Browser-test profile crop/zoom, Save Changes confirmation, and cancel behavior; then test profile APIs on target SQL Server and verify `tblPath.PathID=5` storage.
-5. Run the existing user-management RBAC and last-Admin protection checks documented above.
-6. Do not restore the stopped Stamp phase.
+1. Browser-test `rw-worklist-dialog` backdrop behavior first: ordinary backdrop click closes; select text inside the dialog and release outside, and confirm it stays open.
+2. Browser-test other modal backdrop behavior: ordinary backdrop click closes; select text inside each affected modal and release outside, and confirm the modal stays open.
+3. Browser-test password modal layering: click Change Password, enter valid values, click Done, confirm the confirmation modal appears in front; Cancel must return to password entry without changing the password.
+4. Confirm Yes, Change Password updates the password, closes the confirmation/password modals, and reveals `dms-profile-dialog`; test API failure and ensure an error remains visible.
+5. Browser-test profile crop/zoom, Save Changes confirmation, and cancel behavior; then test profile APIs on target SQL Server and verify `tblPath.PathID=5` storage.
+6. Run the existing user-management RBAC and last-Admin protection checks documented above.
+7. Do not restore the stopped Stamp phase.
