@@ -900,7 +900,7 @@ app.get('/api/drawing-requests', async (req, res) => {
               INNER JOIN dbo.Roles role ON role.RoleID = ur.RoleID
               WHERE ur.UserID = @commentViewerUserId
                 AND role.IsActive = 1
-                AND role.RoleCode IN (N'VIEWER', N'Manager')
+                AND role.RoleID IN (4, 5)
             )
             OR h.ActionByUserID IN (dr.RequesterUserID, dr.ManagerUserID)
           )
@@ -1016,7 +1016,7 @@ app.get('/api/drawing-experts', async (req, res) => {
       FROM dbo.Users u
       INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID
       INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID
-      WHERE u.IsActive=1 AND r.IsActive=1 AND r.RoleCode=N'DrawingExpert'
+      WHERE u.IsActive=1 AND r.IsActive=1 AND r.RoleID=3
       ORDER BY u.Name, u.Family, u.Username;
     `);
     res.json({ experts: result.recordset });
@@ -1061,7 +1061,7 @@ app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
     if(!allowed) return res.status(403).json({error:'This action is not allowed for your user or the current request status.'});
     if(['assign','transfer'].includes(action)){
       const er=new sql.Request();er.input('expertUsername',sql.NVarChar(100),expertUsername);
-      const found=await er.query(`SELECT TOP 1 u.UserID,u.Username FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleCode=N'DrawingExpert' WHERE u.Username=@expertUsername AND u.IsActive=1;`);
+      const found=await er.query(`SELECT TOP 1 u.UserID,u.Username FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleID=3 WHERE u.Username=@expertUsername AND u.IsActive=1;`);
       targetExpert=found.recordset[0];if(!targetExpert)return res.status(400).json({error:'Active DrawingExpert username was not found.'});
     }
     const sr=new sql.Request();sr.input('statusCode',sql.NVarChar(50),nextStatus);
