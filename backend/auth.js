@@ -224,7 +224,7 @@ function createAuth(frontendOrigins) {
   router.post('/logout', async (req, res) => { const token=cookies(req).dms_session, session=token?sessions.get(token):null; if(session){await writeAudit(session.user.userId,session.user.username,'LOGOUT',clientIp(req));sessions.delete(token);} clearCookie(res); res.json({success:true}); });
 
   // Self-service profile APIs. Profile images stay outside static hosting in tblPath.PathID=5.
-  const profileImageUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1 } });
+  const profileImageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
 
   function safeProfileUsername(username) {
     const value = String(username || '');
@@ -770,7 +770,7 @@ module.exports={createAuth};
         try {
           await fs.promises.access(storage.files[i]);
           res.set('Cache-Control','no-store');
-          res.type(['jpg','png','webp'][i]);
+          res.set('Content-Type',['image/jpeg','image/png','image/webp'][i]);
           return res.sendFile(storage.files[i]);
         } catch (_) {}
       }
