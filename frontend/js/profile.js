@@ -268,7 +268,11 @@
     menu.insertBefore(profileButton,document.getElementById('logoutButton'));
     profileButton.addEventListener('click',()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');openProfile();});
     document.getElementById('dmsProfileClose').addEventListener('click',closeProfile); document.getElementById('dmsProfileCancel').addEventListener('click',closeProfile);
-    document.getElementById('dmsProfileModal').addEventListener('click',e=>{if(e.target.id==='dmsProfileModal')closeProfile();});
+    const profileModal=document.getElementById('dmsProfileModal');
+    let profileBackdropDown=false, profileBackdropUp=false;
+    profileModal.addEventListener('pointerdown',e=>{profileBackdropDown=e.target===profileModal;});
+    profileModal.addEventListener('pointerup',e=>{profileBackdropUp=e.target===profileModal;});
+    profileModal.addEventListener('click',e=>{const close=e.target===profileModal&&profileBackdropDown&&profileBackdropUp;profileBackdropDown=false;profileBackdropUp=false;if(close)closeProfile();});
     document.getElementById('dmsProfileForm').addEventListener('submit',saveProfile);
     const passwordModal = document.getElementById('dmsProfilePasswordModal');
     const closePasswordModal = () => passwordModal.classList.add('hidden');
