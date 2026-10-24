@@ -2,7 +2,11 @@
   'use strict';
 
   const API = `${window.DMS_API_BASE || ''}/api`;
-  const MAX_IMAGE_BYTES = 750 * 1024;
+  const CROP_SIZE = 280;
+  const OUTPUT_SIZE = 512;
+  let pendingPhotoBlob = null, pendingPhotoRemoval = false, stagedPhotoUrl = null;
+  let cropObjectUrl = null, cropImage = null, cropBaseScale = 1, cropZoom = 1, cropX = 0, cropY = 0;
+  let cropDragging = false, cropDragStartX = 0, cropDragStartY = 0, cropStartX = 0, cropStartY = 0;
 
   const esc = value => String(value ?? '')
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -18,6 +22,7 @@
       @media(max-width:650px){.dms-profile-hero,.dms-profile-grid{grid-template-columns:1fr}.dms-profile-photo-wrap{text-align:left}.dms-profile-photo{margin-left:0}.dms-profile-photo-actions{justify-content:flex-start}}
     `;
     document.head.appendChild(style);
+    style.textContent += '\n.dms-profile-avatar{overflow:hidden;flex:none}.dms-profile-avatar img{width:100%;height:100%;min-width:0;min-height:0;display:block;object-fit:cover;border-radius:50%}.dms-profile-crop-dialog,.dms-profile-confirm-dialog{width:min(460px,calc(100vw - 32px));padding:20px;background:var(--panel,#122a47);border:1px solid var(--line-strong);border-radius:10px;color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.45)}.dms-profile-crop-viewport{position:relative;width:min(280px,calc(100vw - 80px));height:min(280px,calc(100vw - 80px));margin:18px auto;overflow:hidden;border-radius:50%;background:#081523;border:2px solid var(--cyan-dim);touch-action:none;cursor:grab}.dms-profile-crop-viewport.dragging{cursor:grabbing}.dms-profile-crop-image{position:absolute;left:50%;top:50%;max-width:none;max-height:none;user-select:none;-webkit-user-drag:none;pointer-events:none}.dms-profile-crop-hint,.dms-profile-confirm-dialog p{color:var(--muted,#9aaab5);font-size:12px;line-height:1.5}.dms-profile-zoom{display:flex;align-items:center;gap:12px;margin:12px 0}.dms-profile-zoom input{width:100%;accent-color:var(--cyan)}.dms-profile-crop-actions,.dms-profile-confirm-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}.dms-profile-crop-actions button,.dms-profile-confirm-actions button{padding:9px 14px;border-radius:6px;font:inherit;cursor:pointer}.dms-profile-crop-cancel,.dms-profile-confirm-cancel{background:transparent;color:inherit;border:1px solid var(--line-strong)}.dms-profile-crop-apply,.dms-profile-confirm-yes{background:rgba(111,227,255,.14);color:#dff8ff;border:1px solid var(--cyan-dim)}.dms-profile-confirm-dialog{width:min(430px,calc(100vw - 32px));padding:22px}.dms-profile-confirm-dialog h3{margin:0 0 10px}.dms-profile-confirm-dialog p{font-size:14px}.dms-profile-confirm-yes:disabled{opacity:.6;cursor:wait}';
   }
 
   function buildModal() {
@@ -42,6 +47,20 @@
         </form>
       </div>`;
     document.body.appendChild(modal);
+    buildCropAndConfirmModals();
+  }
+
+  function buildCropAndConfirmModals() {
+    const crop = document.createElement('div');
+    crop.id = 'dmsProfileCropModal'; crop.className = 'dms-profile-modal hidden';
+    crop.setAttribute('role','dialog'); crop.setAttribute('aria-modal','true'); crop.setAttribute('aria-labelledby','dmsProfileCropTitle');
+    crop.innerHTML = '<div class="dms-profile-crop-dialog"><div class="dms-profile-head" style="padding:0 0 14px"><h2 id="dmsProfileCropTitle">Crop profile photo</h2><button type="button" class="dms-profile-close" id="dmsProfileCropClose" aria-label="Close">×</button></div><div id="dmsProfileCropViewport" class="dms-profile-crop-viewport"><img id="dmsProfileCropImage" class="dms-profile-crop-image" alt="Image crop preview"></div><p class="dms-profile-crop-hint">Drag the image to reposition it. Use the zoom control to choose the framing.</p><label class="dms-profile-zoom" for="dmsProfileZoom"><span>Zoom</span><input id="dmsProfileZoom" type="range" min="1" max="4" step="0.01" value="1"></label><div id="dmsProfileCropError" class="dms-profile-error" hidden></div><div class="dms-profile-crop-actions"><button type="button" class="dms-profile-crop-cancel" id="dmsProfileCropCancel">Cancel</button><button type="button" class="dms-profile-crop-apply" id="dmsProfileCropApply">Use Photo</button></div></div>';
+    document.body.appendChild(crop);
+    const confirm = document.createElement('div');
+    confirm.id = 'dmsProfileConfirmModal'; confirm.className = 'dms-profile-modal hidden';
+    confirm.setAttribute('role','dialog'); confirm.setAttribute('aria-modal','true'); confirm.setAttribute('aria-labelledby','dmsProfileConfirmTitle');
+    confirm.innerHTML = '<div class="dms-profile-confirm-dialog"><h3 id="dmsProfileConfirmTitle">Confirm Changes</h3><p>Are you sure you want to apply these profile changes?</p><div class="dms-profile-confirm-actions"><button type="button" class="dms-profile-confirm-cancel" id="dmsProfileConfirmCancel">Cancel</button><button type="button" class="dms-profile-confirm-yes" id="dmsProfileConfirmYes">Yes, Save Changes</button></div></div>';
+    document.body.appendChild(confirm);
   }
 
   function formatLastVisit(value) {
@@ -57,6 +76,7 @@
   }
 
   async function openProfile() {
+    resetStagedPhoto();
     const modal = document.getElementById('dmsProfileModal');
     if (!modal) return;
     const message = document.getElementById('dmsProfileMessage');
@@ -100,49 +120,160 @@
       if (newPassword !== confirmPassword) return showMessage('New password and confirmation do not match.', true);
       if (!currentPassword) return showMessage('Current password is required to change the password.', true);
     }
-    const save = document.getElementById('dmsProfileSave'); save.disabled = true;
+    document.getElementById('dmsProfileConfirmModal').classList.remove('hidden');
+    document.getElementById('dmsProfileConfirmYes').focus();
+  }
+
+  async function commitChanges() {
+    const confirmButton = document.getElementById('dmsProfileConfirmYes');
+    const saveButton = document.getElementById('dmsProfileSave');
+    confirmButton.disabled = true; saveButton.disabled = true;
+    document.getElementById('dmsProfileConfirmModal').classList.add('hidden');
+    const name = document.getElementById('dmsProfileNameInput').value.trim();
+    const family = document.getElementById('dmsProfileFamilyInput').value.trim();
+    const currentPassword = document.getElementById('dmsCurrentPassword').value;
+    const newPassword = document.getElementById('dmsNewPassword').value;
     try {
-      const profileResponse = await fetch(`${API}/auth/me/profile`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,family}) });
+      if (newPassword) {
+        const response = await fetch(API + '/auth/me/profile-password', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPassword,newPassword}) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not change password.');
+      }
+      const profileResponse = await fetch(API + '/auth/me/profile', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,family}) });
       const profileData = await profileResponse.json().catch(() => ({}));
       if (!profileResponse.ok) throw new Error(profileData.error || 'Could not save profile.');
-      if (newPassword) {
-        const passwordResponse = await fetch(`${API}/auth/me/profile-password`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPassword,newPassword}) });
-        const passwordData = await passwordResponse.json().catch(() => ({}));
-        if (!passwordResponse.ok) throw new Error(passwordData.error || 'Could not change password.');
+      if (pendingPhotoBlob) {
+        const formData = new FormData(); formData.append('photo', pendingPhotoBlob, 'profile.jpg');
+        const photoResponse = await fetch(API + '/auth/me/profile-image', { method:'PUT', credentials:'include', body:formData });
+        const photoData = await photoResponse.json().catch(() => ({}));
+        if (!photoResponse.ok) throw new Error(photoData.error || 'Could not save profile photo.');
+      } else if (pendingPhotoRemoval) {
+        const photoResponse = await fetch(API + '/auth/me/profile-image', { method:'DELETE', credentials:'include' });
+        const photoData = await photoResponse.json().catch(() => ({}));
+        if (!photoResponse.ok) throw new Error(photoData.error || 'Could not remove profile photo.');
       }
-      showMessage('Profile updated successfully.', false);
       document.getElementById('dmsProfileFullName').textContent = [name,family].filter(Boolean).join(' ') || document.getElementById('dmsProfileUsername').textContent || 'User';
       document.getElementById('dmsProfileName').textContent = [name,family].filter(Boolean).join(' ') || document.getElementById('dmsProfileUsername').textContent || 'User';
-      document.getElementById('dmsProfileAvatar').textContent = (name || document.getElementById('dmsProfileUsername').textContent || 'U').slice(0,1).toUpperCase();
-      document.getElementById('dmsCurrentPassword').value=''; document.getElementById('dmsNewPassword').value=''; document.getElementById('dmsConfirmPassword').value='';
+      document.getElementById('dmsCurrentPassword').value = '';
+      document.getElementById('dmsNewPassword').value = '';
+      document.getElementById('dmsConfirmPassword').value = '';
+      resetStagedPhoto();
+      document.getElementById('dmsProfileModal').classList.add('hidden');
+      const refreshed = await fetch(API + '/auth/me/profile', { credentials:'include', cache:'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+      if (refreshed && refreshed.user && refreshed.user.hasProfileImage) {
+        setPhotoPreview(API + '/auth/me/profile-image?t=' + Date.now());
+      } else {
+        const photo = document.getElementById('dmsProfilePhoto');
+        photo.classList.add('dms-profile-photo-fallback');
+        photo.textContent = (name || document.getElementById('dmsProfileUsername').textContent || 'U').slice(0,1).toUpperCase();
+        avatarFallback(name || document.getElementById('dmsProfileUsername').textContent || 'U');
+      }
     } catch (error) { showMessage(error.message, true); }
-    finally { save.disabled = false; }
+    finally { confirmButton.disabled = false; saveButton.disabled = false; }
+  }
+
+  function resetStagedPhoto() {
+    pendingPhotoBlob = null; pendingPhotoRemoval = false;
+    if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl);
+    stagedPhotoUrl = null;
+  }
+
+  function avatarFallback(value) {
+    const avatar = document.getElementById('dmsProfileAvatar');
+    if (avatar) avatar.textContent = (String(value || 'U').trim().slice(0,1) || 'U').toUpperCase();
+  }
+
+  function setPhotoPreview(src) {
+    const photo = document.getElementById('dmsProfilePhoto');
+    photo.classList.remove('dms-profile-photo-fallback');
+    photo.replaceChildren();
+    const image = document.createElement('img'); image.alt = 'Profile photo'; image.src = src; photo.appendChild(image);
+    const avatar = document.getElementById('dmsProfileAvatar');
+    if (avatar) { avatar.replaceChildren(); const avatarImage = document.createElement('img'); avatarImage.alt = 'Profile photo'; avatarImage.src = src; avatar.appendChild(avatarImage); }
+  }
+
+  function closeCrop() {
+    document.getElementById('dmsProfileCropModal').classList.add('hidden');
+    cropDragging = false;
+    if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl);
+    cropObjectUrl = null; cropImage = null;
+  }
+
+  function closeProfile() {
+    closeCrop();
+    document.getElementById('dmsProfileConfirmModal').classList.add('hidden');
+    document.getElementById('dmsProfileModal').classList.add('hidden');
+    resetStagedPhoto();
+  }
+
+  function openCrop(file) {
+    if (!file) return;
+    if (!['image/jpeg','image/png','image/webp'].includes(file.type)) return showMessage('Only JPG, PNG, and WebP images are allowed.', true);
+    document.getElementById('dmsProfileCropError').hidden = true;
+    if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl);
+    cropObjectUrl = URL.createObjectURL(file);
+    cropImage = document.getElementById('dmsProfileCropImage');
+    cropImage.onload = () => {
+      cropBaseScale = Math.max(CROP_SIZE / cropImage.naturalWidth, CROP_SIZE / cropImage.naturalHeight);
+      cropZoom = 1; cropX = 0; cropY = 0; renderCrop();
+      document.getElementById('dmsProfileCropModal').classList.remove('hidden');
+    };
+    cropImage.onerror = () => showMessage('The selected file is not a readable image.', true);
+    cropImage.src = cropObjectUrl;
+  }
+
+  function renderCrop() {
+    if (!cropImage) return;
+    const scale = cropBaseScale * cropZoom;
+    const maxX = Math.max(0,(cropImage.naturalWidth * scale - CROP_SIZE) / 2);
+    const maxY = Math.max(0,(cropImage.naturalHeight * scale - CROP_SIZE) / 2);
+    cropX = Math.min(maxX,Math.max(-maxX,cropX)); cropY = Math.min(maxY,Math.max(-maxY,cropY));
+    cropImage.style.width = (cropImage.naturalWidth * scale) + 'px';
+    cropImage.style.height = (cropImage.naturalHeight * scale) + 'px';
+    cropImage.style.transform = 'translate(calc(-50% + ' + cropX + 'px), calc(-50% + ' + cropY + 'px))';
+    document.getElementById('dmsProfileZoom').value = String(cropZoom);
+  }
+
+  async function applyCrop() {
+    if (!cropImage || !cropImage.naturalWidth || !cropImage.naturalHeight) return;
+    const scale = cropBaseScale * cropZoom;
+    const displayedWidth = cropImage.naturalWidth * scale, displayedHeight = cropImage.naturalHeight * scale;
+    const imageLeft = (CROP_SIZE - displayedWidth) / 2 + cropX;
+    const imageTop = (CROP_SIZE - displayedHeight) / 2 + cropY;
+    const sourceSide = CROP_SIZE / scale;
+    const sourceX = Math.max(0,Math.min(cropImage.naturalWidth - sourceSide,-imageLeft / scale));
+    const sourceY = Math.max(0,Math.min(cropImage.naturalHeight - sourceSide,-imageTop / scale));
+    const canvas = document.createElement('canvas'); canvas.width = OUTPUT_SIZE; canvas.height = OUTPUT_SIZE;
+    const context = canvas.getContext('2d',{alpha:false});
+    if (!context) return showMessage('Image cropping is not available in this browser.',true);
+    context.fillStyle = '#ffffff'; context.fillRect(0,0,OUTPUT_SIZE,OUTPUT_SIZE);
+    context.drawImage(cropImage,sourceX,sourceY,sourceSide,sourceSide,0,0,OUTPUT_SIZE,OUTPUT_SIZE);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve,'image/jpeg',0.92));
+    if (!blob) return showMessage('Could not prepare the cropped image.',true);
+    pendingPhotoBlob = blob; pendingPhotoRemoval = false;
+    if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl);
+    stagedPhotoUrl = URL.createObjectURL(blob);
+    setPhotoPreview(stagedPhotoUrl);
+    showMessage('Photo crop prepared. Click Save Changes to apply it.',false);
+    closeCrop();
+  }
+
+  function stagePhotoRemoval() {
+    pendingPhotoBlob = null; pendingPhotoRemoval = true;
+    if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl);
+    stagedPhotoUrl = null;
+    const name = document.getElementById('dmsProfileNameInput').value || document.getElementById('dmsProfileUsername').textContent || 'U';
+    const photo = document.getElementById('dmsProfilePhoto');
+    photo.classList.add('dms-profile-photo-fallback'); photo.textContent = name.slice(0,1).toUpperCase();
+    avatarFallback(name);
+    showMessage('Photo removal prepared. Click Save Changes to apply it.',false);
   }
 
   function showMessage(text, error) { const box=document.getElementById('dmsProfileMessage'); box.textContent=text; box.className=error?'dms-profile-error':'dms-profile-success'; box.hidden=false; }
 
-  async function savePhoto(file) {
-    if (!file) return;
-    if (!['image/jpeg','image/png','image/webp'].includes(file.type)) return showMessage('Only JPG, PNG, and WebP images are allowed.', true);
-    if (file.size > MAX_IMAGE_BYTES) return showMessage('Profile image must be 750 KB or smaller.', true);
-    const fd = new FormData(); fd.append('photo', file);
-    try {
-      const response = await fetch(`${API}/auth/me/profile-image`, { method:'PUT', credentials:'include', body:fd });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Could not save profile image.');
-      const photo=document.getElementById('dmsProfilePhoto'); photo.classList.remove('dms-profile-photo-fallback'); photo.innerHTML=`<img src="${API}/auth/me/profile-image?t=${Date.now()}" alt="Profile photo">`;
-      document.getElementById('dmsProfileAvatar').innerHTML=`<img src="${API}/auth/me/profile-image?t=${Date.now()}" alt="Profile photo">`;
-      showMessage('Profile photo updated successfully.', false);
-    } catch (error) { showMessage(error.message, true); }
-  }
+  async function savePhoto(file) { openCrop(file); }
 
-  async function removePhoto() {
-    try {
-      const response=await fetch(`${API}/auth/me/profile-image`,{method:'DELETE',credentials:'include'}); const data=await response.json().catch(()=>({}));
-      if(!response.ok) throw new Error(data.error||'Could not remove profile image.');
-      const name=document.getElementById('dmsProfileNameInput').value||document.getElementById('dmsProfileUsername').textContent||'U'; const photo=document.getElementById('dmsProfilePhoto'); photo.classList.add('dms-profile-photo-fallback'); photo.textContent=name.slice(0,1).toUpperCase(); document.getElementById('dmsProfileAvatar').textContent=name.slice(0,1).toUpperCase(); showMessage('Profile photo removed.',false);
-    }catch(error){showMessage(error.message,true);}
-  }
+  function removePhoto() { stagePhotoRemoval(); }
 
   function init() {
     const menu=document.getElementById('userMenuPanel'); const trigger=document.getElementById('dmsProfileMenu');
@@ -162,11 +293,24 @@
     document.getElementById('dmsProfileModal').addEventListener('click',e=>{if(e.target.id==='dmsProfileModal')closeProfile();});
     document.getElementById('dmsProfileForm').addEventListener('submit',saveProfile);
     document.getElementById('dmsProfileChoosePhoto').addEventListener('click',()=>document.getElementById('dmsProfilePhotoInput').click());
-    document.getElementById('dmsProfilePhotoInput').addEventListener('change',e=>savePhoto(e.target.files?.[0]));
+    document.getElementById('dmsProfilePhotoInput').addEventListener('change',e=>{ const file=e.target.files?.[0]; e.target.value=''; savePhoto(file); });
     document.getElementById('dmsProfileRemovePhoto').addEventListener('click',removePhoto);
+    document.getElementById('dmsProfileCropClose').addEventListener('click',closeCrop);
+    document.getElementById('dmsProfileCropCancel').addEventListener('click',closeCrop);
+    document.getElementById('dmsProfileCropModal').addEventListener('click',e=>{if(e.target.id==='dmsProfileCropModal')closeCrop();});
+    document.getElementById('dmsProfileCropApply').addEventListener('click',applyCrop);
+    document.getElementById('dmsProfileZoom').addEventListener('input',e=>{cropZoom=Number(e.target.value)||1;renderCrop();});
+    const cropViewport=document.getElementById('dmsProfileCropViewport');
+    cropViewport.addEventListener('pointerdown',e=>{if(!cropImage)return;cropDragging=true;cropDragStartX=e.clientX;cropDragStartY=e.clientY;cropStartX=cropX;cropStartY=cropY;cropViewport.classList.add('dragging');cropViewport.setPointerCapture?.(e.pointerId);e.preventDefault();});
+    cropViewport.addEventListener('pointermove',e=>{if(!cropDragging)return;cropX=cropStartX+e.clientX-cropDragStartX;cropY=cropStartY+e.clientY-cropDragStartY;renderCrop();});
+    const stopCropDrag=()=>{cropDragging=false;cropViewport.classList.remove('dragging');};
+    cropViewport.addEventListener('pointerup',stopCropDrag);cropViewport.addEventListener('pointercancel',stopCropDrag);
+    document.getElementById('dmsProfileConfirmCancel').addEventListener('click',()=>document.getElementById('dmsProfileConfirmModal').classList.add('hidden'));
+    document.getElementById('dmsProfileConfirmYes').addEventListener('click',commitChanges);
+    document.getElementById('dmsProfileConfirmModal').addEventListener('click',e=>{if(e.target.id==='dmsProfileConfirmModal')document.getElementById('dmsProfileConfirmModal').classList.add('hidden');});
     document.querySelectorAll('.dms-password-toggle').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById(button.dataset.target);const visible=input.type==='text';input.type=visible?'password':'text';button.innerHTML=visible?"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>":"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m3 3 18 18\"/><path d=\"M10.6 10.6a2 2 0 0 0 2.8 2.8\"/><path d=\"M9.9 5.2A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-3 3.8\"/><path d=\"M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7c1.3 0 2.5-.3 3.6-.8\"/></svg>";button.setAttribute('aria-label',visible?'Show password':'Hide password');button.title=visible?'Show password':'Hide password';}));
     document.getElementById('dmsNewPassword').addEventListener('input',e=>{const value=e.target.value;const strength=Math.min(100,Math.max(0,value.length*8 + (/[A-Z]/.test(value)?12:0)+(/[0-9]/.test(value)?12:0)+(/[^A-Za-z0-9]/.test(value)?12:0)));document.getElementById('dmsPasswordStrength').style.width=`${strength}%`;});
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.getElementById('dmsProfileModal').classList.contains('hidden'))closeProfile();});
+    document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!document.getElementById('dmsProfileCropModal').classList.contains('hidden'))closeCrop();else if(!document.getElementById('dmsProfileConfirmModal').classList.contains('hidden'))document.getElementById('dmsProfileConfirmModal').classList.add('hidden');else if(!document.getElementById('dmsProfileModal').classList.contains('hidden'))closeProfile();});
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
