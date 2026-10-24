@@ -102,8 +102,6 @@
     } catch (error) { alert(error.message); }
   }
 
-  function closeProfile() { document.getElementById('dmsProfileModal')?.classList.add('hidden'); }
-
   async function saveProfile(event) {
     event.preventDefault();
     const message = document.getElementById('dmsProfileMessage');
