@@ -250,6 +250,33 @@ function createAuth(frontendOrigins) {
       res.set('Cache-Control','no-store').json({user:{userId:Number(row.UserID),username:row.Username,name:row.Name||'',family:row.Family||'',role:row.Role||'Signed in',lastLoginAt:row.LastLoginAt||null,hasProfileImage:has}});
     } catch(e){console.error('Profile load failed:',e.message);res.status(500).json({error:'Unable to load profile.'});}
   });
+
+  router.put('/me/profile',rateLimit,csrf,authenticate,async(req,res)=>{
+    const name=req.body?.name,family=req.body?.family;
+    if(typeof name!=='string'||typeof family!=='string'||name.trim().length>100||family.trim().length>100)return res.status(400).json({error:'Name and family must be text up to 100 characters.'});
+    try{const q=new sql.Request();q.input('userId',sql.Int,req.user.userId);q.input('name',sql.NVarChar(100),name.trim());q.input('family',sql.NVarChar(100),family.trim());await q.query('UPDATE dbo.Users SET Name=@name,Family=@family,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId AND IsActive=1;');await writeAudit(req.user.userId,req.user.username,'SELF_PROFILE_UPDATED',clientIp(req));for(const s of sessions.values())if(s.user.userId===req.user.userId){s.user.name=name.trim();s.user.family=family.trim();}res.json({success:true});}
+    catch(e){console.error('Profile update failed:',e.message);res.status(500).json({error:'Could not update profile.'});}
+  });
+  router.put('/me/profile-password',rateLimit,csrf,authenticate,async(req,res)=>{
+    const current=req.body?.currentPassword,nextPassword=req.body?.newPassword;
+    if(typeof current!=='string'||typeof nextPassword!=='string'||nextPassword.length<8||nextPassword.length>256)return res.status(400).json({error:'New password must be 8 to 256 characters.'});
+    try{const q=new sql.Request();q.input('userId',sql.Int,req.user.userId);const r=await q.query('SELECT PasswordHash FROM dbo.Users WHERE UserID=@userId AND IsActive=1;');const hash=r.recordset?.[0]?.PasswordHash;if(!hash||!(await verifyPassword(current,hash))){await writeAudit(req.user.userId,req.user.username,'SELF_PROFILE_PASSWORD_FAILED',clientIp(req));return res.status(400).json({error:'Current password is incorrect.'});}const salt=crypto.randomBytes(16),N=16384,rr=8,p=1;const derived=await new Promise((resolve,reject)=>crypto.scrypt(nextPassword,salt,64,{N,r:rr,p,maxmem:128*1024*1024},(e,k)=>e?reject(e):resolve(k)));const passwordHash=['scrypt',N,rr,p,salt.toString('base64'),derived.toString('base64')].join('$');const u=new sql.Request();u.input('userId',sql.Int,req.user.userId);u.input('passwordHash',sql.NVarChar(512),passwordHash);await u.query('UPDATE dbo.Users SET PasswordHash=@passwordHash,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId AND IsActive=1;');await writeAudit(req.user.userId,req.user.username,'SELF_PROFILE_PASSWORD_CHANGED',clientIp(req));res.json({success:true});}
+    catch(e){console.error('Profile password update failed:',e.message);res.status(500).json({error:'Could not change password.'});}
+  });
+  router.get('/me/profile-image',rateLimit,authenticate,async(req,res)=>{
+    try{const loc=await profileImageLocation(req.user.username);for(let i=0;i<loc.files.length;i++){try{await fs.promises.access(loc.files[i]);res.set('Cache-Control','no-store');res.set('Content-Type',['image/jpeg','image/png','image/webp'][i]);return res.sendFile(loc.files[i]);}catch(_){}}return res.status(404).json({error:'Profile image not found.'});}
+    catch(e){console.error('Profile image read failed:',e.message);res.status(500).json({error:'Could not load profile image.'});}
+  });
+  router.put('/me/profile-image',rateLimit,csrf,authenticate,(req,res,next)=>{profileImageUpload.single('photo')(req,res,e=>{if(e)return res.status(400).json({error:'Could not receive profile image.'});next();});},async(req,res)=>{
+    const image=req.file;if(!image||!['image/jpeg','image/png','image/webp'].includes(image.mimetype))return res.status(400).json({error:'Only JPG, PNG, and WebP images are allowed.'});const detected=imageType(image.buffer);if(!detected||detected.mime!==image.mimetype)return res.status(400).json({error:'Image content does not match its declared type.'});
+    try{const loc=await profileImageLocation(req.user.username);const dest=path.resolve(loc.root,loc.safe+'.'+detected.ext);if(path.dirname(dest)!==loc.root)return res.status(400).json({error:'Invalid image path.'});const tmp=path.resolve(loc.root,'.'+loc.safe+'.'+crypto.randomBytes(12).toString('hex')+'.tmp');try{await fs.promises.writeFile(tmp,image.buffer,{flag:'wx',mode:0o600});for(const old of loc.files){try{await fs.promises.unlink(old);}catch(e){if(e.code!=='ENOENT')throw e;}}await fs.promises.rename(tmp,dest);}finally{try{await fs.promises.unlink(tmp);}catch(_){}}await writeAudit(req.user.userId,req.user.username,'SELF_PROFILE_IMAGE_UPDATED',clientIp(req));res.json({success:true});}
+    catch(e){console.error('Profile image save failed:',e.message);res.status(500).json({error:'Could not save profile image. Check storage path and permissions.'});}
+  });
+  router.delete('/me/profile-image',rateLimit,csrf,authenticate,async(req,res)=>{
+    try{const loc=await profileImageLocation(req.user.username);let removed=false;for(const file of loc.files){try{await fs.promises.unlink(file);removed=true;}catch(e){if(e.code!=='ENOENT')throw e;}}await writeAudit(req.user.userId,req.user.username,'SELF_PROFILE_IMAGE_REMOVED',clientIp(req));res.json({success:true,removed});}
+    catch(e){console.error('Profile image removal failed:',e.message);res.status(500).json({error:'Could not remove profile image.'});}
+  });
+
   router.get('/me', async (req,res) => {
     const token = cookies(req).dms_session;
     const session = token ? sessions.get(token) : null;
