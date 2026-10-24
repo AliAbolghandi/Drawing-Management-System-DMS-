@@ -225,7 +225,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 - `backend/auth.js`: implemented `GET/PUT /api/auth/me/profile`, `PUT /api/auth/me/profile-password`, and `GET/PUT/DELETE /api/auth/me/profile-image`. Files use `dbo.tblPath.PathID=5` and the active username as basename; no image binary column or public static path is used.
 - Image upload validates declared MIME against JPEG/PNG/WebP signatures. The API caps the *processed crop payload* at 8 MB to prevent memory-exhaustion abuse; the user-selected original image is cropped in the browser before upload. Mutating routes apply the existing rate-limit and Origin/Referer CSRF checks; audit events are written to `dbo.Logs`.
 - Profile password changes require the current password and accept 8–256 characters with no additional composition rules.
-- Commits: backend `b2ee17525d3171c5f6ef4d26e72646388c2b94cf`, `ba0344426d61e644c5e1c6745de9789ee5f3e308`; frontend `c78ee4dabfecc79daa7fe53bf16f9c96a8130431`, `5c039dc2ba387cfacc27cf5d0843b6f9fd1fc7da`, `2c9b852ea11080caf93cb56c3a54785a79a185ef`; cache refresh `7e3547ecf076fee34dd218dee3965f10452bb473`.
+- Commits: backend `b2ee17525d3171c5f6ef4d26e72646388c2b94cf`, `ba0344426d61e644c5e1c6745de9789ee5f3e308`; frontend `c78ee4dabfecc79daa7fe53bf16f9c96a8130431`, `5c039dc2ba387cfacc27cf5d0843b6f9fd1fc7da`, `2c9b852ea11080caf93cb56c3a54785a79a185ef`, `2a132661fca96439ccaab2cd77703d3e7bdf6efb`; cache refresh commits `7e3547ecf076fee34dd218dee3965f10452bb473`, `9271058f8ca9d63b54cfe56c068ad7aaf99bb7cf`.
 - Validation: JavaScript parse checks passed for `backend/auth.js` and `frontend/js/profile.js`. SQL Server storage permissions, real API behavior, and browser crop/modal behavior remain unverified.
 
 # NEXT ACTION
