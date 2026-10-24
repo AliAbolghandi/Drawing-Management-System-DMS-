@@ -82,7 +82,7 @@ function createAuth(frontendOrigins) {
     r.input('userId', sql.Int, userId);
     const q = await r.query(`
       SELECT u.UserID, u.Username, u.Name, u.Family, u.IsActive,
-        CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.UserRoles ur INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID WHERE ur.UserID=u.UserID AND rr.RoleCode=N'Admin' AND rr.IsActive=1) THEN 1 ELSE 0 END AS bit) AS IsAdmin
+        CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.UserRoles ur INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID WHERE ur.UserID=u.UserID AND rr.RoleID=1 AND rr.IsActive=1) THEN 1 ELSE 0 END AS bit) AS IsAdmin
       FROM dbo.Users u WHERE u.UserID=@userId;
       SELECT DISTINCT p.PermissionCode FROM dbo.UserRoles ur
         INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1
@@ -134,7 +134,7 @@ function createAuth(frontendOrigins) {
       try {
         const r = new sql.Request();
         r.input('userId', sql.Int, req.user.userId);
-        const q = await r.query("SELECT TOP 1 1 AS IsAdmin FROM dbo.UserRoles ur INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID INNER JOIN dbo.Users u ON u.UserID=ur.UserID WHERE ur.UserID=@userId AND u.IsActive=1 AND r.RoleCode=N'Admin' AND r.IsActive=1;");
+        const q = await r.query("SELECT TOP 1 1 AS IsAdmin FROM dbo.UserRoles ur INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID INNER JOIN dbo.Users u ON u.UserID=ur.UserID WHERE ur.UserID=@userId AND u.IsActive=1 AND r.RoleID=1 AND r.IsActive=1;");
         if (!q.recordset.length) return res.status(403).json({ error: 'Admin access required.' });
         next();
       } catch (e) { console.error('Admin authorization check failed:', e.message); res.status(500).json({ error: 'Authorization service is unavailable.' }); }
@@ -206,7 +206,7 @@ function createAuth(frontendOrigins) {
     if (now - acct.firstAt > LOGIN_WINDOW_MS) { acct.count = 0; acct.firstAt = now; acct.blockedUntil = 0; }
     try {
       const r = new sql.Request(); r.input('username', sql.NVarChar(100), username);
-      const q = await r.query("SELECT TOP 1 u.UserID,u.Username,u.Name,u.Family,u.PasswordHash,u.IsActive, CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.UserRoles ur INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID WHERE ur.UserID=u.UserID AND rr.RoleCode='Admin' AND rr.IsActive=1) THEN 1 ELSE 0 END AS bit) AS IsAdmin FROM dbo.Users u WHERE u.Username=@username;");
+      const q = await r.query("SELECT TOP 1 u.UserID,u.Username,u.Name,u.Family,u.PasswordHash,u.IsActive, CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.UserRoles ur INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID WHERE ur.UserID=u.UserID AND rr.RoleID=1 AND rr.IsActive=1) THEN 1 ELSE 0 END AS bit) AS IsAdmin FROM dbo.Users u WHERE u.Username=@username;");
       const user = q.recordset[0];
       const valid = user && Number(user.IsActive) === 1 && await verifyPassword(password, user.PasswordHash);
       if (!valid) { acct.count++; if (acct.count >= LOGIN_MAX_ATTEMPTS) acct.blockedUntil = now + LOGIN_WINDOW_MS; accountAttempts.set(accountKey, acct); state.count++; if (state.count >= LOGIN_MAX_ATTEMPTS) state.blockedUntil = now + LOGIN_WINDOW_MS; loginAttempts.set(ip, state); await writeAudit(user?.UserID || null, username, 'LOGIN_FAILED', ip); return res.status(401).json({ error: 'Invalid username or password.' }); }
@@ -239,7 +239,7 @@ function createAuth(frontendOrigins) {
           CAST(CASE WHEN EXISTS (
             SELECT 1 FROM dbo.UserRoles ur
             INNER JOIN dbo.Roles rr ON rr.RoleID=ur.RoleID
-            WHERE ur.UserID=u.UserID AND rr.RoleCode=N'Admin' AND rr.IsActive=1
+            WHERE ur.UserID=u.UserID AND rr.RoleID=1 AND rr.IsActive=1
           ) THEN 1 ELSE 0 END AS bit) AS IsAdmin
         FROM dbo.Users u WHERE u.UserID=@userId;
         SELECT DISTINCT p.PermissionCode
@@ -550,8 +550,8 @@ function createAuth(frontendOrigins) {
   async function isLastActiveAdmin(userId) {
     const r = new sql.Request(); r.input('userId', sql.Int, userId);
     const q = await r.query(`
-      SELECT (SELECT COUNT(DISTINCT u.UserID) FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleCode=N'Admin' WHERE u.IsActive=1) AS TotalAdmins,
-             CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleCode=N'Admin' WHERE u.UserID=@userId AND u.IsActive=1) THEN 1 ELSE 0 END AS bit) AS TargetIsAdmin;`);
+      SELECT (SELECT COUNT(DISTINCT u.UserID) FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleID=1 WHERE u.IsActive=1) AS TotalAdmins,
+             CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.Users u INNER JOIN dbo.UserRoles ur ON ur.UserID=u.UserID INNER JOIN dbo.Roles r ON r.RoleID=ur.RoleID AND r.IsActive=1 AND r.RoleID=1 WHERE u.UserID=@userId AND u.IsActive=1) THEN 1 ELSE 0 END AS bit) AS TargetIsAdmin;`);
     const row = q.recordset[0];
     return Number(row.TargetIsAdmin) === 1 && Number(row.TotalAdmins) <= 1;
   }
@@ -781,7 +781,7 @@ function createAuth(frontendOrigins) {
       let keepsAdmin = false;
       if (roleIds.length) {
         const ar = new sql.Request(); roleIds.forEach((id, i) => ar.input('r' + i, sql.Int, id));
-        keepsAdmin = (await ar.query(`SELECT TOP 1 1 AS X FROM dbo.Roles WHERE RoleCode=N'Admin' AND IsActive=1 AND RoleID IN (${roleIds.map((_, i) => '@r' + i).join(',')});`)).recordset.length > 0;
+        keepsAdmin = (await ar.query(`SELECT TOP 1 1 AS X FROM dbo.Roles WHERE RoleID=1 AND IsActive=1 AND RoleID IN (${roleIds.map((_, i) => '@r' + i).join(',')});`)).recordset.length > 0;
       }
       if (!keepsAdmin) {
         if (userId === req.user.userId) return res.status(400).json({ error: 'You cannot remove the Admin role from your own account.' });
