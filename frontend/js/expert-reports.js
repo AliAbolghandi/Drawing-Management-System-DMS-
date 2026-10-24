@@ -66,7 +66,16 @@
       </div>`);
 
     $('expertReportClose').addEventListener('click', closeModal);
-    $('expertReportModal').addEventListener('click', event => { if (event.target === $('expertReportModal')) closeModal(); });
+    const reportModal = $('expertReportModal');
+    let reportBackdropDown = false, reportBackdropUp = false;
+    reportModal.addEventListener('pointerdown', event => { reportBackdropDown = event.target === reportModal; });
+    reportModal.addEventListener('pointerup', event => { reportBackdropUp = event.target === reportModal; });
+    reportModal.addEventListener('click', event => {
+      const closeFromBackdrop = event.target === reportModal && reportBackdropDown && reportBackdropUp;
+      reportBackdropDown = false;
+      reportBackdropUp = false;
+      if (closeFromBackdrop) closeModal();
+    });
     $('expertReportRefresh').addEventListener('click', loadReport);
     $('expertReportExpert').addEventListener('change', () => { state.selectedExpert = $('expertReportExpert').value; render(); });
     ['expertReportStart','expertReportEnd'].forEach(id => $(id).addEventListener('keydown', event => { if (event.key === 'Enter') loadReport(); }));
