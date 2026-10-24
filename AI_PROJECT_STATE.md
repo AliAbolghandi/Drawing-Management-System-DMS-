@@ -228,18 +228,17 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commits: backend `b2ee17525d3171c5f6ef4d26e72646388c2b94cf`, `ba0344426d61e644c5e1c6745de9789ee5f3e308`; frontend `c78ee4dabfecc79daa7fe53bf16f9c96a8130431`, `5c039dc2ba387cfacc27cf5d0843b6f9fd1fc7da`, `2c9b852ea11080caf93cb56c3a54785a79a185ef`, `2a132661fca96439ccaab2cd77703d3e7bdf6efb`, `c85e408517b84489f7e324e4c857e03e86025043`; cache refresh commits `7e3547ecf076fee34dd218dee3965f10452bb473`, `9271058f8ca9d63b54cfe56c068ad7aaf99bb7cf`, `73b39fc5042453b94cec35092c402bce4fb40852`.
 - Validation: JavaScript parse checks passed for `backend/auth.js` and `frontend/js/profile.js`. SQL Server storage permissions, real API behavior, and browser crop/modal behavior remain unverified.
 
+## Password confirmation modal stacking fix — 2026-10-24
+
+- Updated `frontend/js/profile.js`: set `#dmsProfilePasswordConfirmModal` to `z-index: 3010`, above the password modal's shared `z-index: 3000`. This makes the confirmation appear in front of the password-entry dialog. On successful confirmation, existing code hides both confirmation and password modals, revealing the still-open `dms-profile-dialog`.
+- Code commit: `01d2fc0680a74f7645e4d905acda3b321d8717cd`.
+- Validation: checked the CSS selector and confirmation handlers in source; browser rendering and live password API behavior were not tested.
+
+
 # NEXT ACTION
 
-1. Browser-test profile crop drag/zoom, the Save Changes confirmation, cancel behavior, fixed avatar dimensions, and modal closure after successful save; then test profile APIs on target SQL Server and confirm `tblPath.PathID=5` points to the intended writable storage root.
-2. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
-3. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
-4. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
+1. Browser-test password modal layering: click Change Password, enter valid values, click Done, confirm the confirmation modal appears in front; Cancel must return to password entry without changing the password.
+2. Confirm Yes, Change Password updates the password, closes the confirmation/password modals, and reveals `dms-profile-dialog`; test API failure and ensure an error remains visible.
+3. Browser-test profile crop/zoom, Save Changes confirmation, and cancel behavior; then test profile APIs on target SQL Server and verify `tblPath.PathID=5` storage.
+4. Run the existing user-management RBAC and last-Admin protection checks documented above.
 5. Do not restore the stopped Stamp phase.
-
-
-## Profile password modal — 2026-10-24
-
-- Replaced the inline password fields in `dms-profile-dialog` with a **Change Password** button that opens a dedicated modal.
-- The modal retains current/new/confirm password inputs, eye toggles, password strength indicator, minimum 8 characters, maximum 256 characters, and no extra composition rules. Changes remain staged until the existing Save Changes confirmation is accepted.
-- Commit: `2b4118af693050e763b3f44f76cfcf0c8b470e43`.
-- Validation: JavaScript parse check passed; browser and API tests were not run.
