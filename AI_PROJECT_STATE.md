@@ -1,6 +1,6 @@
 # Project decision — Stamp phase stopped (2026-10-24)
 
-The user explicitly stopped the Stamp phase because it did not deploy correctly. Do not restore or continue it. The current schema report for `dbDrawingManagment` contains no Stamp tables. Stamp-only routes/UI/migrations are not present in the current repository tree; remaining PDF.js/pdf-lib vendored assets and stale Stamp documentation are cleanup targets. Preserve the existing Drawing Request workflow and all unrelated features.
+The user explicitly stopped the Stamp phase because it did not deploy correctly. Do not restore or continue it. The current schema report for `dbDrawingManagment` contains no Stamp tables. Stamp-only routes/UI/migrations, vendored PDF.js/pdf-lib assets, and active Stamp security documentation have been removed. Preserve the existing Drawing Request workflow and all unrelated features.
 
 ## Current task — profile image storage
 - Profile images must be stored on the filesystem using the protected storage root in `dbo.tblPath` where `PathID=5`.
@@ -178,47 +178,6 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Requires container query support (Chrome/Edge 105+, Firefox 110+, Safari 16+); older browsers fall back to the 2-column grid with wrapping.
 - Validation: CSS brace balance checked and diff inspected only. NO browser rendering, screenshots or runtime test performed; visual verification is pending.
 
-## Offline PDF stamping libraries — 2026-10-20
-
-- Inspected current `frontend/js/stamp.js`: it used `pdf-lib@1.17.1` and `pdfjs-dist@5.7.284` from jsDelivr.
-- Updated `frontend/js/stamp.js` to load those exact pinned versions from local paths:
-  - `../lib/pdf-lib/pdf-lib.min.js`
-  - `../lib/pdfjs/pdf.min.mjs`
-  - `../lib/pdfjs/pdf.worker.min.mjs`
-- Added `.github/workflows/vendor-pdf-libraries.yml`, manually triggered with `workflow_dispatch`. It downloads the pinned npm packages, copies the required builds and license files into `frontend/lib/`, validates that the files are non-empty, then commits and pushes the assets to `main` using the workflow token.
-- Commits:
-  - `0077134ae96f5b81a95bb2850e5bf88bfd052d7c` — add vendor workflow.
-  - `e5cf8eaf77a681f8943b2bf399c7867f4e926bb4` — use local PDF library paths.
-- Validation: fetched and inspected current source, confirmed the CDN constants were replaced in the edit operation. GitHub Actions run `39480957062` completed successfully; `frontend/lib/pdf-lib/pdf-lib.min.js`, `frontend/lib/pdfjs/pdf.min.mjs`, `frontend/lib/pdfjs/pdf.worker.min.mjs`, and license files were confirmed in the repository tree. Offline stamping has not yet been verified in a browser.
-- Security note: workflow grants `contents: write` only to the workflow job and only writes the pinned library assets. Review repository Actions settings if the workflow is unable to push.
-
-## Stamp workflow integration fixes — 2026-10-20
-
-- Mounted `backend/stamp-routes.js` in `backend/server.js` after the existing authenticated `/api` middleware and admin route registration.
-- Loaded `frontend/js/stamp.js` from `frontend/index.html`; without this script, the Stamp button/worklist/viewer code never ran.
-- Added a binary per-PDF completion endpoint so stamped PDF bytes do not pass through the global 1 MB JSON parser. Each item is marked complete independently; the parent Stamp request and DrawingRequest only transition to completed when every selected PDF is complete.
-- Stamp route errors now preserve explicit HTTP status codes instead of converting validation and authorization errors to HTTP 500.
-- SQL migration `SQL/Stamp-Workflow.sql` is still a required deployment step. This session cannot execute it against the live SQL Server, nor can it run the DMS browser against the factory file server. Do not mark runtime/database acceptance as passed until tested there.
-
-## Stamp workflow implementation update — 2026-10-20
-
-- `backend/server.js`: mounted `registerStampRoutes` after the existing `/api` authentication middleware.
-- `frontend/index.html`: loaded `frontend/js/stamp.js`; the module had existed but was not loaded by the page.
-- `backend/stamp-routes.js`: added a binary per-PDF completion endpoint (`POST /api/stamp/requests/:stampRequestId/item/:stampItemId/complete`) to avoid the global JSON parser's 1 MB limit; each PDF completes independently and the parent request transitions only when all items are complete. Explicit HTTP errors now preserve their status codes. SQL row locks serialize concurrent item completion. User actions are recorded in `dbo.DrawingRequestHistory` and `dbo.DrawingRequestStampAudit`; expired-file deletion is audited and failed deletions retain their DB filename for retry.
-- `frontend/js/stamp.js`: submits generated PDFs as `application/pdf`, tracks completed items, resumes at the next unfinished PDF, obtains the authenticated user ID from the Stamp API, and uses local PDF library URLs relative to the page URL.
-- `SQL/Stamp-Workflow.sql` now creates `dbo.DrawingRequestStampAudit` for request, decision, per-PDF completion/download, and system expiration/deletion events.
-- Added `.github/workflows/stamp-static-checks.yml` for Node syntax checks and local-library/integration checks.
-- Commits: `ba7f9dc` (server route mount), `2b1bffb` (load UI), `cc95006` (binary completion route), `bf480b2` (frontend binary upload), `daf8988` (requester identity), `21fd361` (PDF completion audit), `66c2dbc` (library URLs/resume), `da36d23` (request/download audit), `5aec048` and `d46566c` (static validation workflow), `44ca951` (serialize concurrent item completion), `a476f9d` (preserve expiry filtering), `184894f` (security changelog), `0834fb8` (Stamp audit table), `ecb6f6c` (lifecycle audit writes), `55cf539` (expiration/deletion audit), `95ef7bb` (security audit documentation).
-- Structural review: GitHub Actions run 39484251316 passed Node syntax and local-asset/integration checks for commit 6f8dc70, including the audit-table and cleanup changes. Live SQL migration, API authorization tests, and browser/PDF viewer workflow have not been verified in the factory DMS environment.
-## Stamp request parameter and validation fix — 2026-10-22
-
-- `backend/stamp-routes.js`: removed the duplicate `requestId` input binding in `POST /api/stamp/requests`. Commit: `3809861511de07b62a6893198f2da693f120b67d`.
-- `.github/workflows/stamp-static-checks.yml`: corrected the static assertion to match the actual completion endpoint template in `frontend/js/stamp.js`. Commit: `f7f20f9f9d022232f481ff872353eb71fa66a436`.
-- The initial static validation run failed only at the stale grep assertion after all three `node --check` commands and the preceding asset/integration checks passed. The corrected workflow must be rerun and confirmed.
-- Reported `403` responses for `/api/node-hierarchy/:nodeId` and `/api/node-folders/:nodeId` are due to their explicit `FILE_VIEW` permission gate. Preserve the gate; verify the signed-in user's effective permission through `UserRoles -> Roles -> RolePermissions -> Permissions` before considering a role-permission change. Live SQL Server and browser tests have not been run.
-
-
-
 ## User Management panel — 2026-10-22
 - Added sidebar entry `User Management`, inserted only when `GET /api/auth/me` includes effective permission code `DASHBOARD_USER_MANAGEMENT` (user specified PermissionID 32; code is the authorization key).
 - Added `frontend/js/user-management.js` and `frontend/css/user-management.css`. The modal includes searchable user list, clickable user names, account metadata, assigned roles, effective role-derived permissions, last login/logout, latest 100 audit events, password reset, and account activation/deactivation.
@@ -252,10 +211,10 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-0. Stamp phase is cancelled; do not restore it. Stamp-only vendored PDF libraries and the obsolete profile-routes module were removed; stale active Stamp documentation was cleaned.
+1. Run profile API runtime checks on the target SQL Server: confirm `tblPath.PathID=5` has the intended `RootPath`, then test profile load/update/password change and image upload/read/delete.
 
 1. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
 2. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
 3. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
 4. Decide whether to add force-change-at-next-login (needs a `Users` column; requires user approval).
-5. Stamp phase is stopped by user decision; do not restore it. Confirm no Stamp-only code, migrations, permissions, tables, routes, UI, or vendored PDF libraries remain.
+5. Stamp phase is stopped by user decision; do not restore it.
