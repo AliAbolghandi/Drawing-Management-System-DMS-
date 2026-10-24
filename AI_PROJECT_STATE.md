@@ -248,6 +248,14 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commit: `183ebe187cc00585b09c3a697eda2ba8e84f0edb`.
 - Validation: confirmed the exact handler was replaced in current GitHub source. JavaScript syntax check and browser/runtime test have not been run.
 
+## Node hierarchy authorization fix — 2026-10-24
+
+- Root cause: `GET /api/node-hierarchy/:nodeId` returned only hierarchy metadata (`NodeID`, `NodeCode`, `NodeName`) but required `FILE_VIEW`. The `VIEWER` and `Manager` roles have `NODE_VIEW` but not `FILE_VIEW`, so the frontend hierarchy request was denied and Main Root / First Child / Second Child remained blank.
+- Updated `backend/server.js`: this metadata-only route now requires the established server-side `NODE_VIEW` permission. The separate `/api/node-hierarchy/:nodeId/full` route already uses `NODE_VIEW`; file and folder routes remain protected by `FILE_VIEW`.
+- Updated `SECURITY_CHANGELOG.md` to record the authorization boundary. No database schema or role-permission data was changed.
+- Commits: backend `48e4ca388e3c0f0a53f24fdfc689833ed82ba8c9`; security changelog `35b2bd8a414fe97c381d976febfbc585d4d5edff`.
+- Validation: source-level route and permission mapping inspected. Live HTTP 401/403 checks, SQL Server-backed API execution, and browser verification have not been run; do not treat the fix as runtime-tested yet.
+
 # NEXT ACTION
 
 1. Browser-test `rw-worklist-dialog` backdrop behavior first: ordinary backdrop click closes; select text inside the dialog and release outside, and confirm it stays open.
