@@ -279,7 +279,10 @@
     document.getElementById('dmsProfileChangePassword').addEventListener('click',()=>{passwordModal.classList.remove('hidden');document.getElementById('dmsCurrentPassword').focus();});
     document.getElementById('dmsProfilePasswordClose').addEventListener('click',closePasswordModal);
     document.getElementById('dmsProfilePasswordCancel').addEventListener('click',closePasswordModal);
-    passwordModal.addEventListener('click',e=>{if(e.target===passwordModal)closePasswordModal();});
+    let passwordBackdropDown=false, passwordBackdropUp=false;
+    passwordModal.addEventListener('pointerdown',e=>{passwordBackdropDown=e.target===passwordModal;});
+    passwordModal.addEventListener('pointerup',e=>{passwordBackdropUp=e.target===passwordModal;});
+    passwordModal.addEventListener('click',e=>{const close=e.target===passwordModal&&passwordBackdropDown&&passwordBackdropUp;passwordBackdropDown=false;passwordBackdropUp=false;if(close)closePasswordModal();});
     document.getElementById('dmsProfilePasswordDone').addEventListener('click',()=>{
       const current=document.getElementById('dmsCurrentPassword').value;
       const next=document.getElementById('dmsNewPassword').value;
