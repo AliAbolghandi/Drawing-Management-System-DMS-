@@ -126,6 +126,8 @@ For production:
 - User Management navigation is UI visibility only. Runtime SQL Server and browser acceptance tests remain pending.
 
 ## Profile images — 2026-10-24
-- Profile images are stored as files under the root configured by `dbo.tblPath.PathID=5`; the file basename is the active user's `Username` and the extension is derived from validated image content.
-- Profile image bytes are not stored in SQL Server. The root is never exposed through static file hosting; image reads and writes use authenticated API routes.
-- The API validates JPEG/PNG/WebP signatures, enforces a 750 KB upload limit, applies rate limits and Origin/Referer checks, and audits profile-image changes.
+- Profile images are stored as files under the root configured by `dbo.tblPath.PathID=5`; the file basename is the active user's `Username` and the extension is derived from validated image content. No image bytes are stored in SQL Server.
+- The root is never exposed through static file hosting. Authenticated endpoints are available under `/api/auth/me/profile`, `/api/auth/me/profile-password`, and `/api/auth/me/profile-image`; mutation routes apply rate limits and Origin/Referer CSRF checks.
+- The browser accepts original JPEG/PNG/WebP images without a frontend file-size restriction, provides drag/zoom crop controls, and sends a fixed 512×512 JPEG crop. The API validates image MIME against file signatures and caps the processed upload at 8 MB to mitigate memory-exhaustion abuse.
+- Profile and password changes use parameterized SQL; password changes verify the current password, enforce an 8–256 character length with no composition rules, and store only scrypt hashes. Profile/photo changes are audited in `dbo.Logs`.
+- Runtime API, SQL Server filesystem permissions, and browser acceptance tests remain pending.
