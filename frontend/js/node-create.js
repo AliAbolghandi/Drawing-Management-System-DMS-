@@ -119,7 +119,16 @@
 
   cancelButton?.addEventListener('click', closeModal);
   closeButton?.addEventListener('click', closeModal);
-  modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+  let backdropPointerDown = false;
+  let backdropPointerUp = false;
+  modal.addEventListener('pointerdown', event => { backdropPointerDown = event.target === modal; });
+  modal.addEventListener('pointerup', event => { backdropPointerUp = event.target === modal; });
+  modal.addEventListener('click', event => {
+    const closeFromBackdrop = event.target === modal && backdropPointerDown && backdropPointerUp;
+    backdropPointerDown = false;
+    backdropPointerUp = false;
+    if (closeFromBackdrop) closeModal();
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
   });
