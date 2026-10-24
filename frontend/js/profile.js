@@ -218,7 +218,8 @@
     cropObjectUrl = URL.createObjectURL(file);
     cropImage = document.getElementById('dmsProfileCropImage');
     cropImage.onload = () => {
-      cropBaseScale = Math.max(CROP_SIZE / cropImage.naturalWidth, CROP_SIZE / cropImage.naturalHeight);
+      const size = cropViewportSize();
+      cropBaseScale = Math.max(size / cropImage.naturalWidth, size / cropImage.naturalHeight);
       cropZoom = 1; cropX = 0; cropY = 0; renderCrop();
       document.getElementById('dmsProfileCropModal').classList.remove('hidden');
     };
@@ -226,11 +227,14 @@
     cropImage.src = cropObjectUrl;
   }
 
+  function cropViewportSize() { return document.getElementById('dmsProfileCropViewport').clientWidth || CROP_SIZE; }
+
   function renderCrop() {
     if (!cropImage) return;
+    const size = cropViewportSize();
     const scale = cropBaseScale * cropZoom;
-    const maxX = Math.max(0,(cropImage.naturalWidth * scale - CROP_SIZE) / 2);
-    const maxY = Math.max(0,(cropImage.naturalHeight * scale - CROP_SIZE) / 2);
+    const maxX = Math.max(0,(cropImage.naturalWidth * scale - size) / 2);
+    const maxY = Math.max(0,(cropImage.naturalHeight * scale - size) / 2);
     cropX = Math.min(maxX,Math.max(-maxX,cropX)); cropY = Math.min(maxY,Math.max(-maxY,cropY));
     cropImage.style.width = (cropImage.naturalWidth * scale) + 'px';
     cropImage.style.height = (cropImage.naturalHeight * scale) + 'px';
@@ -240,11 +244,12 @@
 
   async function applyCrop() {
     if (!cropImage || !cropImage.naturalWidth || !cropImage.naturalHeight) return;
+    const size = cropViewportSize();
     const scale = cropBaseScale * cropZoom;
     const displayedWidth = cropImage.naturalWidth * scale, displayedHeight = cropImage.naturalHeight * scale;
-    const imageLeft = (CROP_SIZE - displayedWidth) / 2 + cropX;
-    const imageTop = (CROP_SIZE - displayedHeight) / 2 + cropY;
-    const sourceSide = CROP_SIZE / scale;
+    const imageLeft = (size - displayedWidth) / 2 + cropX;
+    const imageTop = (size - displayedHeight) / 2 + cropY;
+    const sourceSide = size / scale;
     const sourceX = Math.max(0,Math.min(cropImage.naturalWidth - sourceSide,-imageLeft / scale));
     const sourceY = Math.max(0,Math.min(cropImage.naturalHeight - sourceSide,-imageTop / scale));
     const canvas = document.createElement('canvas'); canvas.width = OUTPUT_SIZE; canvas.height = OUTPUT_SIZE;
