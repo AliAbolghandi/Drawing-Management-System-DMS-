@@ -487,7 +487,7 @@ async function getNodeHierarchy(id) {
   return chain;
 }
 
-app.get('/api/node-hierarchy/:nodeId', auth.requirePermission('FILE_VIEW'), async (req, res) => {
+app.get('/api/node-hierarchy/:nodeId', auth.requirePermission('NODE_VIEW'), async (req, res) => {
   const id = Number(req.params.nodeId);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: 'Invalid Node ID' });
