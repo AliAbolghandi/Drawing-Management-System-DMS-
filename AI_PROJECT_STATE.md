@@ -8,7 +8,6 @@ The user explicitly stopped the Stamp phase because it did not deploy correctly.
 - The profile API must remain under `/api/auth/me/*`, require an authenticated session, enforce rate limits and CSRF/origin checks on state-changing requests, validate image MIME and file signatures, and never expose the storage root as a public static directory.
 - Remove `backend/profile-routes.js` only after equivalent profile/profile-password/profile-image endpoints are implemented in `backend/auth.js`.
 
-## Historical Stamp work (cancelled)
 # DMS — AI Project State / Handoff
 
 Last updated: 2026-10-24
@@ -16,7 +15,7 @@ Last updated: 2026-10-24
 ## Current change status — 2026-10-24
 - `backend/auth.js`: profile, profile-password and profile-image APIs are implemented in the existing auth router. Image files are resolved under `dbo.tblPath.PathID=5`, named from the active `Username`, limited to JPEG/PNG/WebP up to 750 KB, and protected by authentication, rate limiting and CSRF/origin checks on mutations.
 - `backend/profile-routes.js` was deleted after moving the equivalent routes into `backend/auth.js`.
-- Stamp-only vendored PDF.js/pdf-lib assets were deleted. Current source tree has no Stamp route/UI/migration files; historical notes below are not active instructions.
+- Stamp-only vendored PDF.js/pdf-lib assets were deleted. Current source tree has no Stamp route/UI/migration files.
 - Commits for this cleanup: `33c6641ab67d2ee91207713d121dec74ef33486d` (`backend/auth.js`), `c1df581d86bf29a7190466435dd08183e5fc49fd` (safe temporary upload filename), `acb3b59bc5a84c511d7780a35791044bd0736c22` (`backend/profile-routes.js` deletion), `7947908014ea19cc240c765e6362791c39e7bc07` (last PDF-lib asset deletion). Additional related file deletions and documentation updates are recorded in Git history.
 Repository: AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
@@ -212,9 +211,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 # NEXT ACTION
 
 1. Run profile API runtime checks on the target SQL Server: confirm `tblPath.PathID=5` has the intended `RootPath`, then test profile load/update/password change and image upload/read/delete.
-
-1. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
-2. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
-3. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
-4. Decide whether to add force-change-at-next-login (needs a `Users` column; requires user approval).
-5. Stamp phase is stopped by user decision; do not restore it.
+2. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
+3. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
+4. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
+5. Do not restore the stopped Stamp phase.
