@@ -25,30 +25,12 @@ Protected permissions include:
 - FILE_VIEW
 - FILE_Edit
 - DASHBOARD_REPORT_EXPERT
-- REQUEST_DRAWING_STAMP
 
 The four configured roles are:
 - Admin
 - DrawingSupervisor
 - DrawingExpert
 - VIEWER
-
-## Stamp Drawing
-- Stamp approval/processing is authorized server-side by the effective `REQUEST_DRAWING_STAMP` permission.
-- The Stamp authorization query requires both `PermissionID=18` and `PermissionCode=REQUEST_DRAWING_STAMP`; RoleID is not used as a permission substitute.
-- A Stamp request can only be created by the requester of the parent `DrawingRequest`.
-- Selected PDFs are revalidated against the parent Node before they are attached to a Stamp request.
-- Danieli and SRSC source paths are validated server-side and traversal is rejected.
-- Source PDFs are never overwritten by the Stamp workflow.
-- Generated stamped PDFs are stored under `tblPath.PathID=4` and are downloadable only by the original requester while `ExpiresAt` is valid.
-- Stamped files are deleted by a backend cleanup job after the one-day retention period.
-- Stamp decisions use row locking and only a currently `PENDING` Stamp request can be approved or rejected.
-- Completion is restricted to the user who approved the Stamp request.
-- Generated output is validated as a PDF before it is written to the Stamp storage root.
-- The browser Stamp workspace accepts PNG files only.
-- The per-PDF completion endpoint accepts `application/pdf` binary bodies and rechecks the effective Stamp permission, approval ownership, request status, and item status server-side; concurrent item completion is serialized with SQL row locks.
-- Request creation, approval/rejection, per-PDF completion, and requester downloads are recorded in `dbo.DrawingRequestHistory`.
-- Durable lifecycle audit records are also written to `dbo.DrawingRequestStampAudit`, including system-recorded expiration and deletion of generated PDFs.
 
 ## Expert Reports
 - `GET /api/auth/expert-reports` requires an authenticated session and the effective `DASHBOARD_REPORT_EXPERT` permission.
@@ -60,7 +42,7 @@ The four configured roles are:
 
 ## API protection
 - All protected `/api/*` routes require an authenticated session.
-- Server-side permission checks are applied to node, PDF, company-file, Expert Reports and Stamp endpoints.
+- Server-side permission checks are applied to node, PDF, company-file, Expert Reports endpoints.
 - API requests have a lightweight per-IP rate limit.
 - State-changing API requests are checked against the configured Origin/Referer policy.
 - CORS is restricted by `DMS_FRONTEND_ORIGINS`.
@@ -86,8 +68,6 @@ The backend sends:
 - Permissions-Policy
 - Content-Security-Policy
 
-The Stamp viewer loads pinned PDF.js/pdf-lib artifacts from `frontend/lib/pdfjs` and `frontend/lib/pdf-lib` on the DMS origin. The vendor workflow is `.github/workflows/vendor-pdf-libraries.yml`; the offline browser workflow still requires runtime verification on the factory LAN.
-
 JSON request bodies are limited to 1 MB.
 
 ## Frontend protection
@@ -97,12 +77,9 @@ JSON request bodies are limited to 1 MB.
 - Static frontend assets remain available for the login page and authenticated application.
 - Frontend API requests use the session cookie.
 - Expert Reports navigation is hidden unless `/api/auth/me` confirms `DASHBOARD_REPORT_EXPERT`; this is UI visibility only and is not treated as the authorization boundary.
-- Stamp UI visibility is not treated as an authorization boundary; Stamp APIs independently enforce permission and ownership.
 
 ## Audit
 Login success, login failure and logout are written to `dbo.Logs`.
-
-Stamp approval/rejection/completion actions are recorded in `dbo.DrawingRequestHistory`.
 
 `Logs.LogID` should be an IDENTITY column so audit inserts do not need unsafe MAX(LogID)+1 logic.
 
@@ -133,21 +110,11 @@ For production:
 - Do not commit passwords, tokens or PATs.
 - Rotate/revoke any GitHub PAT that has previously been exposed in chat or source control.
 - Back up the SQL database before applying migrations.
-- Ensure `tblPath.PathID=4` points to the intended protected Stamp output storage.
-- Keep the vendored PDF.js/pdf-lib versions pinned and review their license files when updating them.
 
 ## Current limitations
 - Sessions are stored in backend memory. Restarting the backend logs users out.
 - Multiple backend instances require a shared session store such as SQL/Redis.
 - The current API rate limiter is in-memory and per-process.
-- The Stamp approval UI must call the server decision endpoint and confirm `APPROVED` before enabling PDF completion; frontend state alone is not authoritative.
-
-## Stamp access correction — 2026-10-22
-- The Stamp PDF-count endpoint returns a count only; it does not return source PDF names or paths.
-- Requesters without `REQUEST_DRAWING_STAMP` receive redacted source-file metadata from Stamp request details.
-- Source PDF streaming is restricted to the user with `REQUEST_DRAWING_STAMP` who approved that Stamp request.
-- SRSC Stamp discovery reads only direct PDF files in the Node's `SLD` folder; it does not traverse subdirectories.
-
 
 ## User Management — 2026-10-22
 - User Management APIs under `/api/auth/user-management` and `PUT /api/auth/me/password` are Admin-only: authenticated session plus active `Admin` role verified from SQL by `requireAdmin()`; they are not assignable through a permission code. All use rate limiting and the Origin/Referer CSRF policy.
@@ -158,3 +125,8 @@ For production:
 - Login is rate-limited per IP and per account; an Admin can unlock an account.
 - Administrative events are logged in `dbo.Logs` under the acting user with the target ID in the action string (`..._TARGET_<id>`); target users' activity lists include them.
 - User Management navigation is UI visibility only. Runtime SQL Server and browser acceptance tests remain pending.
+
+## Profile images — 2026-10-24
+- Profile images are stored as files under the root configured by `dbo.tblPath.PathID=5`; the file basename is the active user's `Username` and the extension is derived from validated image content.
+- Profile image bytes are not stored in SQL Server. The root is never exposed through static file hosting; image reads and writes use authenticated API routes.
+- The API validates JPEG/PNG/WebP signatures, enforces a 750 KB upload limit, applies rate limits and Origin/Referer checks, and audits profile-image changes.
