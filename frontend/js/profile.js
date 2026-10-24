@@ -61,6 +61,11 @@
     confirm.setAttribute('role','dialog'); confirm.setAttribute('aria-modal','true'); confirm.setAttribute('aria-labelledby','dmsProfileConfirmTitle');
     confirm.innerHTML = '<div class="dms-profile-confirm-dialog"><h3 id="dmsProfileConfirmTitle">Confirm Changes</h3><p>Are you sure you want to apply these profile changes?</p><div class="dms-profile-confirm-actions"><button type="button" class="dms-profile-confirm-cancel" id="dmsProfileConfirmCancel">Cancel</button><button type="button" class="dms-profile-confirm-yes" id="dmsProfileConfirmYes">Yes, Save Changes</button></div></div>';
     document.body.appendChild(confirm);
+    const passwordConfirm = document.createElement('div');
+    passwordConfirm.id = 'dmsProfilePasswordConfirmModal'; passwordConfirm.className = 'dms-profile-modal hidden';
+    passwordConfirm.setAttribute('role','dialog'); passwordConfirm.setAttribute('aria-modal','true'); passwordConfirm.setAttribute('aria-labelledby','dmsProfilePasswordConfirmTitle');
+    passwordConfirm.innerHTML = '<div class="dms-profile-confirm-dialog"><h3 id="dmsProfilePasswordConfirmTitle">Confirm Password Change</h3><p>Are you sure you want to change your password?</p><div class="dms-profile-confirm-actions"><button type="button" class="dms-profile-confirm-cancel" id="dmsProfilePasswordConfirmCancel">Cancel</button><button type="button" class="dms-profile-confirm-yes" id="dmsProfilePasswordConfirmYes">Yes, Change Password</button></div></div>';
+    document.body.appendChild(passwordConfirm);
     const password = document.createElement('div');
     password.id = 'dmsProfilePasswordModal'; password.className = 'dms-profile-modal hidden';
     password.setAttribute('role','dialog'); password.setAttribute('aria-modal','true'); password.setAttribute('aria-labelledby','dmsProfilePasswordTitle');
@@ -113,16 +118,7 @@
     message.hidden = true;
     const name = document.getElementById('dmsProfileNameInput').value.trim();
     const family = document.getElementById('dmsProfileFamilyInput').value.trim();
-    const currentPassword = document.getElementById('dmsCurrentPassword').value;
-    const newPassword = document.getElementById('dmsNewPassword').value;
-    const confirmPassword = document.getElementById('dmsConfirmPassword').value;
     if (name.length > 100 || family.length > 100) return showMessage('Name and family must be 100 characters or fewer.', true);
-    if (newPassword || confirmPassword || currentPassword) {
-      if (newPassword.length < 8) return showMessage('New password must be at least 8 characters.', true);
-      if (newPassword.length > 256) return showMessage('New password is too long.', true);
-      if (newPassword !== confirmPassword) return showMessage('New password and confirmation do not match.', true);
-      if (!currentPassword) return showMessage('Current password is required to change the password.', true);
-    }
     document.getElementById('dmsProfileConfirmModal').classList.remove('hidden');
     document.getElementById('dmsProfileConfirmYes').focus();
   }
@@ -134,14 +130,7 @@
     document.getElementById('dmsProfileConfirmModal').classList.add('hidden');
     const name = document.getElementById('dmsProfileNameInput').value.trim();
     const family = document.getElementById('dmsProfileFamilyInput').value.trim();
-    const currentPassword = document.getElementById('dmsCurrentPassword').value;
-    const newPassword = document.getElementById('dmsNewPassword').value;
     try {
-      if (newPassword) {
-        const response = await fetch(API + '/auth/me/profile-password', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPassword,newPassword}) });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'Could not change password.');
-      }
       const profileResponse = await fetch(API + '/auth/me/profile', { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,family}) });
       const profileData = await profileResponse.json().catch(() => ({}));
       if (!profileResponse.ok) throw new Error(profileData.error || 'Could not save profile.');
@@ -157,9 +146,6 @@
       }
       document.getElementById('dmsProfileFullName').textContent = [name,family].filter(Boolean).join(' ') || document.getElementById('dmsProfileUsername').textContent || 'User';
       document.getElementById('dmsProfileName').textContent = [name,family].filter(Boolean).join(' ') || document.getElementById('dmsProfileUsername').textContent || 'User';
-      document.getElementById('dmsCurrentPassword').value = '';
-      document.getElementById('dmsNewPassword').value = '';
-      document.getElementById('dmsConfirmPassword').value = '';
       resetStagedPhoto();
       document.getElementById('dmsProfileModal').classList.add('hidden');
       const refreshed = await fetch(API + '/auth/me/profile', { credentials:'include', cache:'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
@@ -209,6 +195,8 @@
   function closeProfile() {
     closeCrop();
     document.getElementById('dmsProfileConfirmModal').classList.add('hidden');
+    document.getElementById('dmsProfilePasswordConfirmModal').classList.add('hidden');
+    document.getElementById('dmsProfilePasswordModal').classList.add('hidden');
     document.getElementById('dmsProfileModal').classList.add('hidden');
     resetStagedPhoto();
   }
@@ -230,73 +218,52 @@
     cropImage.src = cropObjectUrl;
   }
 
-  function cropViewportSize() { return document.getElementById('dmsProfileCropViewport').clientWidth || CROP_SIZE; }
-
+  function cropViewportSize() { return Math.min(CROP_SIZE, Math.max(180, window.innerWidth - 80)); }
   function renderCrop() {
     if (!cropImage) return;
-    const size = cropViewportSize();
     const scale = cropBaseScale * cropZoom;
-    const maxX = Math.max(0,(cropImage.naturalWidth * scale - size) / 2);
-    const maxY = Math.max(0,(cropImage.naturalHeight * scale - size) / 2);
-    cropX = Math.min(maxX,Math.max(-maxX,cropX)); cropY = Math.min(maxY,Math.max(-maxY,cropY));
-    cropImage.style.width = (cropImage.naturalWidth * scale) + 'px';
-    cropImage.style.height = (cropImage.naturalHeight * scale) + 'px';
-    cropImage.style.transform = 'translate(calc(-50% + ' + cropX + 'px), calc(-50% + ' + cropY + 'px))';
-    document.getElementById('dmsProfileZoom').value = String(cropZoom);
+    cropImage.style.width = `${cropImage.naturalWidth * scale}px`;
+    cropImage.style.height = `${cropImage.naturalHeight * scale}px`;
+    cropImage.style.transform = `translate(-50%, -50%) translate(${cropX}px, ${cropY}px)`;
   }
-
-  async function applyCrop() {
-    if (!cropImage || !cropImage.naturalWidth || !cropImage.naturalHeight) return;
+  function applyCrop() {
+    if (!cropImage) return;
     const size = cropViewportSize();
-    const scale = cropBaseScale * cropZoom;
-    const displayedWidth = cropImage.naturalWidth * scale, displayedHeight = cropImage.naturalHeight * scale;
-    const imageLeft = (size - displayedWidth) / 2 + cropX;
-    const imageTop = (size - displayedHeight) / 2 + cropY;
-    const sourceSide = size / scale;
-    const sourceX = Math.max(0,Math.min(cropImage.naturalWidth - sourceSide,-imageLeft / scale));
-    const sourceY = Math.max(0,Math.min(cropImage.naturalHeight - sourceSide,-imageTop / scale));
     const canvas = document.createElement('canvas'); canvas.width = OUTPUT_SIZE; canvas.height = OUTPUT_SIZE;
-    const context = canvas.getContext('2d',{alpha:false});
-    if (!context) return showMessage('Image cropping is not available in this browser.',true);
-    context.fillStyle = '#ffffff'; context.fillRect(0,0,OUTPUT_SIZE,OUTPUT_SIZE);
-    context.drawImage(cropImage,sourceX,sourceY,sourceSide,sourceSide,0,0,OUTPUT_SIZE,OUTPUT_SIZE);
-    const blob = await new Promise(resolve => canvas.toBlob(resolve,'image/jpeg',0.92));
-    if (!blob) return showMessage('Could not prepare the cropped image.',true);
-    pendingPhotoBlob = blob; pendingPhotoRemoval = false;
-    if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl);
-    stagedPhotoUrl = URL.createObjectURL(blob);
-    setDialogPhotoPreview(stagedPhotoUrl);
-    showMessage('Photo crop prepared. Click Save Changes to apply it.',false);
-    closeCrop();
+    const ctx = canvas.getContext('2d');
+    const scale = cropBaseScale * cropZoom;
+    const drawW = cropImage.naturalWidth * scale, drawH = cropImage.naturalHeight * scale;
+    const sourceX = (size / 2 - cropX - drawW / 2) / scale;
+    const sourceY = (size / 2 - cropY - drawH / 2) / scale;
+    const sourceSize = size / scale;
+    ctx.drawImage(cropImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+    canvas.toBlob(blob => {
+      if (!blob) return showMessage('Could not create the cropped image.', true);
+      pendingPhotoBlob = blob; pendingPhotoRemoval = false;
+      if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl);
+      stagedPhotoUrl = URL.createObjectURL(blob); setDialogPhotoPreview(stagedPhotoUrl); closeCrop();
+    }, 'image/jpeg', .92);
   }
-
-  function stagePhotoRemoval() {
+  function savePhoto(file) { if (file) openCrop(file); }
+  function removePhoto() {
     pendingPhotoBlob = null; pendingPhotoRemoval = true;
-    if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl);
-    stagedPhotoUrl = null;
-    const name = document.getElementById('dmsProfileNameInput').value || document.getElementById('dmsProfileUsername').textContent || 'U';
-    const photo = document.getElementById('dmsProfilePhoto');
-    photo.classList.add('dms-profile-photo-fallback'); photo.textContent = name.slice(0,1).toUpperCase();
-    showMessage('Photo removal prepared. Click Save Changes to apply it.',false);
+    if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl); stagedPhotoUrl = null;
+    const photo = document.getElementById('dmsProfilePhoto'); photo.classList.add('dms-profile-photo-fallback'); photo.textContent = (document.getElementById('dmsProfileNameInput').value || document.getElementById('dmsProfileUsername').textContent || 'U').slice(0,1).toUpperCase();
   }
 
-  function showMessage(text, error) { const box=document.getElementById('dmsProfileMessage'); box.textContent=text; box.className=error?'dms-profile-error':'dms-profile-success'; box.hidden=false; }
-
-  async function savePhoto(file) { openCrop(file); }
-
-  function removePhoto() { stagePhotoRemoval(); }
+  function showMessage(text, isError) {
+    const message = document.getElementById('dmsProfileMessage'); message.textContent = text; message.hidden = false; message.className = isError ? 'dms-profile-error' : 'dms-profile-success';
+  }
 
   function init() {
-    const menu=document.getElementById('userMenuPanel'); const trigger=document.getElementById('dmsProfileMenu');
-    if(!menu||!trigger) return;
     injectStyles(); buildModal();
-    fetch(`${API}/auth/me/profile`, { credentials:'include', cache:'no-store' }).then(async response => {
-      if (!response.ok) return;
-      const data = await response.json().catch(() => ({}));
-      if (!data.user?.hasProfileImage) return;
-      const avatar = document.getElementById('dmsProfileAvatar');
-      if (avatar) avatar.innerHTML = `<img src="${API}/auth/me/profile-image?t=${Date.now()}" alt="Profile photo">`;
-    }).catch(() => {});
+    const trigger = document.getElementById('dmsProfileMenu');
+    const menu = trigger?.parentElement?.querySelector('.user-menu-panel');
+    if (!trigger || !menu) return;
+    fetch(`${API}/auth/me/profile`, { credentials:'include', cache:'no-store' }).then(r=>r.json()).then(data=>{
+      const user=data.user||{}; const avatar=document.getElementById('dmsProfileAvatar');
+      if (avatar && user.hasProfileImage) avatar.innerHTML=`<img src="${API}/auth/me/profile-image?t=${Date.now()}" alt="Profile photo">`;
+    }).catch(()=>{});
     const profileButton=document.createElement('button'); profileButton.type='button'; profileButton.id='dmsProfileButton'; profileButton.className='profile-menu-button'; profileButton.textContent='Profile';
     menu.insertBefore(profileButton,document.getElementById('logoutButton'));
     profileButton.addEventListener('click',()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');openProfile();});
@@ -314,13 +281,34 @@
       const next=document.getElementById('dmsNewPassword').value;
       const confirm=document.getElementById('dmsConfirmPassword').value;
       const error=document.getElementById('dmsProfilePasswordError'); error.hidden=true;
-      if(current||next||confirm){
-        if(next.length<8){error.textContent='New password must be at least 8 characters.';error.hidden=false;return;}
-        if(next.length>256){error.textContent='New password is too long.';error.hidden=false;return;}
-        if(next!==confirm){error.textContent='New password and confirmation do not match.';error.hidden=false;return;}
-        if(!current){error.textContent='Current password is required to change the password.';error.hidden=false;return;}
-      }
-      closePasswordModal();
+      if(!current){error.textContent='Current password is required to change the password.';error.hidden=false;return;}
+      if(next.length<8){error.textContent='New password must be at least 8 characters.';error.hidden=false;return;}
+      if(next.length>256){error.textContent='New password is too long.';error.hidden=false;return;}
+      if(next!==confirm){error.textContent='New password and confirmation do not match.';error.hidden=false;return;}
+      document.getElementById('dmsProfilePasswordConfirmModal').classList.remove('hidden');
+      document.getElementById('dmsProfilePasswordConfirmYes').focus();
+    });
+    document.getElementById('dmsProfilePasswordConfirmCancel').addEventListener('click',()=>document.getElementById('dmsProfilePasswordConfirmModal').classList.add('hidden'));
+    document.getElementById('dmsProfilePasswordConfirmYes').addEventListener('click',async()=>{
+      const button=document.getElementById('dmsProfilePasswordConfirmYes');
+      const current=document.getElementById('dmsCurrentPassword').value;
+      const next=document.getElementById('dmsNewPassword').value;
+      button.disabled=true;
+      try{
+        const response=await fetch(API + '/auth/me/profile-password',{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:current,newPassword:next})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok) throw new Error(data.error || 'Could not change password.');
+        document.getElementById('dmsCurrentPassword').value='';
+        document.getElementById('dmsNewPassword').value='';
+        document.getElementById('dmsConfirmPassword').value='';
+        document.getElementById('dmsPasswordStrength').style.width='0';
+        document.getElementById('dmsProfilePasswordConfirmModal').classList.add('hidden');
+        closePasswordModal();
+        showMessage('Password changed successfully.', false);
+      }catch(error){
+        document.getElementById('dmsProfilePasswordConfirmModal').classList.add('hidden');
+        const errorBox=document.getElementById('dmsProfilePasswordError'); errorBox.textContent=error.message; errorBox.hidden=false;
+      }finally{button.disabled=false;}
     });
     document.getElementById('dmsProfileChoosePhoto').addEventListener('click',()=>document.getElementById('dmsProfilePhotoInput').click());
     document.getElementById('dmsProfilePhotoInput').addEventListener('change',e=>{ const file=e.target.files?.[0]; e.target.value=''; savePhoto(file); });
@@ -333,15 +321,13 @@
     const cropViewport=document.getElementById('dmsProfileCropViewport');
     cropViewport.addEventListener('pointerdown',e=>{if(!cropImage)return;cropDragging=true;cropDragStartX=e.clientX;cropDragStartY=e.clientY;cropStartX=cropX;cropStartY=cropY;cropViewport.classList.add('dragging');cropViewport.setPointerCapture?.(e.pointerId);e.preventDefault();});
     cropViewport.addEventListener('pointermove',e=>{if(!cropDragging)return;cropX=cropStartX+e.clientX-cropDragStartX;cropY=cropStartY+e.clientY-cropDragStartY;renderCrop();});
-    const stopCropDrag=()=>{cropDragging=false;cropViewport.classList.remove('dragging');};
-    cropViewport.addEventListener('pointerup',stopCropDrag);cropViewport.addEventListener('pointercancel',stopCropDrag);
+    cropViewport.addEventListener('pointerup',e=>{cropDragging=false;cropViewport.classList.remove('dragging');try{cropViewport.releasePointerCapture?.(e.pointerId);}catch(_){} });
     document.getElementById('dmsProfileConfirmCancel').addEventListener('click',()=>document.getElementById('dmsProfileConfirmModal').classList.add('hidden'));
     document.getElementById('dmsProfileConfirmYes').addEventListener('click',commitChanges);
-    document.getElementById('dmsProfileConfirmModal').addEventListener('click',e=>{if(e.target.id==='dmsProfileConfirmModal')document.getElementById('dmsProfileConfirmModal').classList.add('hidden');});
-    document.querySelectorAll('.dms-password-toggle').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById(button.dataset.target);const visible=input.type==='text';input.type=visible?'password':'text';button.innerHTML=visible?"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>":"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m3 3 18 18\"/><path d=\"M10.6 10.6a2 2 0 0 0 2.8 2.8\"/><path d=\"M9.9 5.2A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-3 3.8\"/><path d=\"M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7c1.3 0 2.5-.3 3.6-.8\"/></svg>";button.setAttribute('aria-label',visible?'Show password':'Hide password');button.title=visible?'Show password':'Hide password';}));
+    document.querySelectorAll('.dms-password-toggle').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById(button.dataset.target);const visible=input.type==='text';input.type=visible?'password':'text';button.setAttribute('aria-label',visible?'Show password':'Hide password');button.setAttribute('title',visible?'Show password':'Hide password');}));
     document.getElementById('dmsNewPassword').addEventListener('input',e=>{const value=e.target.value;const strength=Math.min(100,Math.max(0,value.length*8 + (/[A-Z]/.test(value)?12:0)+(/[0-9]/.test(value)?12:0)+(/[^A-Za-z0-9]/.test(value)?12:0)));document.getElementById('dmsPasswordStrength').style.width=`${strength}%`;});
-    document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!document.getElementById('dmsProfilePasswordModal').classList.contains('hidden'))document.getElementById('dmsProfilePasswordModal').classList.add('hidden');else if(!document.getElementById('dmsProfileCropModal').classList.contains('hidden'))closeCrop();else if(!document.getElementById('dmsProfileConfirmModal').classList.contains('hidden'))document.getElementById('dmsProfileConfirmModal').classList.add('hidden');else if(!document.getElementById('dmsProfileModal').classList.contains('hidden'))closeProfile();});
+    document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!document.getElementById('dmsProfilePasswordConfirmModal').classList.contains('hidden'))document.getElementById('dmsProfilePasswordConfirmModal').classList.add('hidden');else if(!document.getElementById('dmsProfilePasswordModal').classList.contains('hidden'))document.getElementById('dmsProfilePasswordModal').classList.add('hidden');else if(!document.getElementById('dmsProfileCropModal').classList.contains('hidden'))closeCrop();else if(!document.getElementById('dmsProfileConfirmModal').classList.contains('hidden'))document.getElementById('dmsProfileConfirmModal').classList.add('hidden');else if(!document.getElementById('dmsProfileModal').classList.contains('hidden'))closeProfile();});
   }
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
