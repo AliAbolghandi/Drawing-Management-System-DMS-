@@ -13,7 +13,7 @@ The user explicitly stopped the Stamp phase because it did not deploy correctly.
 Last updated: 2026-10-24
 
 ## Current change status — 2026-10-24
-- `backend/auth.js`: profile, profile-password and profile-image APIs are implemented in the existing auth router. Image files are resolved under `dbo.tblPath.PathID=5`, named from the active `Username`, limited to JPEG/PNG/WebP up to 750 KB, and protected by authentication, rate limiting and CSRF/origin checks on mutations.
+- `backend/auth.js`: profile, profile-password and profile-image APIs are implemented in the existing auth router. Image files are resolved under `dbo.tblPath.PathID=5`, named from the active `Username`, accepts JPEG/PNG/WebP, crops selected originals in the browser to 512×512 JPEG, and caps the processed API payload at 8 MB for server safety; endpoints are protected by authentication, rate limiting and CSRF/origin checks on mutations.
 - `backend/profile-routes.js` was deleted after moving the equivalent routes into `backend/auth.js`.
 - Stamp-only vendored PDF.js/pdf-lib assets were deleted. Current source tree has no Stamp route/UI/migration files.
 - Commits for this cleanup: `33c6641ab67d2ee91207713d121dec74ef33486d` (`backend/auth.js`), `c1df581d86bf29a7190466435dd08183e5fc49fd` (safe temporary upload filename), `acb3b59bc5a84c511d7780a35791044bd0736c22` (`backend/profile-routes.js` deletion), `7947908014ea19cc240c765e6362791c39e7bc07` (last PDF-lib asset deletion). Additional related file deletions and documentation updates are recorded in Git history.
@@ -216,9 +216,21 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commit: `28d7e85c50276ab1129ea615e29c50015b5c3c85`.
 - Validation: checked the source replacements and confirmed the old visible Show button text is absent. Browser rendering, keyboard interaction, and runtime API behavior were not tested.
 
+
+## Profile image crop and save confirmation — 2026-10-24
+
+- `frontend/js/profile.js`: added an image crop modal with pointer-drag repositioning and zoom control; the cropped output is 512×512 JPEG. The original selected file has no frontend byte-size restriction and is not sent to the server.
+- Photo selection and removal are staged locally. Clicking **Save Changes** opens an **Are you sure?** confirmation modal; only confirmation sends profile/password/photo changes. On successful completion, `dms-profile-dialog` closes. Canceling the confirmation does not apply the staged photo change.
+- `dms-profile-avatar` uses a fixed 34×34 CSS box with an image child sized to 100% and `object-fit: cover`, regardless of source dimensions.
+- `backend/auth.js`: implemented `GET/PUT /api/auth/me/profile`, `PUT /api/auth/me/profile-password`, and `GET/PUT/DELETE /api/auth/me/profile-image`. Files use `dbo.tblPath.PathID=5` and the active username as basename; no image binary column or public static path is used.
+- Image upload validates declared MIME against JPEG/PNG/WebP signatures. The API caps the *processed crop payload* at 8 MB to prevent memory-exhaustion abuse; the user-selected original image is cropped in the browser before upload. Mutating routes apply the existing rate-limit and Origin/Referer CSRF checks; audit events are written to `dbo.Logs`.
+- Profile password changes require the current password and accept 8–256 characters with no additional composition rules.
+- Commits: backend `b2ee17525d3171c5f6ef4d26e72646388c2b94cf`, `ba0344426d61e644c5e1c6745de9789ee5f3e308`; frontend `c78ee4dabfecc79daa7fe53bf16f9c96a8130431`, `5c039dc2ba387cfacc27cf5d0843b6f9fd1fc7da`, `2c9b852ea11080caf93cb56c3a54785a79a185ef`; cache refresh `7e3547ecf076fee34dd218dee3965f10452bb473`.
+- Validation: JavaScript parse checks passed for `backend/auth.js` and `frontend/js/profile.js`. SQL Server storage permissions, real API behavior, and browser crop/modal behavior remain unverified.
+
 # NEXT ACTION
 
-1. Verify the profile dialog pencil, Remove, and eye/eye-off controls in a browser; then run profile API runtime checks on the target SQL Server: confirm `tblPath.PathID=5` has the intended `RootPath`, then test profile load/update/password change and image upload/read/delete.
+1. Browser-test profile crop drag/zoom, the Save Changes confirmation, cancel behavior, fixed avatar dimensions, and modal closure after successful save; then test profile APIs on target SQL Server and confirm `tblPath.PathID=5` points to the intended writable storage root.
 2. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
 3. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
 4. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
