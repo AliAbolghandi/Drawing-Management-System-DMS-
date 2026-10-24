@@ -226,7 +226,17 @@
 
   document.addEventListener('DOMContentLoaded',async()=>{
     injectExpertWorkStyles();await loadCurrentUser();await loadPendingCount();
-    $('rwWorklistClose')?.addEventListener('click',closeSidebar);$('rwWorklistModal')?.addEventListener('click',e=>{if(e.target===$('rwWorklistModal'))closeSidebar();});
+    $('rwWorklistClose')?.addEventListener('click',closeSidebar);
+    const worklistModal=$('rwWorklistModal');
+    let worklistBackdropDown=false,worklistBackdropUp=false;
+    worklistModal?.addEventListener('pointerdown',e=>{worklistBackdropDown=e.target===worklistModal;});
+    worklistModal?.addEventListener('pointerup',e=>{worklistBackdropUp=e.target===worklistModal;});
+    worklistModal?.addEventListener('click',e=>{
+      const closeFromBackdrop=e.target===worklistModal&&worklistBackdropDown&&worklistBackdropUp;
+      worklistBackdropDown=false;
+      worklistBackdropUp=false;
+      if(closeFromBackdrop)closeSidebar();
+    });
     document.querySelectorAll('[data-request-category]').forEach(b=>b.addEventListener('click',()=>{if($('rwRequestSearch'))$('rwRequestSearch').value='';setCategory(b.dataset.requestCategory);}));
     $('rwSearchForm')?.addEventListener('submit',e=>{e.preventDefault();renderWorklist(allRequests);});$('rwRequestSearch')?.addEventListener('input',()=>renderWorklist(allRequests));
     $('rwContent')?.addEventListener('click',e=>{const item=e.target.closest('[data-open-request-id]');if(item)openRequestDetailsModal(Number(item.dataset.openRequestId));});
