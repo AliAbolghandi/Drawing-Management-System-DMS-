@@ -42,7 +42,7 @@
             <div class="dms-profile-identity"><h3 id="dmsProfileFullName">User</h3><p>Username: <strong id="dmsProfileUsername">-</strong></p><p>Role: <strong id="dmsProfileRoleValue">-</strong></p><p>Last Visit: <strong id="dmsProfileLastVisit">-</strong></p></div>
           </div>
           <section class="dms-profile-section"><h3>Personal Information</h3><div class="dms-profile-grid"><div class="dms-profile-field"><label for="dmsProfileNameInput">Name</label><input id="dmsProfileNameInput" maxlength="100" autocomplete="given-name"></div><div class="dms-profile-field"><label for="dmsProfileFamilyInput">Family</label><input id="dmsProfileFamilyInput" maxlength="100" autocomplete="family-name"></div><div class="dms-profile-field"><label>Username</label><input id="dmsProfileUsernameInput" readonly></div><div class="dms-profile-field"><label>Role</label><input id="dmsProfileRoleInput" readonly></div></div></section>
-          <section class="dms-profile-section"><h3>Security</h3><button type="button" class="dms-profile-password-open" id="dmsProfileChangePassword">Change Password</button><p class="dms-profile-hint">Open the password dialog to update your password.</p></section>
+          <section class="dms-profile-section"><h3>Security</h3><button type="button" class="dms-profile-password-open" id="dmsProfileChangePassword">Change Password</button></section>
           <div id="dmsProfileMessage" hidden></div><div class="dms-profile-footer"><button type="button" class="dms-profile-cancel" id="dmsProfileCancel">Cancel</button><button type="submit" class="dms-profile-save" id="dmsProfileSave">Save Changes</button></div>
         </form>
       </div>`;
