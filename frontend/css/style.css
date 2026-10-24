@@ -1317,7 +1317,7 @@ mark {
 .user-menu-panel {
     position: absolute;
     right: 0;
-    bottom: calc(100% + 10px);
+    bottom: calc(100% + 25px);
     top: auto;
     min-width: 238px;
     padding: 13px;
