@@ -208,9 +208,17 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Not implemented: force password change at next login (needs a new column — requires approval), audit before/after values, password history, MFA, server-side pagination/export, listing individual sessions.
 - Validation: `node --check backend/auth.js` and `node --check frontend/js/user-management.js` passed. No SQL Server, API or browser test was run. Commit: `be87f73e9c7420657dc1f8ef99a90c15826cafc6` — User Management Admin-only, role/permission editing, create user, own password change, min password 8.
 
+## Profile dialog control refinement — 2026-10-24
+
+- Updated `frontend/js/profile.js` only for profile dialog controls; existing profile APIs, image storage (`tblPath.PathID=5`), and password behavior remain unchanged.
+- Replaced the photo-change text button with an accessible pencil-icon button (`Edit profile photo`); the removal action now uses a trash icon plus the visible `Remove` label.
+- Replaced external Show/Hide password buttons with inline eye/eye-off icon controls inside each password field. Accessible labels and titles switch between `Show password` and `Hide password`.
+- Commit: `28d7e85c50276ab1129ea615e29c50015b5c3c85`.
+- Validation: checked the source replacements and confirmed the old visible Show button text is absent. Browser rendering, keyboard interaction, and runtime API behavior were not tested.
+
 # NEXT ACTION
 
-1. Run profile API runtime checks on the target SQL Server: confirm `tblPath.PathID=5` has the intended `RootPath`, then test profile load/update/password change and image upload/read/delete.
+1. Verify the profile dialog pencil, Remove, and eye/eye-off controls in a browser; then run profile API runtime checks on the target SQL Server: confirm `tblPath.PathID=5` has the intended `RootPath`, then test profile load/update/password change and image upload/read/delete.
 2. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
 3. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
 4. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
