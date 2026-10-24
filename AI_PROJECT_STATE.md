@@ -246,7 +246,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 1. Browser-test modal backdrop behavior: ordinary backdrop click closes; select text inside each affected modal and release outside, and confirm the modal stays open.
 2. Browser-test password modal layering: click Change Password, enter valid values, click Done, confirm the confirmation modal appears in front; Cancel must return to password entry without changing the password.
-2. Confirm Yes, Change Password updates the password, closes the confirmation/password modals, and reveals `dms-profile-dialog`; test API failure and ensure an error remains visible.
-3. Browser-test profile crop/zoom, Save Changes confirmation, and cancel behavior; then test profile APIs on target SQL Server and verify `tblPath.PathID=5` storage.
-4. Run the existing user-management RBAC and last-Admin protection checks documented above.
-5. Do not restore the stopped Stamp phase.
+3. Confirm Yes, Change Password updates the password, closes the confirmation/password modals, and reveals `dms-profile-dialog`; test API failure and ensure an error remains visible.
+4. Browser-test profile crop/zoom, Save Changes confirmation, and cancel behavior; then test profile APIs on target SQL Server and verify `tblPath.PathID=5` storage.
+5. Run the existing user-management RBAC and last-Admin protection checks documented above.
+6. Do not restore the stopped Stamp phase.
