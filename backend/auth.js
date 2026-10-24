@@ -1,5 +1,8 @@
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const sql = require('mssql/msnodesqlv8');
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -270,6 +273,179 @@ function createAuth(frontendOrigins) {
       console.error('Auth permission refresh failed:', e.message);
       return res.status(500).json({ error: 'Unable to refresh user permissions.' });
     }
+  });
+
+
+  // Self-service profile routes. Profile images live only in the protected tblPath.PathID=5 storage root.
+  const profileImageUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 750 * 1024, files: 1 },
+    fileFilter: (req, file, cb) => cb(null, new Set(['image/jpeg', 'image/png', 'image/webp']).has(String(file.mimetype || '').toLowerCase())),
+  });
+  const PROFILE_IMAGE_TYPES = Object.freeze({
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+  });
+  const PROFILE_IMAGE_EXTENSIONS = Object.values(PROFILE_IMAGE_TYPES);
+
+  function cleanProfileText(value, label) {
+    if (typeof value !== 'string') throw Object.assign(new Error(label + ' is required.'), { statusCode: 400 });
+    const text = value.trim();
+    if (text.length > 100) throw Object.assign(new Error(label + ' must be 100 characters or fewer.'), { statusCode: 400 });
+    return text;
+  }
+
+  function validateProfileImage(file) {
+    if (!file || !Buffer.isBuffer(file.buffer)) throw Object.assign(new Error('Invalid profile image. Use JPG, PNG, or WebP up to 750 KB.'), { statusCode: 400 });
+    const b = file.buffer, type = String(file.mimetype || '').toLowerCase();
+    const validSignature =
+      (type === 'image/jpeg' && b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) ||
+      (type === 'image/png' && b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]))) ||
+      (type === 'image/webp' && b.length >= 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP');
+    if (!validSignature || !PROFILE_IMAGE_TYPES[type]) throw Object.assign(new Error('Invalid profile image content.'), { statusCode: 400 });
+    return { contentType: type, extension: PROFILE_IMAGE_TYPES[type] };
+  }
+
+  function safeProfileFilename(username, extension) {
+    if (typeof username !== 'string' || !/^[A-Za-z0-9._@-]{1,100}$/.test(username) || username === '.' || username === '..' || !PROFILE_IMAGE_EXTENSIONS.includes(extension)) {
+      throw Object.assign(new Error('Profile image storage identity is invalid.'), { statusCode: 500 });
+    }
+    return username + extension;
+  }
+
+  function isInsideProfileRoot(root, target) {
+    const relative = path.relative(root, target);
+    return relative !== '' && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+  }
+
+  async function getProfileStorage(userId) {
+    const userRequest = new sql.Request();
+    userRequest.input('userId', sql.Int, userId);
+    const userResult = await userRequest.query('SELECT UserID,Username,Name,Family,LastLoginAt FROM dbo.Users WHERE UserID=@userId AND IsActive=1;');
+    const user = userResult.recordset?.[0];
+    if (!user) return { error: 'Authentication required.', status: 401 };
+    const pathRequest = new sql.Request();
+    pathRequest.input('pathId', sql.Int, 5);
+    const pathResult = await pathRequest.query('SELECT RootPath FROM dbo.tblPath WHERE PathID=@pathId;');
+    const configuredRoot = pathResult.recordset?.[0]?.RootPath;
+    if (typeof configuredRoot !== 'string' || !configuredRoot.trim()) {
+      return { error: 'Profile image storage is not configured (tblPath.PathID=5).', status: 503 };
+    }
+    const root = path.resolve(configuredRoot);
+    let stat;
+    try { stat = await fs.promises.stat(root); }
+    catch (_) { return { error: 'Profile image storage directory is unavailable.', status: 503 }; }
+    if (!stat.isDirectory()) return { error: 'Profile image storage path is not a directory.', status: 503 };
+    if (typeof user.Username !== 'string' || !/^[A-Za-z0-9._@-]{1,100}$/.test(user.Username) || user.Username === '.' || user.Username === '..') {
+      return { error: 'Profile image storage identity is invalid.', status: 500 };
+    }
+    const files = PROFILE_IMAGE_EXTENSIONS.map(extension => {
+      const target = path.resolve(root, safeProfileFilename(user.Username, extension));
+      return isInsideProfileRoot(root, target) ? { target, extension } : null;
+    }).filter(Boolean);
+    const image = files.find(item => fs.existsSync(item.target) && fs.statSync(item.target).isFile()) || null;
+    return { user, root, files, image };
+  }
+
+  router.get('/me/profile', rateLimit, authenticate, async (req, res) => {
+    try {
+      const profile = await getProfileStorage(req.user.userId);
+      if (profile.error) return res.status(profile.status).json({ error: profile.error });
+      const rolesRequest = new sql.Request();
+      rolesRequest.input('userId', sql.Int, req.user.userId);
+      const roles = await rolesRequest.query("SELECT STUFF((SELECT N', ' + r2.RoleName FROM dbo.UserRoles ur2 INNER JOIN dbo.Roles r2 ON r2.RoleID=ur2.RoleID WHERE ur2.UserID=@userId AND r2.IsActive=1 FOR XML PATH(''),TYPE).value('.','nvarchar(max)'),1,2,N'') AS RoleName;");
+      res.set('Cache-Control', 'no-store').json({ user: {
+        userId: Number(profile.user.UserID), username: String(profile.user.Username || ''),
+        name: profile.user.Name || '', family: profile.user.Family || '',
+        role: roles.recordset?.[0]?.RoleName || 'Signed in',
+        lastLoginAt: profile.user.LastLoginAt || null, hasProfileImage: Boolean(profile.image),
+      }});
+    } catch (e) { console.error('Profile load failed:', e.message); res.status(500).json({ error: 'Could not load profile.' }); }
+  });
+
+  router.put('/me/profile', rateLimit, csrf, authenticate, async (req, res) => {
+    try {
+      const name = cleanProfileText(req.body?.name, 'Name'), family = cleanProfileText(req.body?.family, 'Family');
+      const r = new sql.Request();
+      r.input('userId', sql.Int, req.user.userId); r.input('name', sql.NVarChar(100), name); r.input('family', sql.NVarChar(100), family);
+      const result = await r.query('UPDATE dbo.Users SET Name=@name,Family=@family,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId AND IsActive=1; SELECT @@ROWCOUNT AS Affected;');
+      if (!Number(result.recordset?.[0]?.Affected)) return res.status(401).json({ error: 'Authentication required.' });
+      await writeAudit(req.user.userId, req.user.username, 'PROFILE_UPDATED_SELF', clientIp(req));
+      res.json({ success: true });
+    } catch (e) { console.error('Profile update failed:', e.message); res.status(e.statusCode || 500).json({ error: e.message || 'Could not update profile.' }); }
+  });
+
+  router.put('/me/profile-password', rateLimit, csrf, authenticate, async (req, res) => {
+    const currentPassword = req.body?.currentPassword, newPassword = req.body?.newPassword;
+    if (typeof currentPassword !== 'string' || !currentPassword) return res.status(400).json({ error: 'Current password is required.' });
+    if (typeof newPassword !== 'string' || newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+    if (newPassword.length > 256) return res.status(400).json({ error: 'New password is too long.' });
+    if (newPassword === currentPassword) return res.status(400).json({ error: 'New password must differ from the current password.' });
+    try {
+      const r = new sql.Request(); r.input('userId', sql.Int, req.user.userId);
+      const q = await r.query('SELECT PasswordHash FROM dbo.Users WHERE UserID=@userId AND IsActive=1;');
+      const stored = q.recordset?.[0]?.PasswordHash;
+      if (!stored || !(await verifyPassword(currentPassword, stored))) {
+        await writeAudit(req.user.userId, req.user.username, 'PROFILE_PASSWORD_CHANGE_FAILED', clientIp(req));
+        return res.status(400).json({ error: 'Current password is incorrect.' });
+      }
+      const update = new sql.Request();
+      update.input('userId', sql.Int, req.user.userId); update.input('passwordHash', sql.NVarChar(500), await hashPassword(newPassword));
+      await update.query('UPDATE dbo.Users SET PasswordHash=@passwordHash,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId AND IsActive=1;');
+      await writeAudit(req.user.userId, req.user.username, 'PROFILE_PASSWORD_CHANGED', clientIp(req));
+      for (const [token, session] of sessions) if (session.user.userId === req.user.userId && token !== req.sessionToken) sessions.delete(token);
+      res.json({ success: true });
+    } catch (e) { console.error('Profile password change failed:', e.message); res.status(500).json({ error: 'Could not change password.' }); }
+  });
+
+  router.get('/me/profile-image', rateLimit, authenticate, async (req, res) => {
+    try {
+      const profile = await getProfileStorage(req.user.userId);
+      if (profile.error) return res.status(profile.status).json({ error: profile.error });
+      if (!profile.image) return res.status(404).send('Profile image not found.');
+      const contentType = Object.keys(PROFILE_IMAGE_TYPES).find(type => PROFILE_IMAGE_TYPES[type] === profile.image.extension);
+      res.setHeader('Content-Type', contentType || 'application/octet-stream');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.sendFile(profile.image.target);
+    } catch (e) { console.error('Profile image load failed:', e.message); res.status(500).json({ error: 'Could not load profile image.' }); }
+  });
+
+  router.put('/me/profile-image', rateLimit, csrf, authenticate, (req, res) => {
+    profileImageUpload.single('photo')(req, res, async error => {
+      if (error || !req.file) return res.status(400).json({ error: 'Invalid profile image. Use JPG, PNG, or WebP up to 750 KB.' });
+      let temporaryFile = null;
+      try {
+        const { extension } = validateProfileImage(req.file);
+        const profile = await getProfileStorage(req.user.userId);
+        if (profile.error) return res.status(profile.status).json({ error: profile.error });
+        temporaryFile = path.resolve(profile.root, safeProfileFilename(profile.user.Username, '.tmp-' + crypto.randomBytes(6).toString('hex')));
+        if (!isInsideProfileRoot(profile.root, temporaryFile)) return res.status(500).json({ error: 'Invalid profile image destination.' });
+        await fs.promises.writeFile(temporaryFile, req.file.buffer, { flag: 'wx', mode: 0o600 });
+        for (const item of profile.files) {
+          try { await fs.promises.unlink(item.target); } catch (unlinkError) { if (unlinkError.code !== 'ENOENT') throw unlinkError; }
+        }
+        const destination = path.resolve(profile.root, safeProfileFilename(profile.user.Username, extension));
+        await fs.promises.rename(temporaryFile, destination);
+        temporaryFile = null;
+        await writeAudit(req.user.userId, profile.user.Username, 'PROFILE_IMAGE_UPDATED', clientIp(req));
+        res.json({ success: true });
+      } catch (e) { console.error('Profile image update failed:', e.message); res.status(e.statusCode || 500).json({ error: e.message || 'Could not update profile image.' }); }
+      finally { if (temporaryFile) { try { await fs.promises.unlink(temporaryFile); } catch (_) {} } }
+    });
+  });
+
+  router.delete('/me/profile-image', rateLimit, csrf, authenticate, async (req, res) => {
+    try {
+      const profile = await getProfileStorage(req.user.userId);
+      if (profile.error) return res.status(profile.status).json({ error: profile.error });
+      for (const item of profile.files) {
+        try { await fs.promises.unlink(item.target); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+      }
+      await writeAudit(req.user.userId, profile.user.Username, 'PROFILE_IMAGE_REMOVED', clientIp(req));
+      res.json({ success: true });
+    } catch (e) { console.error('Profile image removal failed:', e.message); res.status(500).json({ error: 'Could not remove profile image.' }); }
   });
 
   router.get('/expert-reports', authenticate, requirePermission('DASHBOARD_REPORT_EXPERT'), async (req,res) => {
