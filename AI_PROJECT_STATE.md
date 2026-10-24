@@ -1,16 +1,17 @@
-## Stamp workflow corrective pass — 2026-10-22
+# Project decision — Stamp phase stopped (2026-10-24)
 
-- `backend/stamp-routes.js`: SRSC PDF discovery is limited to direct PDF files in `SLD`; no subdirectories are scanned. The count endpoint returns only a count and node metadata, not PDF names or paths.
-- `frontend/js/stamp.js`: uses the `pdfCount` API contract when creating a Stamp request.
-- `backend/stamp-routes.js`: requester-facing Stamp details redact source PDF IDs/names/paths when the requester is not a Stamp-authorized user; source PDF streaming is limited to the approving user with `REQUEST_DRAWING_STAMP`.
-- `backend/stamp-routes.js` and `SQL/Stamp-Workflow.sql`: decision query parameters are bound using `mssql.Request.input`; the migration adds `STAMP_REJECTED`.
-- `backend/stamp-routes.js`: completion audit query now binds its request identifier.
-- `.github/workflows/stamp-static-checks.yml`: checks the count contract, direct-only SLD scan, and Stamp permission markers.
-- Runtime acceptance is still pending: run the migration on the target SQL Server and test against real Node folders/PDFs with both requester and Stamp-authorized accounts. GitHub static checks do not prove filesystem/database behavior.
+The user explicitly stopped the Stamp phase because it did not deploy correctly. Do not restore or continue it. The current schema report for `dbDrawingManagment` contains no Stamp tables. Stamp-only routes/UI/migrations are not present in the current repository tree; remaining PDF.js/pdf-lib vendored assets and stale Stamp documentation are cleanup targets. Preserve the existing Drawing Request workflow and all unrelated features.
 
+## Current task — profile image storage
+- Profile images must be stored on the filesystem using the protected storage root in `dbo.tblPath` where `PathID=5`.
+- The filename is based on the active user's `Username`; do not add image binary columns to `dbo.Users`.
+- The profile API must remain under `/api/auth/me/*`, require an authenticated session, enforce rate limits and CSRF/origin checks on state-changing requests, validate image MIME and file signatures, and never expose the storage root as a public static directory.
+- Remove `backend/profile-routes.js` only after equivalent profile/profile-password/profile-image endpoints are implemented in `backend/auth.js`.
+
+## Historical Stamp work (cancelled)
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-10-17
+Last updated: 2026-10-24
 Repository: AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
@@ -239,8 +240,10 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
+0. Stamp phase is cancelled by explicit user decision. Remove remaining Stamp-only vendored PDF libraries and stale Stamp documentation; do not add Stamp schema or permission dependencies.
+
 1. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
 2. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
 3. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
 4. Decide whether to add force-change-at-next-login (needs a `Users` column; requires user approval).
-5. Continue pending Stamp workflow acceptance separately.
+5. Stamp phase is stopped by user decision; do not restore it. Confirm no Stamp code, migrations, permissions, tables, routes, UI, or vendored PDF libraries remain.
