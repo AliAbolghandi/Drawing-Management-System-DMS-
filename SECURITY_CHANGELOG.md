@@ -131,3 +131,9 @@ For production:
 - The browser accepts original JPEG/PNG/WebP images without a frontend file-size restriction, provides drag/zoom crop controls, and sends a fixed 512×512 JPEG crop. The API validates image MIME against file signatures and caps the processed upload at 8 MB to mitigate memory-exhaustion abuse.
 - Profile and password changes use parameterized SQL; password changes verify the current password, enforce an 8–256 character length with no composition rules, and store only scrypt hashes. Profile/photo changes are audited in `dbo.Logs`.
 - Runtime API, SQL Server filesystem permissions, and browser acceptance tests remain pending.
+
+## Node hierarchy authorization — 2026-10-24
+- `GET /api/node-hierarchy/:nodeId` returns only node hierarchy metadata (`NodeID`, `NodeCode`, `NodeName`); it now requires the existing server-side `NODE_VIEW` permission instead of `FILE_VIEW`.
+- This lets authorized node viewers, including `VIEWER` and `Manager`, load the hierarchy without granting them access to file browsing. File/folder APIs remain protected by `FILE_VIEW`.
+- Unauthenticated requests remain blocked by the existing authentication middleware; users without `NODE_VIEW` receive HTTP 403.
+- Runtime API checks against SQL Server remain pending.
