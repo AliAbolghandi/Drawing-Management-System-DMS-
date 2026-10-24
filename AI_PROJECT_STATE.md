@@ -12,6 +12,12 @@ The user explicitly stopped the Stamp phase because it did not deploy correctly.
 # DMS — AI Project State / Handoff
 
 Last updated: 2026-10-24
+
+## Current change status — 2026-10-24
+- `backend/auth.js`: profile, profile-password and profile-image APIs are implemented in the existing auth router. Image files are resolved under `dbo.tblPath.PathID=5`, named from the active `Username`, limited to JPEG/PNG/WebP up to 750 KB, and protected by authentication, rate limiting and CSRF/origin checks on mutations.
+- `backend/profile-routes.js` was deleted after moving the equivalent routes into `backend/auth.js`.
+- Stamp-only vendored PDF.js/pdf-lib assets were deleted. Current source tree has no Stamp route/UI/migration files; historical notes below are not active instructions.
+- Commits for this cleanup: `33c6641ab67d2ee91207713d121dec74ef33486d` (`backend/auth.js`), `c1df581d86bf29a7190466435dd08183e5fc49fd` (safe temporary upload filename), `acb3b59bc5a84c511d7780a35791044bd0736c22` (`backend/profile-routes.js` deletion), `7947908014ea19cc240c765e6362791c39e7bc07` (last PDF-lib asset deletion). Additional related file deletions and documentation updates are recorded in Git history.
 Repository: AliAbolghandi/Drawing-Management-System-DMS-
 Default branch: main
 
@@ -39,6 +45,12 @@ Default branch: main
 - Relationships are documented in `SQL/Relation between table.rpt`.
 - `dbo.DrawingRequestAssignments.AssignmentID` is the unique FK target for `dbo.DrawingRequestExpertWork`.
 - `DrawingRequestExpertWork` production fields: `PredictedPartCount`, `CroquisStartDate`, `CroquisEndDate`, `CroquisPartCount`, `ModelingStartDate`, `ModelingEndDate`, `ModelingPartCount`, `DrawingStartDate`, `DrawingEndDate`, `StandardPartCount`, `DrawnPartCount`.
+
+## Profile image storage
+- API routes: `GET /api/auth/me/profile`, `PUT /api/auth/me/profile`, `PUT /api/auth/me/profile-password`, `GET/PUT/DELETE /api/auth/me/profile-image`.
+- Filesystem root is read from `dbo.tblPath.RootPath` where `PathID=5`; the storage directory is not exposed by static hosting. File names are based on the validated active `Users.Username` plus `.jpg`, `.png`, or `.webp`.
+- The current schema report lists no `Users.ProfileImage` or `Users.ProfileImageContentType` columns; no database migration or image-binary columns are required.
+- Validation completed: JavaScript syntax parse of `backend/auth.js` passed. SQL Server filesystem permissions, API 401/CSRF behavior, image upload/download/delete, and browser behavior still require runtime verification.
 
 ## Workflow / expert work
 - Statuses: `PENDING_MANAGER`, `MANAGER_APPROVED`, `MANAGER_REJECTED`, `PENDING_DRAWING_APPROVAL`, `DRAWING_APPROVAL_REJECTED`, `ASSIGNED`, `IN_PROGRESS`, `TRANSFERRED`, `EXPERT_REJECTED`, `RETURNED_FOR_CORRECTION`, `PENDING_FINAL_APPROVAL`, `FINAL_APPROVED`, `FINAL_REJECTED`, `CANCELLED`.
@@ -240,10 +252,10 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-0. Stamp phase is cancelled by explicit user decision. Remove remaining Stamp-only vendored PDF libraries and stale Stamp documentation; do not add Stamp schema or permission dependencies.
+0. Stamp phase is cancelled; do not restore it. Stamp-only vendored PDF libraries and the obsolete profile-routes module were removed; stale active Stamp documentation was cleaned.
 
 1. Run against the target SQL Server: Admin login; create user; assign/remove roles; edit role permissions; own password change; confirm non-Admin gets 403 and unauthenticated gets 401 on every `/api/auth/user-management/*` route and `PUT /api/auth/me/password`.
 2. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
 3. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
 4. Decide whether to add force-change-at-next-login (needs a `Users` column; requires user approval).
-5. Stamp phase is stopped by user decision; do not restore it. Confirm no Stamp code, migrations, permissions, tables, routes, UI, or vendored PDF libraries remain.
+5. Stamp phase is stopped by user decision; do not restore it. Confirm no Stamp-only code, migrations, permissions, tables, routes, UI, or vendored PDF libraries remain.
