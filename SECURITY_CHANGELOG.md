@@ -56,7 +56,6 @@ Existing path validation was retained and is enforced for:
 - Uploads
 - Folder creation
 - File/folder deletion
-- Stamp output storage
 
 Relative paths reject traversal such as `..`, absolute paths and invalid Windows filename characters.
 
