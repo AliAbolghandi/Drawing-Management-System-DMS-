@@ -322,7 +322,11 @@
     document.getElementById('dmsProfileRemovePhoto').addEventListener('click',removePhoto);
     document.getElementById('dmsProfileCropClose').addEventListener('click',closeCrop);
     document.getElementById('dmsProfileCropCancel').addEventListener('click',closeCrop);
-    document.getElementById('dmsProfileCropModal').addEventListener('click',e=>{if(e.target.id==='dmsProfileCropModal')closeCrop();});
+    const cropModal=document.getElementById('dmsProfileCropModal');
+    let cropBackdropDown=false, cropBackdropUp=false;
+    cropModal.addEventListener('pointerdown',e=>{cropBackdropDown=e.target===cropModal;});
+    cropModal.addEventListener('pointerup',e=>{cropBackdropUp=e.target===cropModal;});
+    cropModal.addEventListener('click',e=>{const close=e.target===cropModal&&cropBackdropDown&&cropBackdropUp;cropBackdropDown=false;cropBackdropUp=false;if(close)closeCrop();});
     document.getElementById('dmsProfileCropApply').addEventListener('click',applyCrop);
     document.getElementById('dmsProfileZoom').addEventListener('input',e=>{cropZoom=Number(e.target.value)||1;renderCrop();});
     const cropViewport=document.getElementById('dmsProfileCropViewport');
