@@ -1,6 +1,9 @@
 const express = require('express');
 const crypto = require('crypto');
 const sql = require('mssql/msnodesqlv8');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -219,6 +222,34 @@ function createAuth(frontendOrigins) {
   });
 
   router.post('/logout', async (req, res) => { const token=cookies(req).dms_session, session=token?sessions.get(token):null; if(session){await writeAudit(session.user.userId,session.user.username,'LOGOUT',clientIp(req));sessions.delete(token);} clearCookie(res); res.json({success:true}); });
+
+  const profileImageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
+  async function profileImageLocation(username) {
+    const safe = String(username || '');
+    if (!/^[A-Za-z0-9._@-]{1,100}$/.test(safe)) throw new Error('Invalid username.');
+    const q = await new sql.Request().query('SELECT TOP 1 RootPath FROM dbo.tblPath WHERE PathID=5;');
+    const rootValue = q.recordset?.[0]?.RootPath;
+    if (typeof rootValue !== 'string' || !rootValue.trim()) throw new Error('Profile storage path is not configured.');
+    const root = path.resolve(rootValue); await fs.promises.mkdir(root,{recursive:true});
+    return {root,safe,files:['jpg','png','webp'].map(ext=>path.resolve(root,safe+'.'+ext))};
+  }
+  function imageType(b) {
+    if (!Buffer.isBuffer(b)) return null;
+    if (b.length>=3&&b[0]===255&&b[1]===216&&b[2]===255) return {mime:'image/jpeg',ext:'jpg'};
+    if (b.length>=8&&b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return {mime:'image/png',ext:'png'};
+    if (b.length>=12&&b.toString('ascii',0,4)==='RIFF'&&b.toString('ascii',8,12)==='WEBP') return {mime:'image/webp',ext:'webp'};
+    return null;
+  }
+  router.get('/me/profile',rateLimit,authenticate,async(req,res)=>{
+    try {
+      const q=new sql.Request(); q.input('userId',sql.Int,req.user.userId);
+      const r=await q.query("SELECT u.UserID,u.Username,u.Name,u.Family,u.LastLoginAt,COALESCE(STUFF((SELECT N', ' + ro.RoleName FROM dbo.UserRoles ur JOIN dbo.Roles ro ON ro.RoleID=ur.RoleID AND ro.IsActive=1 WHERE ur.UserID=u.UserID FOR XML PATH(''),TYPE).value('.','nvarchar(max)'),1,2,N''),N'Signed in') AS Role FROM dbo.Users u WHERE u.UserID=@userId AND u.IsActive=1;");
+      const row=r.recordset?.[0]; if(!row)return res.status(401).json({error:'Authentication required.'});
+      const loc=await profileImageLocation(row.Username); let has=false;
+      for(const file of loc.files){try{await fs.promises.access(file);has=true;break;}catch(_){}}
+      res.set('Cache-Control','no-store').json({user:{userId:Number(row.UserID),username:row.Username,name:row.Name||'',family:row.Family||'',role:row.Role||'Signed in',lastLoginAt:row.LastLoginAt||null,hasProfileImage:has}});
+    } catch(e){console.error('Profile load failed:',e.message);res.status(500).json({error:'Unable to load profile.'});}
+  });
   router.get('/me', async (req,res) => {
     const token = cookies(req).dms_session;
     const session = token ? sessions.get(token) : null;
