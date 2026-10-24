@@ -235,3 +235,11 @@ User reported that the `Production Reports` section calculates incorrect values,
 3. Verify last-Admin protection (deactivate, remove Admin role) and that role/permission changes reach active sessions within ~15 s.
 4. Visually test the new views on desktop/mobile (checkbox lists, keyboard/Escape behavior).
 5. Do not restore the stopped Stamp phase.
+
+
+## Profile password modal — 2026-10-24
+
+- Replaced the inline password fields in `dms-profile-dialog` with a **Change Password** button that opens a dedicated modal.
+- The modal retains current/new/confirm password inputs, eye toggles, password strength indicator, minimum 8 characters, maximum 256 characters, and no extra composition rules. Changes remain staged until the existing Save Changes confirmation is accepted.
+- Commit: `2b4118af693050e763b3f44f76cfcf0c8b470e43`.
+- Validation: JavaScript parse check passed; browser and API tests were not run.
