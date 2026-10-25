@@ -256,6 +256,17 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commits: backend `48e4ca388e3c0f0a53f24fdfc689833ed82ba8c9`; security changelog `35b2bd8a414fe97c381d976febfbc585d4d5edff`.
 - Validation: source-level route and permission mapping inspected. Live HTTP 401/403 checks, SQL Server-backed API execution, and browser verification have not been run; do not treat the fix as runtime-tested yet.
 
+## Optional visual design skills — 2026-10-25
+
+- Confirmed `skills/SKILL.md` already exists and its blob SHA matches the upstream `Leonxlnx/taste-skill/skills/taste-skill/SKILL.md` content; it is the `design-taste-frontend` skill.
+- Added the upstream `SKILL.md` for `gpt-taste` at `skills/taste-skill-classics/gpt-taste/SKILL.md` (commit `0be6f027553f4b675d2c7c23a7654b81c016d462`).
+- Added the upstream `SKILL.md` for `industrial-brutalist-ui` at `skills/taste-skill-classics/industrial-brutalist-ui/SKILL.md` (commit `0b4fa015ccd355fad0d566725cfef8c9c8da9f32`).
+- Added the upstream `SKILL.md` for `image-to-code` at `skills/imagegen-skills/SKILL.md` (commit `fe336157913eade75110e56e2755e257e2569962`).
+- Added `skills/README.md` with a quick guide explaining how to request each skill, DMS guardrails, and limitations of copying only `SKILL.md` (commit `24d2082608066f106b1c0b6e8368f260a7eccc39`).
+- Updated `DMS_AI_INSTRUCTIONS.md` to describe these as optional, explicitly invoked visual skills that do not override the project-specific UI rules (commit `120b3de4675165022764fd2b11478e7586ade29a`).
+- No application code, APIs, database structures, permissions, or workflow logic changed.
+- Validation: GitHub fetch/create/update operations succeeded. Runtime/browser tests are not applicable to these documentation-only changes. The upstream skills' companion scripts/assets were not copied, so workflows requiring those files may need further vendoring.
+
 # NEXT ACTION
 
 1. Browser-test `rw-worklist-dialog` backdrop behavior first: ordinary backdrop click closes; select text inside the dialog and release outside, and confirm it stays open.
