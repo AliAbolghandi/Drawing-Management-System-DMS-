@@ -304,10 +304,22 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Events use `TargetType='DRAWING_REQUEST'` and `TargetID=RequestID`; details include request number, Node ID/code, action, from/to status, and target expert identity when assigning/transferring. Comment text is not copied into audit details.
 - Runtime workflow/API tests remain pending. File audit events were confirmed by the user on 2026-10-25.
 
+## Audit logging — Node and administration batch (2026-10-25)
+
+- Commits: `76f9542ee19d8a66174b5c7689826fae0cc0e214` (`backend/server.js`), `11c1145b033af98e326a0dae212452feecffba12` (`backend/auth.js`), `4ddaa52d80c85ab9ba87dada547e510453ac0d87` (`backend/admin-db.js`).
+- Node create/update/delete now writes structured events: `NODE_CREATED`, `NODE_UPDATED`, `NODE_ACTIVATED`, `NODE_DEACTIVATED`, `NODE_DELETED`; events use `TargetType='NODE'` and the NodeID as TargetID. Updates include changed field names and active-state transition context.
+- User-management audit events now include structured USER targets for create/profile/status/password-reset/unlock/session-revoke/role-change operations while retaining existing Action strings used by the user activity view. Passwords and hashes are never logged.
+- Role permission changes include ROLE target metadata and before/after PermissionID lists; user role changes include before/after RoleID lists.
+- Generic Admin table insert/update/delete events in `backend/admin-db.js` include table name, primary-key identifiers, operation and changed column names; they do not log submitted row values or password fields.
+- JavaScript source parsing passed for all three changed backend files. Live SQL Server/API tests have not been run; do not mark this batch as runtime-verified until the user tests it.
+- Drawing request workflow audit was tested by the user on 2026-10-25: request creation, manager decisions, expert assignment/acceptance/completion, and correction return produced structured rows in `dbo.Logs`.
+
 # NEXT ACTION
 
-1. Restart the DMS backend with the latest `backend/server.js`.
-2. Create a test drawing request and perform one permitted workflow transition on a test request; verify `REQUEST_CREATED` and the corresponding transition action in `dbo.Logs`, including `TargetType`, `TargetID`, and `DetailsJson`.
-3. Investigate why client IP is recorded as `127.0.0.1`. Confirm whether IIS or another trusted reverse proxy forwards requests to Node and whether the Node port is blocked from direct client access. Do not enable broad proxy trust until the topology is confirmed.
-4. Next audit batch: authorization denials, session expiry, Node create/update/enable/disable/delete, and structured target metadata for user/role administration.
-5. Do not restore the stopped Stamp phase.
+1. Restart the DMS backend with the latest `backend/server.js`, `backend/auth.js`, and `backend/admin-db.js`.
+2. Test as an authorized user: create a temporary Node, edit its name, toggle active/inactive, then delete it after ensuring it has no children or registered PDF references. Verify the five Node event types as applicable in `dbo.Logs`.
+3. In Admin User Management, create a test user, edit profile, change roles, deactivate/reactivate, and reset password; then edit a test role's permissions. Verify `TargetType`, `TargetID`, and `DetailsJson`. Do not use production accounts for destructive tests.
+4. Test one generic Admin table insert/update/delete only on a safe test record and confirm the audit row contains identifiers/column names but no password or submitted row values.
+5. Investigate why client IP is recorded as `127.0.0.1`. Confirm whether IIS or another trusted reverse proxy forwards requests to Node and whether the Node port is blocked from direct client access. Do not enable broad proxy trust until the topology is confirmed.
+6. Next audit batch: authorization denials and session expiry; preserve the existing RBAC and session behavior.
+7. Do not restore the stopped Stamp phase.
