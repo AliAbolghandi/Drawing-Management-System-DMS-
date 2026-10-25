@@ -301,7 +301,13 @@ function registerAdminDatabaseRoutes(app, deps) {
       const q = await r.query(
         'INSERT INTO dbo.' + qi(tableName) + ' (' + fields.join(',') + ') OUTPUT INSERTED.* VALUES (' + params.join(',') + ');'
       );
-      await auth.writeAudit(req.user.userId, req.user.username, 'ADMIN_INSERT_' + tableName, req.ip);
+      const insertedRow = q.recordset[0];
+      const primaryKeys = meta.columns.filter(c => c.IsPrimaryKey).sort((a,b) => a.PrimaryKeyOrdinal - b.PrimaryKeyOrdinal);
+      const keyValues = Object.fromEntries(primaryKeys.map(c => [c.ColumnName, insertedRow[c.ColumnName]]));
+      await auth.writeAudit(req.user.userId, req.user.username, 'ADMIN_INSERT_' + tableName, req.ip, {
+        targetType: 'ADMIN_TABLE_ROW', targetId: primaryKeys.length ? insertedRow[primaryKeys[0].ColumnName] : null,
+        details: { tableName, operation: 'INSERT', keyValues, columns: fields.map(x => x.replace(/^\\[|\\]$/g, '')).filter(x => x !== 'PasswordHash') }
+      });
       res.status(201).json({ success: true, row: q.recordset[0] });
     } catch (e) {
       if (e.number === 2627 || e.number === 2601) return res.status(409).json({ error: 'Duplicate value violates a unique constraint.' });
@@ -337,7 +343,12 @@ function registerAdminDatabaseRoutes(app, deps) {
         'UPDATE dbo.' + qi(tableName) + ' SET ' + set.join(',') + ' WHERE ' + where + '; SELECT @@ROWCOUNT AS Affected;'
       );
       if (Number(q.recordset[0]?.Affected || 0) !== 1) return res.status(404).json({ error: 'Record not found.' });
-      await auth.writeAudit(req.user.userId, req.user.username, 'ADMIN_UPDATE_' + tableName, req.ip);
+      const primaryKeys = meta.columns.filter(c => c.IsPrimaryKey).sort((a,b) => a.PrimaryKeyOrdinal - b.PrimaryKeyOrdinal);
+      const keyValues = Object.fromEntries(primaryKeys.map(c => [c.ColumnName, req.body.keys[c.ColumnName]]));
+      await auth.writeAudit(req.user.userId, req.user.username, 'ADMIN_UPDATE_' + tableName, req.ip, {
+        targetType: 'ADMIN_TABLE_ROW', targetId: primaryKeys.length ? req.body.keys[primaryKeys[0].ColumnName] : null,
+        details: { tableName, operation: 'UPDATE', keyValues, changedColumns: set.map(x => x.split('=')[0].replace(/[\\[\\]]/g, '').trim()).filter(x => x !== 'PasswordHash') }
+      });
       res.json({ success: true });
     } catch (e) {
       if (e.number === 2627 || e.number === 2601) return res.status(409).json({ error: 'Duplicate value violates a unique constraint.' });
@@ -358,7 +369,12 @@ function registerAdminDatabaseRoutes(app, deps) {
         'DELETE FROM dbo.' + qi(tableName) + ' WHERE ' + where + '; SELECT @@ROWCOUNT AS Affected;'
       );
       if (Number(q.recordset[0]?.Affected || 0) !== 1) return res.status(404).json({ error: 'Record not found.' });
-      await auth.writeAudit(req.user.userId, req.user.username, 'ADMIN_DELETE_' + tableName, req.ip);
+      const primaryKeys = meta.columns.filter(c => c.IsPrimaryKey).sort((a,b) => a.PrimaryKeyOrdinal - b.PrimaryKeyOrdinal);
+      const keyValues = Object.fromEntries(primaryKeys.map(c => [c.ColumnName, req.body.keys[c.ColumnName]]));
+      await auth.writeAudit(req.user.userId, req.user.username, 'ADMIN_DELETE_' + tableName, req.ip, {
+        targetType: 'ADMIN_TABLE_ROW', targetId: primaryKeys.length ? req.body.keys[primaryKeys[0].ColumnName] : null,
+        details: { tableName, operation: 'DELETE', keyValues }
+      });
       res.json({ success: true });
     } catch (e) {
       if (e.number === 547) return res.status(409).json({ error: 'Foreign key constraint prevents deletion. Remove dependent records first.' });
