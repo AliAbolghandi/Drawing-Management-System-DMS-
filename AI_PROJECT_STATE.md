@@ -278,12 +278,19 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Validation: source replacement completed through GitHub API. Browser screenshots, keyboard flow, responsive rendering, JavaScript runtime, and profile/password API behavior have not been tested in this session.
 
 
+## Audit logging — File Upload stage (2026-10-25)
+
+- User confirmed the SQL migration `SQL/Add-DMS-Audit-Log.sql` was executed successfully. The migration adds `dbo.Logs.TargetType`, `TargetID`, `DetailsJson` and reporting indexes.
+- Current stage updates `backend/auth.js` `writeAudit(userId, username, action, ip, metadata)` to persist optional target/context columns while keeping existing four-argument callers compatible.
+- `backend/server.js` `POST /api/node-file-upload/:nodeId` writes one audit row after each successful file move: `FILE_UPLOAD` for a new file and `FILE_REPLACE` when an existing regular file was replaced.
+- Audit target: `TargetType='NODE'`, `TargetID=NodeID`. `DetailsJson` includes NodeID/code/name, PathID, company folder, relative path, filename, size, extension and prior file size/modified time for replacements. It intentionally excludes absolute storage paths and secrets.
+- The API response contract and existing RBAC/path validation are unchanged. Audit write failures are reported by the existing `writeAudit` warning and do not roll back a successful file write.
+- GitHub source changes are committed; runtime SQL/HTTP verification is pending user test.
+
 # NEXT ACTION
 
-1. Browser-test `rw-worklist-dialog` backdrop behavior first: ordinary backdrop click closes; select text inside the dialog and release outside, and confirm it stays open.
-2. Browser-test other modal backdrop behavior: ordinary backdrop click closes; select text inside each affected modal and release outside, and confirm the modal stays open.
-3. Browser-test password modal layering: click Change Password, enter valid values, click Done, confirm the confirmation modal appears in front; Cancel must return to password entry without changing the password.
-4. Confirm Yes, Change Password updates the password, closes the confirmation/password modals, and reveals `dms-profile-dialog`; test API failure and ensure an error remains visible.
-5. Browser-test profile crop/zoom, Save Changes confirmation, and cancel behavior; then test profile APIs on target SQL Server and verify `tblPath.PathID=5` storage.
-6. Run the existing user-management RBAC and last-Admin protection checks documented above.
-7. Do not restore the stopped Stamp phase.
+1. Restart the DMS backend so the updated `backend/auth.js` and `backend/server.js` are loaded.
+2. Upload a new test file to a test Node, then query `dbo.Logs` for the newest `FILE_UPLOAD` row and verify `TargetType`, `TargetID`, and `DetailsJson`.
+3. Upload a different test file with the same destination filename to verify `FILE_REPLACE` and the prior file metadata.
+4. Send the SQL result and API outcome before implementing the next File Audit events (delete and folder create/delete).
+5. Do not restore the stopped Stamp phase.
