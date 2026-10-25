@@ -287,10 +287,21 @@ User reported that the `Production Reports` section calculates incorrect values,
 - The API response contract and existing RBAC/path validation are unchanged. Audit write failures are reported by the existing `writeAudit` warning and do not roll back a successful file write.
 - Commits on `main`: `9bfcdb1389aa788e5872190fe8e71f6ae6ede130` (structured audit writer), `4dc307e3bb2bf93ab833b1ca420dcbff759f7a81` (upload/replacement audit), `43fe631dca5ec270c9344894477e4e96ed3ca710` (include NodeName in audit context), `63a0259b74766285b60e83679d440b001383e9b9` (security changelog), `5153b93ac77edc11aa0f81f429a9f117b6d68167` (project state). Runtime SQL/HTTP verification is pending user test.
 
+## File Audit — additional file operations (2026-10-25)
+
+- Commit `6edafdc219c4732bd0241e81e06547868aabd443` updates `backend/server.js`.
+- `DELETE /api/node-file` now writes `FILE_DELETE` for files and `FOLDER_DELETE` for recursively deleted subfolders, after the filesystem deletion succeeds. Details include the Node context, relative path, item type, size/modified time when applicable, and whether deletion was recursive.
+- `POST /api/node-folder` writes `FOLDER_CREATE` only when the requested directory did not already exist; details include Node context and relative folder path.
+- `GET /api/node-file` writes `FILE_VIEW` for inline files and `FILE_DOWNLOAD` for attachment delivery after a successful sendFile callback. Existing permission checks and path containment checks remain in place.
+- All events use the central `dbo.Logs` writer, target the Node, and avoid recording absolute storage paths.
+- Structural source review only; syntax/runtime, SQL Server, API authorization and browser checks are pending user validation.
+
 # NEXT ACTION
 
 1. Restart the DMS backend so the updated `backend/auth.js` and `backend/server.js` are loaded.
-2. Upload a new test file to a test Node, then query `dbo.Logs` for the newest `FILE_UPLOAD` row and verify `TargetType`, `TargetID`, and `DetailsJson`.
-3. Upload a different test file with the same destination filename to verify `FILE_REPLACE` and the prior file metadata.
-4. Send the SQL result and API outcome before implementing the next File Audit events (delete and folder create/delete).
-5. Do not restore the stopped Stamp phase.
+2. Test a new upload and replacement; confirm `FILE_UPLOAD` and `FILE_REPLACE` (already confirmed by user on 2026-10-25).
+3. Delete a test file and a test subfolder; verify `FILE_DELETE` and `FOLDER_DELETE` in `dbo.Logs`.
+4. Create a new test folder; verify `FOLDER_CREATE`. Creating an already-existing folder should not emit a false creation event.
+5. Open an inline file (e.g. PDF/image) and download an attachment-type file; verify `FILE_VIEW` and `FILE_DOWNLOAD`.
+6. Test with an unauthenticated session and a user lacking `FILE_Edit`; deletion and folder creation must remain blocked. Runtime tests for this batch are pending.
+7. Do not restore the stopped Stamp phase.
