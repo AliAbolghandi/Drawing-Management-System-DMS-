@@ -508,7 +508,7 @@ function createAuth(frontendOrigins) {
       const update = new sql.Request(); update.input('userId',sql.Int,userId); update.input('passwordHash',sql.NVarChar(512),passwordHash);
       const result = await update.query('UPDATE dbo.Users SET PasswordHash=@passwordHash,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId AND IsActive=1; SELECT @@ROWCOUNT AS Affected;');
       if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'Active user not found.' });
-      await writeAudit(req.user.userId, req.user.username, 'USER_PASSWORD_RESET_TARGET_' + userId, clientIp(req));
+      await writeAudit(req.user.userId, req.user.username, 'USER_PASSWORD_RESET_TARGET_' + userId, clientIp(req), { targetType: 'USER', targetId: userId, details: { userId, username: targetUsername, sessionsRevoked: true } });
       for (const [token, session] of sessions) if (session.user.userId === userId) sessions.delete(token);
       res.json({ success: true, sessionsRevoked: true });
     } catch (e) { console.error('User password reset failed:', e.message); res.status(500).json({ error: 'Could not reset password.' }); }
@@ -524,7 +524,7 @@ function createAuth(frontendOrigins) {
       const result = await update.query('UPDATE dbo.Users SET IsActive=@isActive,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId; SELECT @@ROWCOUNT AS Affected; SELECT Username FROM dbo.Users WHERE UserID=@userId;');
       if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'User not found.' });
       const action = isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED';
-      await writeAudit(req.user.userId, req.user.username, action + '_TARGET_' + userId, clientIp(req));
+      await writeAudit(req.user.userId, req.user.username, action + '_TARGET_' + userId, clientIp(req), { targetType: 'USER', targetId: userId, details: { userId, isActive, changed: true } });
       if (!isActive) for (const [token, session] of sessions) if (session.user.userId === userId) sessions.delete(token);
       res.json({ success: true, isActive });
     } catch (e) { console.error('User status update failed:', e.message); res.status(500).json({ error: 'Could not update user status.' }); }
@@ -544,7 +544,7 @@ function createAuth(frontendOrigins) {
       const up = new sql.Request(); up.input('userId', sql.Int, userId); up.input('username', sql.NVarChar(100), username); up.input('name', sql.NVarChar(100), name); up.input('family', sql.NVarChar(100), family);
       const result = await up.query('UPDATE dbo.Users SET Username=@username,Name=@name,Family=@family,UpdatedAt=SYSUTCDATETIME() WHERE UserID=@userId; SELECT @@ROWCOUNT AS Affected;');
       if (!Number(result.recordset?.[0]?.Affected)) return res.status(404).json({ error: 'User not found.' });
-      await writeAudit(req.user.userId, req.user.username, 'USER_PROFILE_UPDATED_TARGET_' + userId, clientIp(req));
+      await writeAudit(req.user.userId, req.user.username, 'USER_PROFILE_UPDATED_TARGET_' + userId, clientIp(req), { targetType: 'USER', targetId: userId, details: { userId, username, changedFields: ['Username', 'Name', 'Family'] } });
       for (const session of sessions.values()) if (session.user.userId === userId) session.checkedAt = 0;
       res.json({ success: true });
     } catch (e) { console.error('User profile update failed:', e.message); res.status(500).json({ error: 'Could not update user.' }); }
@@ -559,7 +559,7 @@ function createAuth(frontendOrigins) {
       const username = q.recordset?.[0]?.Username;
       if (!username) return res.status(404).json({ error: 'User not found.' });
       accountAttempts.delete(String(username).toLowerCase());
-      await writeAudit(req.user.userId, req.user.username, 'USER_UNLOCKED_TARGET_' + userId, clientIp(req));
+      await writeAudit(req.user.userId, req.user.username, 'USER_UNLOCKED_TARGET_' + userId, clientIp(req), { targetType: 'USER', targetId: userId, details: { userId, username, lockoutCleared: true } });
       res.json({ success: true });
     } catch (e) { console.error('User unlock failed:', e.message); res.status(500).json({ error: 'Could not unlock user.' }); }
   });
@@ -569,7 +569,7 @@ function createAuth(frontendOrigins) {
     if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'Invalid User ID.' });
     let revoked = 0;
     for (const [token, session] of sessions) if (session.user.userId === userId) { sessions.delete(token); revoked++; }
-    await writeAudit(req.user.userId, req.user.username, 'USER_SESSIONS_REVOKED_TARGET_' + userId, clientIp(req));
+    await writeAudit(req.user.userId, req.user.username, 'USER_SESSIONS_REVOKED_TARGET_' + userId, clientIp(req), { targetType: 'USER', targetId: userId, details: { userId, sessionsRevoked: revoked } });
     res.json({ success: true, revoked });
   });
 
@@ -627,7 +627,7 @@ function createAuth(frontendOrigins) {
       const ins = new sql.Request(); ins.input('username', sql.NVarChar(100), username); ins.input('name', sql.NVarChar(100), name); ins.input('family', sql.NVarChar(100), family); ins.input('passwordHash', sql.NVarChar(512), await hashPassword(password));
       const result = await ins.query('INSERT INTO dbo.Users (Username,Name,Family,PasswordHash,IsActive,CreatedAt) OUTPUT inserted.UserID VALUES (@username,@name,@family,@passwordHash,1,SYSUTCDATETIME());');
       const newId = Number(result.recordset[0].UserID);
-      await writeAudit(req.user.userId, req.user.username, 'USER_CREATED_TARGET_' + newId, clientIp(req));
+      await writeAudit(req.user.userId, req.user.username, 'USER_CREATED_TARGET_' + newId, clientIp(req), { targetType: 'USER', targetId: newId, details: { userId: newId, username, isActive: true } });
       res.status(201).json({ success: true, userId: newId });
     } catch (e) { console.error('User creation failed:', e.message); res.status(500).json({ error: 'Could not create user.' }); }
   });
@@ -678,6 +678,8 @@ function createAuth(frontendOrigins) {
         if (userId === req.user.userId) return res.status(400).json({ error: 'You cannot remove the Admin role from your own account.' });
         if (await isLastActiveAdmin(userId)) return res.status(400).json({ error: 'The Admin role cannot be removed from the last active Admin.' });
       }
+      const oldRolesRequest = new sql.Request(); oldRolesRequest.input('userId', sql.Int, userId);
+      const previousRoleIds = (await oldRolesRequest.query('SELECT RoleID FROM dbo.UserRoles WHERE UserID=@userId;')).recordset.map(x => Number(x.RoleID)).sort((a,b) => a-b);
       tx = new sql.Transaction(); await tx.begin();
       const del = new sql.Request(tx); del.input('userId', sql.Int, userId);
       await del.query('DELETE FROM dbo.UserRoles WHERE UserID=@userId;');
@@ -687,7 +689,7 @@ function createAuth(frontendOrigins) {
       }
       await tx.commit(); tx = null;
       markSessionsForRefresh(userId);
-      await writeAudit(req.user.userId, req.user.username, 'USER_ROLES_CHANGED_TARGET_' + userId, clientIp(req));
+      await writeAudit(req.user.userId, req.user.username, 'USER_ROLES_CHANGED_TARGET_' + userId, clientIp(req), { targetType: 'USER', targetId: userId, details: { userId, previousRoleIds, roleIds: [...roleIds].sort((a,b) => a-b) } });
       res.json({ success: true });
     } catch (e) {
       if (tx) { try { await tx.rollback(); } catch (_) {} }
@@ -710,6 +712,8 @@ function createAuth(frontendOrigins) {
         const found = await pr.query(`SELECT COUNT(*) AS C FROM dbo.Permissions WHERE PermissionID IN (${permissionIds.map((_, i) => '@p' + i).join(',')});`);
         if (Number(found.recordset[0].C) !== permissionIds.length) return res.status(400).json({ error: 'One or more permissions do not exist.' });
       }
+      const oldPermissionsRequest = new sql.Request(); oldPermissionsRequest.input('roleId', sql.Int, roleId);
+      const previousPermissionIds = (await oldPermissionsRequest.query('SELECT PermissionID FROM dbo.RolePermissions WHERE RoleID=@roleId;')).recordset.map(x => Number(x.PermissionID)).sort((a,b) => a-b);
       tx = new sql.Transaction(); await tx.begin();
       const del = new sql.Request(tx); del.input('roleId', sql.Int, roleId);
       await del.query('DELETE FROM dbo.RolePermissions WHERE RoleID=@roleId;');
@@ -719,7 +723,7 @@ function createAuth(frontendOrigins) {
       }
       await tx.commit(); tx = null;
       markSessionsForRefresh(null);
-      await writeAudit(req.user.userId, req.user.username, 'ROLE_PERMISSIONS_CHANGED_ROLE_' + roleId, clientIp(req));
+      await writeAudit(req.user.userId, req.user.username, 'ROLE_PERMISSIONS_CHANGED_ROLE_' + roleId, clientIp(req), { targetType: 'ROLE', targetId: roleId, details: { roleId, previousPermissionIds, permissionIds: [...permissionIds].sort((a,b) => a-b) } });
       res.json({ success: true });
     } catch (e) {
       if (tx) { try { await tx.rollback(); } catch (_) {} }
