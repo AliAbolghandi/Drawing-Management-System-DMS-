@@ -66,14 +66,23 @@ function createAuth(frontendOrigins) {
     });
   }
 
-  async function writeAudit(userId, username, action, ip) {
+  async function writeAudit(userId, username, action, ip, metadata = {}) {
     try {
+      const detailsJson = metadata.details == null ? null : JSON.stringify(metadata.details);
       const r = new sql.Request();
       r.input('userId', sql.Int, userId == null ? null : userId);
       r.input('username', sql.NVarChar(100), username || null);
       r.input('action', sql.NVarChar(100), action);
       r.input('ip', sql.NVarChar(64), ip || null);
-      await r.query('INSERT INTO dbo.Logs (UserID,UserName,Action,IPAddress,CreatedAt) VALUES (@userId,@username,@action,@ip,SYSUTCDATETIME());');
+      r.input('targetType', sql.NVarChar(50), metadata.targetType || null);
+      r.input('targetId', sql.NVarChar(100), metadata.targetId == null ? null : String(metadata.targetId));
+      r.input('detailsJson', sql.NVarChar(sql.MAX), detailsJson);
+      await r.query(`
+        INSERT INTO dbo.Logs
+          (UserID, UserName, Action, IPAddress, CreatedAt, TargetType, TargetID, DetailsJson)
+        VALUES
+          (@userId, @username, @action, @ip, SYSUTCDATETIME(), @targetType, @targetId, @detailsJson);
+      `);
     } catch (e) { console.warn('Audit log failed:', e.message); }
   }
 
