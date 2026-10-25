@@ -137,3 +137,10 @@ For production:
 - This lets authorized node viewers, including `VIEWER` and `Manager`, load the hierarchy without granting them access to file browsing. File/folder APIs remain protected by `FILE_VIEW`.
 - Unauthenticated requests remain blocked by the existing authentication middleware; users without `NODE_VIEW` receive HTTP 403.
 - Runtime API checks against SQL Server remain pending.
+
+## File Audit — 2026-10-25
+- The centralized `writeAudit()` function in `backend/auth.js` now accepts optional `targetType`, `targetId`, and structured `details`; existing four-argument audit calls remain compatible.
+- Successful files saved by `POST /api/node-file-upload/:nodeId` are logged after the file move succeeds. New files produce `FILE_UPLOAD`; overwriting an existing regular file produces `FILE_REPLACE`.
+- File events record the acting authenticated user, client IP, UTC timestamp, target Node ID, Node code/name, PathID, company folder, relative path, filename, size, extension, and previous file size/modified time when replacing. Absolute storage paths and credentials are not recorded.
+- Each successful file is logged separately, including multi-file and folder uploads. Failed/skipped items do not produce a success event.
+- Validation still required in the target runtime: upload a new test file and verify the row in SQL Server; upload a replacement and verify `FILE_REPLACE`; check multi-file uploads. No live SQL Server or HTTP runtime test was performed by this change.
