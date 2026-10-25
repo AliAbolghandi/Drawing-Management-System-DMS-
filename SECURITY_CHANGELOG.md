@@ -148,3 +148,10 @@ For production:
 - `POST /api/node-folder` records `FOLDER_CREATE` only when the requested folder was not already present.
 - `GET /api/node-file` records `FILE_VIEW` for inline delivery and `FILE_DOWNLOAD` for attachment delivery after successful file transfer. Existing `FILE_VIEW`/`PDF_VIEW` permission checks remain unchanged.
 - Runtime SQL Server/API validation, including 401/403 denial checks, remains pending.
+
+
+## Drawing request workflow audit — 2026-10-25
+- Successful drawing-request creation writes `REQUEST_CREATED` after the request transaction commits.
+- Successful workflow transitions write their established history action code to `dbo.Logs` after the workflow transaction commits, including manager decisions, assignment/transfer, expert acceptance/rejection/completion, correction return, final decision, and cancellation.
+- Events use structured `TargetType='DRAWING_REQUEST'` and `TargetID=RequestID`; details include request/node context, source and destination statuses, action, and target expert identity where applicable. Comment text is intentionally not duplicated into audit details.
+- Runtime workflow/API verification remains pending.
