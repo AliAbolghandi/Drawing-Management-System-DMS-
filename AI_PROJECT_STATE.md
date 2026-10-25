@@ -267,6 +267,17 @@ User reported that the `Production Reports` section calculates incorrect values,
 - No application code, APIs, database structures, permissions, or workflow logic changed.
 - Validation: GitHub fetch/create/update operations succeeded. Runtime/browser tests are not applicable to these documentation-only changes. The upstream skills' companion scripts/assets were not copied, so workflows requiring those files may need further vendoring.
 
+
+## Profile dialog Taste Skill redesign — 2026-10-25
+
+- Updated `frontend/js/profile.js` to restyle `dms-profile-dialog` and its related crop, confirmation, and password modals using the requested upstream `design-taste-frontend` skill's app-screen guidance.
+- Kept the existing HTML structure, element IDs, event handlers, API calls, staged photo changes, crop behavior, save confirmation, password confirmation, and password rules unchanged. No backend, API, RBAC, database, or workflow changes were made.
+- Visual direction: DMS dark navy surfaces, cyan as the single action accent, stronger typography, larger touch targets, a more structured identity section, and responsive single-column form layout on small screens. No new dependencies or remote assets were added.
+- Taste Skill source reviewed: upstream `skills/taste-skill/SKILL.md` and `skills/taste-skill/references/app-screens.md`. `skills/DMS-UI-SKILL.md` was not present on the current main branch (fetch returned 404; repository skill index says to use it only if it exists).
+- Commit: `ceb29705d3112cbaa08938694f6aaae51cb5c936`.
+- Validation: source replacement completed through GitHub API. Browser screenshots, keyboard flow, responsive rendering, JavaScript runtime, and profile/password API behavior have not been tested in this session.
+
+
 # NEXT ACTION
 
 1. Browser-test `rw-worklist-dialog` backdrop behavior first: ordinary backdrop click closes; select text inside the dialog and release outside, and confirm it stays open.
