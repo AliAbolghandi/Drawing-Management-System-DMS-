@@ -23,6 +23,79 @@
     `;
     document.head.appendChild(style);
     style.textContent += '\n#dmsProfilePasswordConfirmModal{z-index:3010}.dms-profile-password-open{padding:9px 14px;border:1px solid var(--cyan-dim);background:rgba(111,227,255,.08);color:inherit;border-radius:6px;font:inherit;cursor:pointer}.dms-profile-password-open:hover{background:rgba(111,227,255,.14)}.dms-profile-hint{font-size:12px;color:var(--muted,#9aaab5);margin:9px 0 0}.dms-profile-password-dialog{max-height:calc(100vh - 48px);overflow:auto}.dms-profile-password-dialog .dms-profile-grid{margin-top:18px}.dms-password-row{display:block!important}.dms-password-toggle{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:32px;height:32px;padding:0;border:0;background:transparent;display:flex;align-items:center;justify-content:center}.dms-profile-avatar{overflow:hidden;flex:none}.dms-profile-avatar img{width:100%;height:100%;min-width:0;min-height:0;display:block;object-fit:cover;border-radius:50%}.dms-profile-crop-dialog,.dms-profile-confirm-dialog{width:min(460px,calc(100vw - 32px));padding:20px;background:var(--panel,#122a47);border:1px solid var(--line-strong);border-radius:10px;color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.45)}.dms-profile-crop-viewport{position:relative;width:min(280px,calc(100vw - 80px));height:min(280px,calc(100vw - 80px));margin:18px auto;overflow:hidden;border-radius:50%;background:#081523;border:2px solid var(--cyan-dim);touch-action:none;cursor:grab}.dms-profile-crop-viewport.dragging{cursor:grabbing}.dms-profile-crop-image{position:absolute;left:50%;top:50%;max-width:none;max-height:none;user-select:none;-webkit-user-drag:none;pointer-events:none}.dms-profile-crop-hint,.dms-profile-confirm-dialog p{color:var(--muted,#9aaab5);font-size:12px;line-height:1.5}.dms-profile-zoom{display:flex;align-items:center;gap:12px;margin:12px 0}.dms-profile-zoom input{width:100%;accent-color:var(--cyan)}.dms-profile-crop-actions,.dms-profile-confirm-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}.dms-profile-crop-actions button,.dms-profile-confirm-actions button{padding:9px 14px;border-radius:6px;font:inherit;cursor:pointer}.dms-profile-crop-cancel,.dms-profile-confirm-cancel{background:transparent;color:inherit;border:1px solid var(--line-strong)}.dms-profile-crop-apply,.dms-profile-confirm-yes{background:rgba(111,227,255,.14);color:#dff8ff;border:1px solid var(--cyan-dim)}.dms-profile-confirm-dialog{width:min(430px,calc(100vw - 32px));padding:22px}.dms-profile-confirm-dialog h3{margin:0 0 10px}.dms-profile-confirm-dialog p{font-size:14px}.dms-profile-confirm-yes:disabled{opacity:.6;cursor:wait}';
+
+    style.textContent += `
+      /* Taste Skill redesign: focused, compact DMS profile workspace */
+      #dmsProfileModal{padding:clamp(12px,3vw,32px);background:rgba(4,10,17,.82)}
+      #dmsProfileModal .dms-profile-dialog{width:min(880px,calc(100vw - 28px));max-height:min(820px,calc(100dvh - 32px));border:0;border-radius:4px;background:#101d2b;color:#edf4fa;box-shadow:0 28px 90px rgba(0,0,0,.48);overflow:auto;scrollbar-color:#42576a #101d2b}
+      #dmsProfileModal .dms-profile-head{position:sticky;top:0;z-index:2;padding:22px 28px;background:#101d2b;border:0}
+      #dmsProfileModal .dms-profile-head h2{font-size:25px;line-height:1.2;font-weight:650;letter-spacing:-.035em}
+      #dmsProfileModal .dms-profile-close{width:38px;height:38px;display:grid;place-items:center;border-radius:3px;font-size:28px;color:#b7c7d5}
+      #dmsProfileModal .dms-profile-close:hover{background:#1b2d3f;color:#fff}
+      #dmsProfileModal .dms-profile-body{padding:0 28px 26px}
+      #dmsProfileModal .dms-profile-hero{grid-template-columns:168px minmax(0,1fr);gap:30px;padding:22px 0 28px;border:0;background:#172739}
+      #dmsProfileModal .dms-profile-photo-wrap{padding:4px 0}
+      #dmsProfileModal .dms-profile-photo{width:112px;height:112px;margin:0 auto 14px;border:0;border-radius:3px;background:#263b50;color:#dff7ff}
+      #dmsProfileModal .dms-profile-photo-fallback{font-size:34px;font-weight:600}
+      #dmsProfileModal .dms-profile-photo>img{border-radius:3px}
+      #dmsProfileModal .dms-profile-photo-actions{gap:8px}
+      #dmsProfileModal .dms-profile-photo-edit{width:36px;height:34px;border:0;border-radius:3px;background:#1d3448;color:#9feaff}
+      #dmsProfileModal .dms-profile-photo-edit:hover{background:#27465e}
+      #dmsProfileModal .dms-profile-photo-remove{padding:7px 9px;border:0;border-radius:3px;background:transparent;color:#ffb6b6}
+      #dmsProfileModal .dms-profile-photo-remove:hover{background:#382932}
+      #dmsProfileModal .dms-profile-identity h3{margin:0 0 16px;font-size:28px;line-height:1.15;font-weight:650;letter-spacing:-.04em;overflow-wrap:anywhere}
+      #dmsProfileModal .dms-profile-identity p{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0;color:#b7c7d5;font-size:14px}
+      #dmsProfileModal .dms-profile-identity strong{color:#f1f6fa;font-weight:550;overflow-wrap:anywhere}
+      #dmsProfileModal .dms-profile-section{margin-top:26px}
+      #dmsProfileModal .dms-profile-section h3{margin:0 0 16px;color:#f1f6fa;font-size:17px;font-weight:620;letter-spacing:-.015em;text-transform:none}
+      #dmsProfileModal .dms-profile-grid{gap:18px 20px}
+      #dmsProfileModal .dms-profile-field{gap:8px;min-width:0}
+      #dmsProfileModal .dms-profile-field label{color:#c3d0db;font-size:13px}
+      #dmsProfileModal .dms-profile-field input{min-height:44px;padding:11px 12px;border:1px solid #34495d;border-radius:3px;background:#0d1824;color:#f1f6fa;font-size:15px}
+      #dmsProfileModal .dms-profile-field input:focus{outline:2px solid #79dff6;outline-offset:2px;border-color:#79dff6}
+      #dmsProfileModal .dms-profile-field input[readonly]{background:#172739;color:#aebfcd;opacity:1}
+      #dmsProfileModal .dms-profile-password-open{min-height:42px;padding:10px 14px;border:0;border-radius:3px;background:#1d3448;color:#a8eaff;font-weight:600}
+      #dmsProfileModal .dms-profile-password-open:hover{background:#28485f}
+      #dmsProfileModal .dms-profile-footer{position:sticky;bottom:-1px;z-index:2;gap:10px;margin:28px -28px 0;padding:18px 28px;background:#101d2b;border:0}
+      #dmsProfileModal .dms-profile-footer button{min-height:42px;padding:10px 18px;border-radius:3px;font-size:14px;font-weight:600}
+      #dmsProfileModal .dms-profile-cancel{background:#1a2a3a;border:0;color:#d6e1e9}
+      #dmsProfileModal .dms-profile-cancel:hover{background:#263b50}
+      #dmsProfileModal .dms-profile-save{background:#a8eaff;border:0;color:#092033}
+      #dmsProfileModal .dms-profile-save:hover{background:#c4f1ff}
+      #dmsProfileModal button:focus-visible,#dmsProfileModal input:focus-visible{outline:2px solid #79dff6;outline-offset:3px}
+      #dmsProfileCropModal,#dmsProfileConfirmModal,#dmsProfilePasswordConfirmModal,#dmsProfilePasswordModal{padding:16px;background:rgba(4,10,17,.84)}
+      .dms-profile-crop-dialog,.dms-profile-confirm-dialog{border:0;border-radius:4px;background:#142334;color:#edf4fa;box-shadow:0 28px 90px rgba(0,0,0,.48)}
+      .dms-profile-crop-dialog .dms-profile-head,.dms-profile-password-dialog .dms-profile-head{border:0}
+      .dms-profile-crop-dialog h2,.dms-profile-password-dialog h2{font-size:21px;letter-spacing:-.025em}
+      .dms-profile-crop-viewport{border:2px solid #79dff6;border-radius:3px;background:#091521}
+      .dms-profile-crop-hint,.dms-profile-confirm-dialog p{color:#c3d0db;font-size:14px}
+      .dms-profile-crop-actions button,.dms-profile-confirm-actions button{min-height:42px;border-radius:3px;font-size:14px;font-weight:600}
+      .dms-profile-crop-cancel,.dms-profile-confirm-cancel{border:0;background:#1d3042;color:#e4edf4}
+      .dms-profile-crop-apply,.dms-profile-confirm-yes{border:0;background:#a8eaff;color:#092033}
+      .dms-profile-error{background:#3b2028;color:#ffd1d5}
+      .dms-profile-success{background:#17372f;color:#b8f5d8}
+      #dmsProfilePasswordModal .dms-profile-field input{padding-right:44px}
+      #dmsProfilePasswordModal .dms-profile-password-dialog{width:min(540px,calc(100vw - 32px));padding:24px}
+      @media(max-width:640px){
+        #dmsProfileModal{padding:8px}
+        #dmsProfileModal .dms-profile-dialog{width:100%;max-height:calc(100dvh - 16px)}
+        #dmsProfileModal .dms-profile-head{padding:16px 18px}
+        #dmsProfileModal .dms-profile-head h2{font-size:22px}
+        #dmsProfileModal .dms-profile-body{padding:0 18px 18px}
+        #dmsProfileModal .dms-profile-hero{grid-template-columns:1fr;gap:18px;padding:18px}
+        #dmsProfileModal .dms-profile-photo-wrap{text-align:left}
+        #dmsProfileModal .dms-profile-photo{width:88px;height:88px;margin:0 0 12px}
+        #dmsProfileModal .dms-profile-photo-actions{justify-content:flex-start}
+        #dmsProfileModal .dms-profile-identity h3{font-size:24px}
+        #dmsProfileModal .dms-profile-grid{grid-template-columns:1fr;gap:14px}
+        #dmsProfileModal .dms-profile-field.full{grid-column:auto}
+        #dmsProfileModal .dms-profile-footer{margin:24px -18px 0;padding:14px 18px}
+        #dmsProfileModal .dms-profile-footer button{flex:1;padding-inline:10px}
+        #dmsProfilePasswordModal .dms-profile-password-dialog{padding:18px}
+      }
+      @media(prefers-reduced-motion:reduce){#dmsProfileModal *,#dmsProfileCropModal *,#dmsProfileConfirmModal *,#dmsProfilePasswordModal *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+    `;
+
   }
 
   function buildModal() {
