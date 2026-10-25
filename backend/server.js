@@ -266,7 +266,13 @@ app.post('/api/nodes', auth.requirePermission('NODE_CREATE'), async (req, res) =
         const r = new sql.Request(tx); r.input('nodeId',sql.Int,Number(idr.recordset[0].NodeID)); r.input('parentId',sql.Int,parentId); r.input('code',sql.NVarChar(100),code); r.input('name',sql.NVarChar(255),name); r.input('folderPath',sql.NVarChar(sql.MAX),folderPath); r.input('pathId',sql.Int,parent?.PathID ?? null); r.input('jet',sql.NVarChar(255),jet); r.input('norme',sql.NVarChar(255),norme); r.input('mass',sql.NVarChar(255),mass); r.input('active',sql.Bit,active);
         result = await r.query(`INSERT INTO dbo.Nodes (NodeID,ParentID,NodeCode,NodeName,IsActive,CreatedAt,UpdatedAt,FolderPath,PathID,JET_Position,Norme,Mass) OUTPUT INSERTED.* VALUES (@nodeId,@parentId,@code,@name,@active,SYSUTCDATETIME(),SYSUTCDATETIME(),@folderPath,@pathId,@jet,@norme,@mass);`);
       }
-      await tx.commit(); res.status(201).json({ success:true, node:result.recordset[0] });
+      await tx.commit();
+      const createdNode = result.recordset[0];
+      await auth.writeAudit(req.user.userId, req.user.username, 'NODE_CREATED', req.ip, {
+        targetType: 'NODE', targetId: createdNode.NodeID,
+        details: { nodeId: createdNode.NodeID, nodeCode: createdNode.NodeCode, nodeName: createdNode.NodeName, parentId: createdNode.ParentID ?? null, pathId: createdNode.PathID ?? null, isActive: !!createdNode.IsActive }
+      });
+      res.status(201).json({ success:true, node:createdNode });
     } catch (e) { try { await tx.rollback(); } catch (_) {} throw e; }
   } catch (e) { sendServerError(res, 'Node creation failed', e); }
 });
@@ -278,6 +284,10 @@ app.put('/api/nodes/:nodeId', auth.requirePermission('NODE_EDIT'), async (req, r
   const name = typeof req.body?.NodeName === 'string' ? req.body.NodeName.trim() : '';
   if (!code || !name) return res.status(400).json({ error: 'Node Code and Node Name are required.' });
   try {
+    const beforeRequest = new sql.Request(); beforeRequest.input('id', sql.Int, id);
+    const beforeResult = await beforeRequest.query('SELECT TOP 1 NodeID,ParentID,NodeCode,NodeName,IsActive,PathID,JET_Position,Norme,Mass FROM dbo.Nodes WHERE NodeID=@id;');
+    const beforeNode = beforeResult.recordset[0];
+    if (!beforeNode) return res.status(404).json({ error: 'Node not found.' });
     const r = new sql.Request();
     r.input('id',sql.Int,id); r.input('code',sql.NVarChar(100),code); r.input('name',sql.NVarChar(255),name);
     const jetValue = req.body?.JET_Position == null ? '' : String(req.body.JET_Position).trim();
@@ -289,7 +299,21 @@ app.put('/api/nodes/:nodeId', auth.requirePermission('NODE_EDIT'), async (req, r
     r.input('active',sql.Bit,req.body?.IsActive === true || Number(req.body?.IsActive) === 1 ? 1 : 0);
     const result = await r.query(`UPDATE dbo.Nodes SET NodeCode=@code,NodeName=@name,JET_Position=@jet,Norme=@norme,Mass=@mass,IsActive=@active,UpdatedAt=SYSUTCDATETIME() OUTPUT INSERTED.* WHERE NodeID=@id;`);
     if (!result.recordset.length) return res.status(404).json({ error: 'Node not found.' });
-    res.json({ success:true, node:result.recordset[0] });
+    const updatedNode = result.recordset[0];
+    const activeChanged = Boolean(beforeNode.IsActive) !== Boolean(updatedNode.IsActive);
+    const auditAction = activeChanged ? (updatedNode.IsActive ? 'NODE_ACTIVATED' : 'NODE_DEACTIVATED') : 'NODE_UPDATED';
+    const changedFields = [];
+    if (beforeNode.NodeCode !== updatedNode.NodeCode) changedFields.push('NodeCode');
+    if (beforeNode.NodeName !== updatedNode.NodeName) changedFields.push('NodeName');
+    if ((beforeNode.JET_Position ?? null) !== (updatedNode.JET_Position ?? null)) changedFields.push('JET_Position');
+    if ((beforeNode.Norme ?? null) !== (updatedNode.Norme ?? null)) changedFields.push('Norme');
+    if ((beforeNode.Mass ?? null) !== (updatedNode.Mass ?? null)) changedFields.push('Mass');
+    if (activeChanged) changedFields.push('IsActive');
+    await auth.writeAudit(req.user.userId, req.user.username, auditAction, req.ip, {
+      targetType: 'NODE', targetId: updatedNode.NodeID,
+      details: { nodeId: updatedNode.NodeID, nodeCode: updatedNode.NodeCode, nodeName: updatedNode.NodeName, parentId: updatedNode.ParentID ?? null, changedFields, previousIsActive: !!beforeNode.IsActive, isActive: !!updatedNode.IsActive }
+    });
+    res.json({ success:true, node:updatedNode });
   } catch (e) { sendServerError(res, 'Node update failed', e); }
 });
 
@@ -297,10 +321,19 @@ app.delete('/api/nodes/:nodeId', auth.requirePermission('NODE_DELETE'), async (r
   const id=Number(req.params.nodeId); if(!Number.isInteger(id)||id<=0) return res.status(400).json({error:'Invalid Node ID.'});
   try {
     const r= new sql.Request(); r.input('id',sql.Int,id);
-    if(!(await r.query('SELECT TOP 1 NodeID FROM dbo.Nodes WHERE NodeID=@id;')).recordset.length) return res.status(404).json({error:'Node not found.'});
+    const nodeResult = await r.query('SELECT TOP 1 NodeID,ParentID,NodeCode,NodeName,IsActive,PathID FROM dbo.Nodes WHERE NodeID=@id;');
+    const nodeToDelete = nodeResult.recordset[0];
+    if(!nodeToDelete) return res.status(404).json({error:'Node not found.'});
     if((await r.query('SELECT TOP 1 NodeID FROM dbo.Nodes WHERE ParentID=@id;')).recordset.length) return res.status(409).json({error:'This Node has child Nodes. Delete or move the child Nodes first.'});
     if((await r.query('SELECT TOP 1 PDFID FROM dbo.DanieliPDF WHERE NodeID=@id;')).recordset.length) return res.status(409).json({error:'This Node has registered PDF files. Remove the PDF records first.'});
-    await r.query('DELETE FROM dbo.Nodes WHERE NodeID=@id;'); srscCache.delete(id); res.json({success:true,deleted:true,nodeId:id});
+    const deleted = await r.query('DELETE FROM dbo.Nodes WHERE NodeID=@id; SELECT @@ROWCOUNT AS Affected;');
+    if (!Number(deleted.recordset?.[0]?.Affected)) return res.status(404).json({error:'Node not found.'});
+    srscCache.delete(id);
+    await auth.writeAudit(req.user.userId, req.user.username, 'NODE_DELETED', req.ip, {
+      targetType: 'NODE', targetId: id,
+      details: { nodeId: id, parentId: nodeToDelete.ParentID ?? null, nodeCode: nodeToDelete.NodeCode, nodeName: nodeToDelete.NodeName, pathId: nodeToDelete.PathID ?? null, isActive: !!nodeToDelete.IsActive }
+    });
+    res.json({success:true,deleted:true,nodeId:id});
   } catch(e) { if(e.number===547) return res.status(409).json({error:'This Node is referenced by another database record and cannot be deleted.'}); sendServerError(res,'Node deletion failed',e); }
 });
 
