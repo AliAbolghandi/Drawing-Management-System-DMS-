@@ -902,7 +902,27 @@ app.post('/api/drawing-requests', auth.requirePermission('REQUEST_DRAWING_CREATE
       COMMIT TRANSACTION;
     `);
 
-    res.status(201).json({ success: true, request: result.recordset[0] });
+    const createdRequest = result.recordset[0];
+    await auth.writeAudit(
+      req.user.userId,
+      req.user.username,
+      'REQUEST_CREATED',
+      req.ip || req.socket.remoteAddress || null,
+      {
+        targetType: 'DRAWING_REQUEST',
+        targetId: String(createdRequest.RequestID),
+        details: {
+          requestId: Number(createdRequest.RequestID),
+          requestNumber: createdRequest.RequestNumber,
+          nodeId: Number(createdRequest.NodeID),
+          nodeCode: createdRequest.NodeCode || null,
+          nodeName: createdRequest.NodeName || null,
+          statusCode: createdRequest.StatusCode,
+          managerUserId: Number(createdRequest.ManagerUserID)
+        }
+      }
+    );
+    res.status(201).json({ success: true, request: createdRequest });
   } catch (e) {
     console.error('Drawing request creation failed:', e);
     sendServerError(res, 'Drawing request creation failed', e);
@@ -1136,7 +1156,7 @@ app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
   db.input('username',sql.NVarChar(100),req.user.username); db.input('comment',sql.NVarChar(1000),comment||null);
   db.input('expertUsername',sql.NVarChar(100),expertUsername||null);
   try {
-    const cr=await db.query(`SELECT dr.RequestID,dr.RequestNumber,dr.RequesterUserID,dr.ManagerUserID,dr.AssignedDrawingExpertID,s.StatusCode FROM dbo.DrawingRequests dr INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID WHERE dr.RequestID=@requestId;`);
+    const cr=await db.query(`SELECT dr.RequestID,dr.RequestNumber,dr.NodeID,dr.NodeCode,dr.RequesterUserID,dr.ManagerUserID,dr.AssignedDrawingExpertID,s.StatusCode FROM dbo.DrawingRequests dr INNER JOIN dbo.DrawingRequestStatuses s ON s.StatusID=dr.StatusID WHERE dr.RequestID=@requestId;`);
     const current=cr.recordset[0]; if(!current) return res.status(404).json({error:'Drawing request not found.'});
     const status=String(current.StatusCode); let nextStatus,actionCode,allowed=false,targetExpert=null;
     switch(action){
@@ -1185,6 +1205,28 @@ app.post('/api/drawing-requests/:requestId/action', async (req, res) => {
       `);
       await tx.commit();
     }catch(e){await tx.rollback();throw e;}
+    await auth.writeAudit(
+      req.user.userId,
+      req.user.username,
+      actionCode,
+      req.ip || req.socket.remoteAddress || null,
+      {
+        targetType: 'DRAWING_REQUEST',
+        targetId: String(requestId),
+        details: {
+          requestId,
+          requestNumber: current.RequestNumber,
+          nodeId: Number(current.NodeID),
+          nodeCode: current.NodeCode || null,
+          action,
+          fromStatus: status,
+          toStatus: nextStatus,
+          targetExpertUserId: targetExpert ? Number(targetExpert.UserID) : null,
+          targetExpertUsername: targetExpert ? targetExpert.Username : null,
+          commentProvided: Boolean(comment)
+        }
+      }
+    );
     res.json({success:true,requestId,action,statusCode:nextStatus});
   }catch(e){console.error('Drawing request action failed:',e);sendServerError(res,'Drawing request action failed',e);}
 });
