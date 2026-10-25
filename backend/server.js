@@ -671,7 +671,45 @@ app.post('/api/node-file-upload/:nodeId', auth.requirePermission('FILE_Edit'), a
         continue;
       }
       await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+
+      // Capture existing-file metadata before moving the upload so replacements are auditable.
+      let previousFile = null;
+      try {
+        const existing = await fs.promises.lstat(destPath);
+        if (existing.isFile()) {
+          previousFile = { size: existing.size, modifiedAt: existing.mtime.toISOString() };
+        }
+      } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+      }
+
       await moveFile(file.path, destPath);
+
+      const relativePath = [folder, ...(subPathParts || []), ...finalParts].join('/');
+      await auth.writeAudit(
+        req.user.userId,
+        req.user.username,
+        previousFile ? 'FILE_REPLACE' : 'FILE_UPLOAD',
+        req.ip || req.socket.remoteAddress || null,
+        {
+          targetType: 'NODE',
+          targetId: String(id),
+          details: {
+            nodeId: id,
+            nodeCode: node.NodeCode || null,
+            nodeName: node.NodeName || null,
+            pathId: node.PathID == null ? null : Number(node.PathID),
+            folder,
+            subPath: (subPathParts || []).join('/'),
+            fileName: finalParts[finalParts.length - 1],
+            relativePath,
+            fileSize: file.size,
+            fileExtension: path.extname(destPath).toLowerCase() || null,
+            previousFile
+          }
+        }
+      );
+
       results.push({ name: finalParts.join('/'), size: file.size });
     }
 
