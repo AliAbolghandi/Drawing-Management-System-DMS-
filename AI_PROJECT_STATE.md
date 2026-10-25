@@ -285,7 +285,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 - `backend/server.js` `POST /api/node-file-upload/:nodeId` writes one audit row after each successful file move: `FILE_UPLOAD` for a new file and `FILE_REPLACE` when an existing regular file was replaced.
 - Audit target: `TargetType='NODE'`, `TargetID=NodeID`. `DetailsJson` includes NodeID/code/name, PathID, company folder, relative path, filename, size, extension and prior file size/modified time for replacements. It intentionally excludes absolute storage paths and secrets.
 - The API response contract and existing RBAC/path validation are unchanged. Audit write failures are reported by the existing `writeAudit` warning and do not roll back a successful file write.
-- GitHub source changes are committed; runtime SQL/HTTP verification is pending user test.
+- Commits on `main`: `9bfcdb1389aa788e5872190fe8e71f6ae6ede130` (structured audit writer), `4dc307e3bb2bf93ab833b1ca420dcbff759f7a81` (upload/replacement audit), `43fe631dca5ec270c9344894477e4e96ed3ca710` (include NodeName in audit context), `63a0259b74766285b60e83679d440b001383e9b9` (security changelog), `5153b93ac77edc11aa0f81f429a9f117b6d68167` (project state). Runtime SQL/HTTP verification is pending user test.
 
 # NEXT ACTION
 
