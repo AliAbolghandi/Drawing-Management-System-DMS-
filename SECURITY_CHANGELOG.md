@@ -144,3 +144,7 @@ For production:
 - File events record the acting authenticated user, client IP, UTC timestamp, target Node ID, Node code/name, PathID, company folder, relative path, filename, size, extension, and previous file size/modified time when replacing. Absolute storage paths and credentials are not recorded.
 - Each successful file is logged separately, including multi-file and folder uploads. Failed/skipped items do not produce a success event.
 - Validation still required in the target runtime: upload a new test file and verify the row in SQL Server; upload a replacement and verify `FILE_REPLACE`; check multi-file uploads. No live SQL Server or HTTP runtime test was performed by this change.
+- The existing `DELETE /api/node-file` route now records `FILE_DELETE` or `FOLDER_DELETE` after successful filesystem deletion; folder deletion is marked recursive and does not record absolute paths.
+- `POST /api/node-folder` records `FOLDER_CREATE` only when the requested folder was not already present.
+- `GET /api/node-file` records `FILE_VIEW` for inline delivery and `FILE_DOWNLOAD` for attachment delivery after successful file transfer. Existing `FILE_VIEW`/`PDF_VIEW` permission checks remain unchanged.
+- Runtime SQL Server/API validation, including 401/403 denial checks, remains pending.
