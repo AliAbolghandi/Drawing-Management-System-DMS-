@@ -18,6 +18,9 @@ Then inspect the current GitHub source when needed and verify that the documente
 ## Mandatory UI/UX Skill
 Whenever creating, modifying, fixing, reviewing, or otherwise working on any DMS user interface (UI) or user experience (UX), you MUST first read and follow `skills/DMS-UI-SKILL.md` from the repository's current `main` branch. Treat it as the authoritative project-specific UI/UX guidance. Preserve existing DMS functionality, permissions/RBAC, workflows, API contracts, database structures, file paths, and technology stack as required by that skill and the project instructions. If a UI task conflicts with the skill, follow the user's latest explicit requirement while preserving other established constraints. Do not claim visual verification unless the rendered UI was actually reviewed in a browser.
 
+### Optional visual design skills
+The repository also contains opt-in upstream visual skill instructions. Read `skills/README.md` to choose one and use it only when relevant or explicitly requested. Available files: `skills/SKILL.md` (`design-taste-frontend`), `skills/taste-skill-classics/gpt-taste/SKILL.md` (`gpt-taste`), `skills/taste-skill-classics/industrial-brutalist-ui/SKILL.md` (`industrial-brutalist-ui`), and `skills/imagegen-skills/SKILL.md` (`image-to-code`). These are not a substitute for the project-specific UI/UX guidance or security/architecture requirements. They are opt-in: do not apply a visual style merely because the files exist. The repository may contain only each skill's `SKILL.md`, not all companion assets/scripts from upstream.
+
 ## Mandatory continuity responsibility
 AI_PROJECT_STATE.md is a living project memory and MUST be maintained by every AI working on this project.
 
