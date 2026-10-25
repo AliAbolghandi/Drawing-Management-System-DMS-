@@ -296,12 +296,18 @@ User reported that the `Production Reports` section calculates incorrect values,
 - All events use the central `dbo.Logs` writer, target the Node, and avoid recording absolute storage paths.
 - Structural source review only; syntax/runtime, SQL Server, API authorization and browser checks are pending user validation.
 
+## Drawing request workflow audit — 2026-10-25
+
+- Commit `656dd8fc13cb0787e33df76384ef90ac9ac45132` updates `backend/server.js`.
+- Successful `POST /api/drawing-requests` writes `REQUEST_CREATED` to `dbo.Logs` after the request transaction commits.
+- Successful `POST /api/drawing-requests/:requestId/action` writes the existing workflow action code after the workflow transaction commits.
+- Events use `TargetType='DRAWING_REQUEST'` and `TargetID=RequestID`; details include request number, Node ID/code, action, from/to status, and target expert identity when assigning/transferring. Comment text is not copied into audit details.
+- Runtime workflow/API tests remain pending. File audit events were confirmed by the user on 2026-10-25.
+
 # NEXT ACTION
 
-1. Restart the DMS backend so the updated `backend/auth.js` and `backend/server.js` are loaded.
-2. Test a new upload and replacement; confirm `FILE_UPLOAD` and `FILE_REPLACE` (already confirmed by user on 2026-10-25).
-3. Delete a test file and a test subfolder; verify `FILE_DELETE` and `FOLDER_DELETE` in `dbo.Logs`.
-4. Create a new test folder; verify `FOLDER_CREATE`. Creating an already-existing folder should not emit a false creation event.
-5. Open an inline file (e.g. PDF/image) and download an attachment-type file; verify `FILE_VIEW` and `FILE_DOWNLOAD`.
-6. Test with an unauthenticated session and a user lacking `FILE_Edit`; deletion and folder creation must remain blocked. Runtime tests for this batch are pending.
-7. Do not restore the stopped Stamp phase.
+1. Restart the DMS backend with the latest `backend/server.js`.
+2. Create a test drawing request and perform one permitted workflow transition on a test request; verify `REQUEST_CREATED` and the corresponding transition action in `dbo.Logs`, including `TargetType`, `TargetID`, and `DetailsJson`.
+3. Investigate why client IP is recorded as `127.0.0.1`. Confirm whether IIS or another trusted reverse proxy forwards requests to Node and whether the Node port is blocked from direct client access. Do not enable broad proxy trust until the topology is confirmed.
+4. Next audit batch: authorization denials, session expiry, Node create/update/enable/disable/delete, and structured target metadata for user/role administration.
+5. Do not restore the stopped Stamp phase.
