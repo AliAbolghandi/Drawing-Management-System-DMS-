@@ -536,7 +536,7 @@ app.get('/api/node-folders/:nodeId', auth.requirePermission('FILE_VIEW'),async(r
 
 app.get('/api/node-folder-files/:nodeId/:folderName', auth.requirePermission('FILE_VIEW'),async(req,res)=>{const id=Number(req.params.nodeId);const folder=getCanonicalAllowedFolder(req.params.folderName);const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder)return res.status(400).json({error:'Folder is not allowed'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const target=root?path.join(root,folder):null;if(!root||!target||!isPathInside(root,target)||!fs.existsSync(target)||!fs.statSync(target).isDirectory())return res.status(404).json({error:'SRSC folder not found'});let browse=target;if(subPath){const safe=isSafeChildPath(target,subPath);if(!safe||!fs.existsSync(safe)||!fs.statSync(safe).isDirectory())return res.status(404).json({error:'Subfolder not found'});browse=safe;}const items=[];for(const entry of fs.readdirSync(browse,{withFileTypes:true})){if(entry.name.startsWith('~$'))continue;const p=path.join(browse,entry.name);try{const stat=fs.statSync(p);if(entry.isDirectory())items.push({name:entry.name,type:'folder',kind:'folder'});else if(entry.isFile())items.push({name:entry.name,type:'file',kind:getFileKind(entry.name),extension:path.extname(entry.name).toLowerCase(),size:stat.size,modifiedAt:stat.mtime.toISOString()});}catch(_){}}items.sort((a,b)=>a.type!==b.type?(a.type==='folder'?-1:1):a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));res.json({nodeId:id,nodeCode:node.NodeCode,folder,subPath,items});}catch(e){sendServerError(res,'SRSC folder files request failed',e);}});
 
-app.get('/api/node-file', async(req,res)=>{const id=Number(req.query.nodeId);const folder=getCanonicalAllowedFolder(req.query.folder);const file=req.query.file;const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder||!file||typeof file!=='string')return res.status(400).json({error:'Invalid folder or file'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const base=root?path.join(root,folder):null;const sub=base&&subPath?isSafeChildPath(base,subPath):base;const full=sub?isSafeChildPath(sub,file):null;if(!full||!fs.existsSync(full)||!fs.statSync(full).isFile())return res.status(404).json({error:'File not found'});const ext=path.extname(full).toLowerCase();const requiredPermission=ext==='.pdf'?'PDF_VIEW':'FILE_VIEW';if(!req.user.permissions.has(requiredPermission))return res.status(403).json({error:'Permission denied.'});res.setHeader('Content-Disposition',`${INLINE_EXTENSIONS.has(ext)?'inline':'attachment'}; filename="${path.basename(full).replace(/"/g,'')}"`);res.sendFile(full);}catch(e){sendServerError(res,'Node file request failed',e);}});
+app.get('/api/node-file', async(req,res)=>{const id=Number(req.query.nodeId);const folder=getCanonicalAllowedFolder(req.query.folder);const file=req.query.file;const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder||!file||typeof file!=='string')return res.status(400).json({error:'Invalid folder or file'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const base=root?path.join(root,folder):null;const sub=base&&subPath?isSafeChildPath(base,subPath):base;const full=sub?isSafeChildPath(sub,file):null;if(!full||!fs.existsSync(full)||!fs.statSync(full).isFile())return res.status(404).json({error:'File not found'});const ext=path.extname(full).toLowerCase();const requiredPermission=ext==='.pdf'?'PDF_VIEW':'FILE_VIEW';if(!req.user.permissions.has(requiredPermission))return res.status(403).json({error:'Permission denied.'});const delivery=INLINE_EXTENSIONS.has(ext)?'inline':'attachment';res.setHeader('Content-Disposition',`${delivery}; filename="${path.basename(full).replace(/"/g,'')}"`);res.sendFile(full,async err=>{if(err){if(!res.headersSent)sendServerError(res,'Node file request failed',err);return;}await auth.writeAudit(req.user.userId,req.user.username,delivery==='inline'?'FILE_VIEW':'FILE_DOWNLOAD',req.ip||req.socket.remoteAddress||null,{targetType:'NODE',targetId:String(id),details:{nodeId:id,nodeCode:node.NodeCode||null,nodeName:node.NodeName||null,pathId:node.PathID==null?null:Number(node.PathID),folder,subPath,fileName:path.basename(full),relativePath:[folder,...(subPath?subPath.split(/[\\/]+/).filter(Boolean):[]),path.basename(full)].join('/'),fileSize:(await fs.promises.stat(full).catch(()=>null))?.size??null,fileExtension:ext,delivery}});});}catch(e){sendServerError(res,'Node file request failed',e);}});
 
 // Deletes a file, or a subfolder (recursively, with everything inside it), from one of a
 // Node's SLD/DOC/PIC/Catalog folders. Never allows deleting the SLD/DOC/PIC/Catalog folder
@@ -559,9 +559,35 @@ app.delete('/api/node-file', auth.requirePermission('FILE_Edit'), async (req, re
     if (!root || !base || !parent || !target) return res.status(400).json({ error: 'Invalid path' });
     if (path.resolve(target) === path.resolve(base)) return res.status(400).json({ error: 'Cannot delete a top-level company folder (SLD/DOC/PIC/Catalog).' });
     if (!fs.existsSync(target)) return res.status(404).json({ error: 'Item not found' });
-    const stat = fs.statSync(target);
+    const stat = await fs.promises.lstat(target);
+    const relativePath = [folder, ...(subPath ? subPath.split(/[\\/]+/).filter(Boolean) : []), name].join('/');
     if (stat.isDirectory()) await fs.promises.rm(target, { recursive: true, force: true });
     else await fs.promises.unlink(target);
+
+    await auth.writeAudit(
+      req.user.userId,
+      req.user.username,
+      stat.isDirectory() ? 'FOLDER_DELETE' : 'FILE_DELETE',
+      req.ip || req.socket.remoteAddress || null,
+      {
+        targetType: 'NODE',
+        targetId: String(id),
+        details: {
+          nodeId: id,
+          nodeCode: node.NodeCode || null,
+          nodeName: node.NodeName || null,
+          pathId: node.PathID == null ? null : Number(node.PathID),
+          folder,
+          subPath,
+          itemName: name,
+          relativePath,
+          itemType: stat.isDirectory() ? 'folder' : 'file',
+          fileSize: stat.isFile() ? stat.size : null,
+          modifiedAt: stat.mtime ? stat.mtime.toISOString() : null,
+          recursive: stat.isDirectory()
+        }
+      }
+    );
 
     // Re-evaluate the four SRSC containers immediately after deletion. If the last
     // file was removed from a top-level container, that container is removed as well.
@@ -610,7 +636,36 @@ app.post('/api/node-folder', auth.requirePermission('FILE_Edit'), async (req, re
 
     const newFolder = path.join(targetBase, ...nameParts);
     if (!isPathInside(targetBase, newFolder)) return res.status(400).json({ error: 'Invalid folder name.' });
+    let folderExisted = false;
+    try {
+      const existing = await fs.promises.lstat(newFolder);
+      folderExisted = existing.isDirectory();
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
     await fs.promises.mkdir(newFolder, { recursive: true });
+    if (!folderExisted) {
+      await auth.writeAudit(
+        req.user.userId,
+        req.user.username,
+        'FOLDER_CREATE',
+        req.ip || req.socket.remoteAddress || null,
+        {
+          targetType: 'NODE',
+          targetId: String(id),
+          details: {
+            nodeId: id,
+            nodeCode: node.NodeCode || null,
+            nodeName: node.NodeName || null,
+            pathId: node.PathID == null ? null : Number(node.PathID),
+            folder,
+            subPath: (subParts || []).join('/'),
+            folderName: nameParts.join('/'),
+            relativePath: [folder, ...(subParts || []), ...nameParts].join('/')
+          }
+        }
+      );
+    }
     srscCache.delete(id);
     res.json({ success: true, name: nameParts.join('/') });
   } catch (e) { sendServerError(res, 'Folder creation failed', e); }
