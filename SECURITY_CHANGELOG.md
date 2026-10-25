@@ -155,3 +155,12 @@ For production:
 - Successful workflow transitions write their established history action code to `dbo.Logs` after the workflow transaction commits, including manager decisions, assignment/transfer, expert acceptance/rejection/completion, correction return, final decision, and cancellation.
 - Events use structured `TargetType='DRAWING_REQUEST'` and `TargetID=RequestID`; details include request/node context, source and destination statuses, action, and target expert identity where applicable. Comment text is intentionally not duplicated into audit details.
 - Runtime workflow/API verification remains pending.
+
+## Audit — Node, user, role and administrative database changes — 2026-10-25
+- `backend/server.js` now writes structured `NODE_CREATED`, `NODE_UPDATED`, `NODE_ACTIVATED`, `NODE_DEACTIVATED`, and `NODE_DELETED` events after successful database changes. Events target `TargetType='NODE'` and include NodeID, node code/name, parent/path context and changed field names where applicable.
+- `backend/auth.js` keeps the existing user-management action names for compatibility and adds `TargetType='USER'` / `TargetID=UserID` metadata for create, profile update, activation/deactivation, password reset, unlock, session revocation and role assignment changes. Role assignment details include the previous and resulting RoleID lists.
+- Role permission replacement now targets `TargetType='ROLE'` / `TargetID=RoleID` and records previous and resulting PermissionID lists.
+- `backend/admin-db.js` now attaches `TargetType='ADMIN_TABLE_ROW'`, primary-key context, table name, operation and affected column names to generic Admin insert/update/delete audit events.
+- Audit metadata deliberately excludes password values and password hashes; generic Admin CRUD logs changed column names and key identifiers, not submitted row values. Existing RBAC and API response contracts remain unchanged.
+- Code commits: `76f9542ee19d8a66174b5c7689826fae0cc0e214` (`backend/server.js`), `11c1145b033af98e326a0dae212452feecffba12` (`backend/auth.js`), `4ddaa52d80c85ab9ba87dada547e510453ac0d87` (`backend/admin-db.js`).
+- Structural JavaScript syntax checks passed. SQL Server/API runtime tests and user acceptance tests remain pending.
