@@ -24,7 +24,7 @@
     return;
   }
 
-  let mode = 'edit'; // 'edit' updates an existing Node, 'create' adds a child Node, 'root' adds a new root Node.
+  let mode = 'edit';
   let parentNode = null;
 
   function getState() {
@@ -218,12 +218,23 @@
           window.DMS.refreshNodeLabel?.(entry, updated);
         }
         state.currentSelectedNode = updated;
+
+        // Reload the tree from SQL after every successful edit. This is important when
+        // IsActive changes: an inactive Node may be hidden, while an activated Node must
+        // immediately become visible in its normal hierarchy without requiring a page reload.
+        if (typeof window.DMS.loadRootNodes === 'function') {
+          await window.DMS.loadRootNodes();
+        }
+
+        // Keep the edited Node selected/details-visible when it is present in the current tree.
+        const refreshedEntry = state.nodeElements?.get(id);
+        if (refreshedEntry) {
+          refreshedEntry.row.classList.add('selected');
+          state.currentSelectedNode = refreshedEntry.node;
+          window.DMS.showNodeDetails?.(refreshedEntry.node);
+        }
         window.DMS.refreshActionButtons?.();
         closeModal();
-        document.querySelectorAll('.node-row.selected').forEach((row) => row.classList.remove('selected'));
-        const selectedRow = document.querySelector(`.tree-node[data-node-id="${CSS.escape(String(id))}"] .node-row`);
-        selectedRow?.classList.add('selected');
-        window.DMS.showNodeDetails?.(updated);
       }
     } catch (error) {
       console.error('Node save failed:', error);
