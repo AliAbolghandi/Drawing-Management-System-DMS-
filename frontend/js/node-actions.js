@@ -20,6 +20,13 @@
     const inactive = !(entry.node.IsActive === true || Number(entry.node.IsActive) === 1);
     entry.wrapper.classList.toggle('inactive-node', inactive);
     entry.row.classList.toggle('inactive-node', inactive);
+    entry.wrapper.style.display = inactive && !editMode ? 'none' : '';
+
+    const labelParts = entry.row.querySelectorAll('.node-label, .node-label *');
+    labelParts.forEach(part => {
+      if (inactive) part.style.setProperty('color', 'var(--danger)', 'important');
+      else part.style.removeProperty('color');
+    });
   }
 
   function setEditMode(value) {
