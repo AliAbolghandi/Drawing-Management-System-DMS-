@@ -314,7 +314,23 @@ User reported that the `Production Reports` section calculates incorrect values,
 - JavaScript source parsing passed for all three changed backend files. Live SQL Server/API tests have not been run; do not mark this batch as runtime-verified until the user tests it.
 - Drawing request workflow audit was tested by the user on 2026-10-25: request creation, manager decisions, expert assignment/acceptance/completion, and correction return produced structured rows in `dbo.Logs`.
 
+## Admin Database Management modal — 2026-10-27
+- The Administration sidebar item `data-dms-nav="management"` in `frontend/index.html` now opens Database Management inside a large responsive modal with an iframe instead of navigating away from the DMS home page.
+- `frontend/management.html?dmsModal=1` retains the existing Admin authentication/API checks and database management behavior. Its Back to DMS control closes the parent modal; Admin Dashboard navigation exits the modal and opens the dashboard in the top-level page.
+- The parent accepts modal messages only from the same origin and only permits navigation to `admin-dashboard.html`. Closing via the close button, backdrop, or Escape clears the iframe and restores page scrolling.
+- Commits: `79367bf27a247200c2d1024abb8ca80e465b2e55` (`frontend/index.html`); `19ac1a4bd2c9c35a4e4bb1d639319ec1eb4660d3` (`frontend/js/management.js`); `4cd716958e61ebe99deced0725c8de3782450ce3` (`frontend/management.html`).
+- Validation: verified source replacement anchors and modal/message wiring structurally. JavaScript syntax checks, browser interaction/responsive checks, and live Admin/API acceptance tests have not been run in this session.
+
 # NEXT ACTION
+
+1. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close record editor, close via × / backdrop / Escape, use Back to DMS, and navigate to Admin Dashboard. Confirm the iframe does not expose the page to unauthenticated/non-Admin users.
+2. Restart the DMS backend with the latest `backend/server.js`, `backend/auth.js`, and `backend/admin-db.js`.
+2. Test as an authorized user: create a temporary Node, edit its name, toggle active/inactive, then delete it after ensuring it has no children or registered PDF references. Verify the five Node event types as applicable in `dbo.Logs`.
+3. In Admin User Management, create a test user, edit profile, change roles, deactivate/reactivate, and reset password; then edit a test role's permissions. Verify `TargetType`, `TargetID`, and `DetailsJson`. Do not use production accounts for destructive tests.
+4. Test one generic Admin table insert/update/delete only on a safe test record and confirm the audit row contains identifiers/column names but no password or submitted row values.
+5. Investigate why client IP is recorded as `127.0.0.1`. Confirm whether IIS or another trusted reverse proxy forwards requests to Node and whether the Node port is blocked from direct client access. Do not enable broad proxy trust until the topology is confirmed.
+6. Next audit batch: authorization denials and session expiry; preserve the existing RBAC and session behavior.
+7. Do not restore the stopped Stamp phase.
 
 1. Restart the DMS backend with the latest `backend/server.js`, `backend/auth.js`, and `backend/admin-db.js`.
 2. Test as an authorized user: create a temporary Node, edit its name, toggle active/inactive, then delete it after ensuring it has no children or registered PDF references. Verify the five Node event types as applicable in `dbo.Logs`.
