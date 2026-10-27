@@ -151,12 +151,14 @@ function createAuth(frontendOrigins) {
   }
 
   function securityHeaders(req, res, next) {
+    // Only the two admin pages may be embedded, and only by same-origin DMS pages (index.html modals).
+    const pages = new Set(['/management.html', '/admin-dashboard.html']);
+    const frameable = pages.has(req.path);
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Frame-Options', frameable ? 'SAMEORIGIN' : 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
-    const pages = new Set(['/management.html', '/admin-dashboard.html']);
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors " + (frameable ? "'self'" : "'none'") + "; base-uri 'self'; form-action 'self'");
     if (pages.has(req.path)) return authenticateAdminPage(req, res, next);
     next();
   }
