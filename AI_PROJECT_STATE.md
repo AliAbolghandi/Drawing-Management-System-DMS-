@@ -322,6 +322,13 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commit: `7c22cb98f9b038ee94ce42791fa439765222b2c0`.
 - Validation: source anchors and all inline JavaScript blocks in `frontend/index.html` passed syntax parsing. Browser/runtime verification remains pending.
 
+## Dashboard navigation conflict fix — 2026-10-27
+
+- Root cause confirmed in `frontend/js/script.js`: a capture-phase click handler for `[data-dms-nav="home"]` called `window.location.assign('admin-dashboard.html')`, overriding the modal controller in `frontend/index.html`.
+- Removed only that conflicting click handler. Kept the existing Admin check and Dashboard visibility logic intact; the existing modal controller now handles the click.
+- Commit: `abd82f2dccddc4bcb860cf3e7958aa1148fb75a7`.
+- Validation: source inspection confirms the conflicting `window.location.assign('admin-dashboard.html')` handler is removed. Browser/runtime verification remains pending.
+
 ## Admin Dashboard modal — 2026-10-27
 
 - The active Dashboard navigation item (data-dms-nav="home") in frontend/index.html now opens admin-dashboard.html?dmsModal=1 inside a responsive iframe modal rather than scrolling to the tree.
@@ -339,7 +346,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-1. Browser-test the Dashboard click reliability fix: click Dashboard repeatedly and confirm admin-dashboard.html opens inside the modal, stays hidden after close, and close via × / backdrop / Escape. Confirm Database Management behavior is unchanged.
+1. Browser-test commit `abd82f2dccddc4bcb860cf3e7958aa1148fb75a7`: click Dashboard and confirm admin-dashboard.html opens inside the modal, stays hidden after close, and closes via × / backdrop / Escape. Confirm Database Management behavior is unchanged.
 2. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close the record editor, close via × / backdrop / Escape, use Back to DMS, and switch to Admin Dashboard.
 3. Restart the DMS backend with the latest source before live acceptance testing.
 4. Continue the pending audit-log verification and network-topology investigation documented above.
