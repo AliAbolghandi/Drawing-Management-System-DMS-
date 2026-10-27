@@ -164,3 +164,9 @@ For production:
 - Audit metadata deliberately excludes password values and password hashes; generic Admin CRUD logs changed column names and key identifiers, not submitted row values. Existing RBAC and API response contracts remain unchanged.
 - Code commits: `76f9542ee19d8a66174b5c7689826fae0cc0e214` (`backend/server.js`), `11c1145b033af98e326a0dae212452feecffba12` (`backend/auth.js`), `4ddaa52d80c85ab9ba87dada547e510453ac0d87` (`backend/admin-db.js`).
 - Structural JavaScript syntax checks passed. SQL Server/API runtime tests and user acceptance tests remain pending.
+
+## Admin pages framing policy — 2026-10-27
+- `backend/auth.js` `securityHeaders()`: `/management.html` and `/admin-dashboard.html` now send `X-Frame-Options: SAMEORIGIN` and CSP `frame-ancestors 'self'` so DMS `index.html` can show them in same-origin modal iframes. All other paths keep `X-Frame-Options: DENY` and `frame-ancestors 'none'`.
+- Both pages still go through `authenticateAdminPage` (authenticated active Admin required server-side); framing does not change authorization. Cross-origin framing remains blocked.
+- CSP `script-src` was not relaxed: the modal controller was moved from an inline script to `frontend/js/dms-modals.js`.
+- Commit: `29763f8ccf711b2fae2910e8eebf4f79286020cd`.

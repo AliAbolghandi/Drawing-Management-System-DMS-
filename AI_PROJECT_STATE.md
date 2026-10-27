@@ -350,10 +350,20 @@ User reported that the `Production Reports` section calculates incorrect values,
 - `frontend/index.html` previously loaded `js/script.js` without a version query, allowing a browser to reuse a cached script. Added `?v=20261027-dashboard-modal-fix` to force clients to request the corrected script.
 - Validation: checked current GitHub source for the removed navigation call and confirmed the script tag replacement. Browser runtime verification is still pending.
 
+## Dashboard modal iframe fix — 2026-10-27
+
+- Root cause (from source, not browser-verified): `securityHeaders()` in `backend/auth.js` sent `X-Frame-Options: DENY` and CSP `frame-ancestors 'none'` for every path, so `admin-dashboard.html?dmsModal=1` / `management.html?dmsModal=1` could not load in the modal iframes; CSP `script-src 'self'` (no `'unsafe-inline'`) also blocks inline `<script>` blocks.
+- `backend/auth.js`: only `/management.html` and `/admin-dashboard.html` get `X-Frame-Options: SAMEORIGIN` + `frame-ancestors 'self'`; everything else stays `DENY`/`'none'`. Admin-page authentication unchanged.
+- `frontend/js/dms-modals.js` (new): the former inline `dmsManagementModalController` script from `frontend/index.html` (Dashboard + Management modal controller, `window.DMS.openDashboardModal/openManagementModal`, capture-phase click on `[data-dms-nav="home"]`). `frontend/index.html` loads it via `<script src="js/dms-modals.js?v=20261027-dashboard-iframe">`.
+- Not changed: the other inline `<script>` blocks in `frontend/index.html` (drag/drop guard, profile menu/logout/sidebar, permissions + nav handler) are subject to the same CSP; verify in browser whether they run.
+- `skills/DMS-UI-SKILL.md` does not exist on `main`.
+- Commit: `29763f8ccf711b2fae2910e8eebf4f79286020cd`.
+- Validation: `node --check` passed for `backend/auth.js` and `frontend/js/dms-modals.js`. No browser, HTTP-header or SQL Server test was run.
+
 # NEXT ACTION
 
-1. Browser-test cache-bust change in `frontend/index.html`: hard-refresh the page, click Dashboard and confirm `admin-dashboard.html` opens inside the modal, stays hidden after close, and closes via × / backdrop / Escape. Confirm Database Management behavior is unchanged.
-2. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close the record editor, close via × / backdrop / Escape, use Back to DMS, and switch to Admin Dashboard.
-3. Restart the DMS backend with the latest source before live acceptance testing.
-4. Continue the pending audit-log verification and network-topology investigation documented above.
-5. Do not restore the stopped Stamp phase.
+1. Restart the DMS backend, hard-refresh `index.html`, click Dashboard: confirm `admin-dashboard.html` opens in the modal and closes via × / backdrop / Escape. Check response headers: admin pages = `SAMEORIGIN`; `index.html` and APIs = `DENY`.
+2. Confirm unauthenticated/non-Admin access to `/admin-dashboard.html` and `/management.html` is still rejected (direct URL and inside an iframe).
+3. If sidebar profile menu / logout / permission-based buttons fail under CSP, move the remaining inline scripts in `frontend/index.html` to external files.
+4. Browser-test the Admin Management modal (open, search, record editor, Back to DMS, switch to Dashboard).
+5. Continue the pending audit-log verification and network-topology investigation documented above.
