@@ -15,12 +15,23 @@
     return window.DMS && window.DMS.state ? window.DMS.state : null;
   }
 
+  function refreshInactiveState(entry) {
+    if (!entry?.row || !entry?.wrapper || !entry.node) return;
+    const inactive = !(entry.node.IsActive === true || Number(entry.node.IsActive) === 1);
+    entry.wrapper.classList.toggle('inactive-node', inactive);
+    entry.row.classList.toggle('inactive-node', inactive);
+  }
+
   function setEditMode(value) {
     editMode = Boolean(value);
     tree.classList.toggle('create-node-mode', editMode);
     toggleButton?.classList.toggle('active', editMode);
     if (toggleButton) toggleButton.textContent = editMode ? 'Done Editing' : 'Edit Node';
     refreshRootCreateButton();
+
+    // In normal mode inactive Nodes are hidden. In Edit Node mode they are
+    // revealed so they can be selected and reactivated from the existing modal.
+    refreshActionButtons();
   }
 
   toggleButton?.addEventListener('click', () => setEditMode(!editMode));
@@ -70,6 +81,8 @@
   function attachActionButtons(entry) {
     if (!entry?.row || !entry.node) return;
 
+    refreshInactiveState(entry);
+
     if (entry.row.querySelector(':scope > .node-edit-actions')) return;
 
     const wrap = document.createElement('div');
@@ -113,8 +126,6 @@
 
     wrap.append(addButton, editButton, deleteButton);
     entry.row.appendChild(wrap);
-
-
   }
 
   function refreshRootCreateButton() {
@@ -171,6 +182,7 @@
 
   window.DMS = window.DMS || {};
   window.DMS.refreshActionButtons = refreshActionButtons;
+  window.DMS.isNodeEditMode = () => editMode;
 
   refreshActionButtons();
 })();
