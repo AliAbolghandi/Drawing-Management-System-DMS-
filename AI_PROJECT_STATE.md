@@ -314,6 +314,14 @@ User reported that the `Production Reports` section calculates incorrect values,
 - JavaScript source parsing passed for all three changed backend files. Live SQL Server/API tests have not been run; do not mark this batch as runtime-verified until the user tests it.
 - Drawing request workflow audit was tested by the user on 2026-10-25: request creation, manager decisions, expert assignment/acceptance/completion, and correction return produced structured rows in `dbo.Logs`.
 
+## Admin Dashboard modal click reliability fix — 2026-10-27
+
+- Updated `frontend/index.html` so the Dashboard sidebar click is handled in the capture phase directly by the modal controller, independent of the earlier navigation listener or the `active` class.
+- Added an explicit `.dms-dashboard-modal.hidden { display: none !important; }` rule to ensure the closed Dashboard modal stays hidden despite its flex display rule.
+- The change is limited to the Dashboard nav click and Dashboard modal visibility. Management modal behavior, dashboard contents, API, RBAC, database, and workflow code are unchanged.
+- Commit: `7c22cb98f9b038ee94ce42791fa439765222b2c0`.
+- Validation: source anchors and all inline JavaScript blocks in `frontend/index.html` passed syntax parsing. Browser/runtime verification remains pending.
+
 ## Admin Dashboard modal — 2026-10-27
 
 - The active Dashboard navigation item (data-dms-nav="home") in frontend/index.html now opens admin-dashboard.html?dmsModal=1 inside a responsive iframe modal rather than scrolling to the tree.
@@ -331,7 +339,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-1. Browser-test the Admin Dashboard modal: open from the active Dashboard sidebar item, verify data and production reports load, close via × / backdrop / Escape / DMS buttons, and switch to Database Management and back. Confirm existing Admin authorization still blocks unauthorized users.
+1. Browser-test the Dashboard click reliability fix: click Dashboard repeatedly and confirm admin-dashboard.html opens inside the modal, stays hidden after close, and close via × / backdrop / Escape. Confirm Database Management behavior is unchanged.
 2. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close the record editor, close via × / backdrop / Escape, use Back to DMS, and switch to Admin Dashboard.
 3. Restart the DMS backend with the latest source before live acceptance testing.
 4. Continue the pending audit-log verification and network-topology investigation documented above.
