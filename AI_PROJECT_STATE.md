@@ -314,6 +314,14 @@ User reported that the `Production Reports` section calculates incorrect values,
 - JavaScript source parsing passed for all three changed backend files. Live SQL Server/API tests have not been run; do not mark this batch as runtime-verified until the user tests it.
 - Drawing request workflow audit was tested by the user on 2026-10-25: request creation, manager decisions, expert assignment/acceptance/completion, and correction return produced structured rows in `dbo.Logs`.
 
+## Admin Dashboard modal — 2026-10-27
+
+- The active Dashboard navigation item (data-dms-nav="home") in frontend/index.html now opens admin-dashboard.html?dmsModal=1 inside a responsive iframe modal rather than scrolling to the tree.
+- The modal supports close button, backdrop, Escape, and page-scroll locking. Same-origin messages from the dashboard iframe close it or switch to the existing Database Management modal; the reverse transition from Management to Dashboard also opens the Dashboard modal.
+- frontend/js/admin-dashboard.js makes both DMS/back buttons close the modal when embedded and makes Database Management switch to the parent Management modal; normal standalone navigation remains unchanged.
+- No backend, API, RBAC, database, or workflow behavior was changed.
+- Validation: source-level replacements and message origins/path allow-list were checked. JavaScript syntax, browser interaction, and live Admin/API tests were not run.
+
 ## Admin Database Management modal — 2026-10-27
 - The Administration sidebar item `data-dms-nav="management"` in `frontend/index.html` now opens Database Management inside a large responsive modal with an iframe instead of navigating away from the DMS home page.
 - `frontend/management.html?dmsModal=1` retains the existing Admin authentication/API checks and database management behavior. Its Back to DMS control closes the parent modal; Admin Dashboard navigation exits the modal and opens the dashboard in the top-level page.
@@ -323,11 +331,8 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-1. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close the record editor, close the modal via × / backdrop / Escape, use Back to DMS, and navigate to Admin Dashboard. Confirm unauthenticated and non-Admin users cannot access protected data or operations.
-2. Restart the DMS backend with the latest `backend/server.js`, `backend/auth.js`, and `backend/admin-db.js`.
-3. Test as an authorized user: create a temporary Node, edit its name, toggle active/inactive, then delete it after ensuring it has no children or registered PDF references. Verify the five Node event types as applicable in `dbo.Logs`.
-4. In Admin User Management, create a test user, edit profile, change roles, deactivate/reactivate, and reset password; then edit a test role's permissions. Verify `TargetType`, `TargetID`, and `DetailsJson`. Do not use production accounts for destructive tests.
-5. Test one generic Admin table insert/update/delete only on a safe test record and confirm the audit row contains identifiers/column names but no password or submitted row values.
-6. Investigate why client IP is recorded as `127.0.0.1`. Confirm whether IIS or another trusted reverse proxy forwards requests to Node and whether the Node port is blocked from direct client access. Do not enable broad proxy trust until the topology is confirmed.
-7. Next audit batch: authorization denials and session expiry; preserve the existing RBAC and session behavior.
-8. Do not restore the stopped Stamp phase.
+1. Browser-test the Admin Dashboard modal: open from the active Dashboard sidebar item, verify data and production reports load, close via × / backdrop / Escape / DMS buttons, and switch to Database Management and back. Confirm existing Admin authorization still blocks unauthorized users.
+2. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close the record editor, close via × / backdrop / Escape, use Back to DMS, and switch to Admin Dashboard.
+3. Restart the DMS backend with the latest source before live acceptance testing.
+4. Continue the pending audit-log verification and network-topology investigation documented above.
+5. Do not restore the stopped Stamp phase.
