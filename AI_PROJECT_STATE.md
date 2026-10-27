@@ -344,9 +344,15 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commits: `79367bf27a247200c2d1024abb8ca80e465b2e55` (`frontend/index.html`); `19ac1a4bd2c9c35a4e4bb1d639319ec1eb4660d3` (`frontend/js/management.js`); `4cd716958e61ebe99deced0725c8de3782450ce3` (`frontend/management.html`).
 - Validation: verified source replacement anchors and modal/message wiring structurally. JavaScript syntax checks, browser interaction/responsive checks, and live Admin/API acceptance tests have not been run in this session.
 
+## Dashboard modal cache refresh — 2026-10-27
+
+- `frontend/js/script.js` on `main` no longer contains the old capture-phase `window.location.assign('admin-dashboard.html')` handler; commit `abd82f2dccddc4bcb860cf3e7958aa1148fb75a7` removed that conflict.
+- `frontend/index.html` previously loaded `js/script.js` without a version query, allowing a browser to reuse a cached script. Added `?v=20261027-dashboard-modal-fix` to force clients to request the corrected script.
+- Validation: checked current GitHub source for the removed navigation call and confirmed the script tag replacement. Browser runtime verification is still pending.
+
 # NEXT ACTION
 
-1. Browser-test commit `abd82f2dccddc4bcb860cf3e7958aa1148fb75a7`: click Dashboard and confirm admin-dashboard.html opens inside the modal, stays hidden after close, and closes via × / backdrop / Escape. Confirm Database Management behavior is unchanged.
+1. Browser-test cache-bust change in `frontend/index.html`: hard-refresh the page, click Dashboard and confirm `admin-dashboard.html` opens inside the modal, stays hidden after close, and closes via × / backdrop / Escape. Confirm Database Management behavior is unchanged.
 2. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close the record editor, close via × / backdrop / Escape, use Back to DMS, and switch to Admin Dashboard.
 3. Restart the DMS backend with the latest source before live acceptance testing.
 4. Continue the pending audit-log verification and network-topology investigation documented above.
