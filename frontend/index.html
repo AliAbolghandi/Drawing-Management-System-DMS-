@@ -68,6 +68,15 @@
     .dms-management-frame{display:block;flex:1;width:100%;min-height:0;border:0;background:var(--panel,#101827)}
     @media(max-width:700px){.dms-management-modal{padding:0}.dms-management-dialog{width:100vw;height:100dvh;border-radius:0}.dms-management-modal-header{padding:8px 12px}}
   </style>
+  <style id="dmsDashboardModalStyles">
+    .dms-dashboard-modal{position:fixed;inset:0;z-index:2990;display:flex;align-items:center;justify-content:center;padding:2vh 2vw;background:rgba(5,10,20,.78)}
+    .dms-dashboard-dialog{display:flex;flex-direction:column;width:min(1800px,96vw);height:94vh;overflow:hidden;border:1px solid var(--line-strong,#334155);border-radius:12px;background:var(--panel,#101827);box-shadow:0 24px 80px rgba(0,0,0,.55)}
+    .dms-dashboard-modal-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 16px;border-bottom:1px solid var(--line,#334155)}
+    .dms-dashboard-modal-header h2{margin:0;font-size:14px;color:var(--text,#f8fafc)}
+    .dms-dashboard-modal-close{width:34px;height:34px;border:1px solid var(--line-strong,#334155);border-radius:7px;background:var(--panel-2,#182235);color:var(--text,#f8fafc);font-size:24px;cursor:pointer}
+    .dms-dashboard-frame{display:block;flex:1;width:100%;min-height:0;border:0;background:var(--panel,#101827)}
+    @media(max-width:700px){.dms-dashboard-modal{padding:0}.dms-dashboard-dialog{width:100vw;height:100dvh;border-radius:0}.dms-dashboard-modal-header{padding:8px 12px}}
+  </style>
 </head>
 
 <body>
@@ -275,7 +284,7 @@
         document.querySelectorAll('.node-edit-actions').forEach(el => el.classList.toggle('hidden', !canNodeEdit)); window.DMS = window.DMS || {}; window.DMS.permissions = set; window.DMS.canNodeEdit = canNodeEdit; window.DMS.canFileEdit = canFileEdit;
       }
       fetch(`${API}/auth/me`, { credentials: 'include', cache: 'no-store' }).then(async response => { if (!response.ok) return; const data = await response.json().catch(() => ({})); applyPermissions(data.permissions || []); }).catch(() => { });
-      document.querySelectorAll('[data-dms-nav]').forEach(item => { item.addEventListener('click', () => { const target = item.dataset.dmsNav; if (target === 'management') { if (!document.querySelector('.dms-sidebar-admin-nav')?.classList.contains('hidden')) window.DMS?.openManagementModal?.(); return; } if (target === 'expert-reports') return; document.querySelectorAll('[data-dms-nav]').forEach(node => node.classList.toggle('active', node === item)); if (target === 'requests') { window.DMS?.openDrawingWorklistModal?.(); return; } if (target === 'structure') { document.querySelector('.tree-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } document.querySelector('.tree-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); });
+      document.querySelectorAll('[data-dms-nav]').forEach(item => { item.addEventListener('click', () => { const target = item.dataset.dmsNav; if (target === 'management') { if (!document.querySelector('.dms-sidebar-admin-nav')?.classList.contains('hidden')) window.DMS?.openManagementModal?.(); return; } if (target === 'home') { window.DMS?.openDashboardModal?.(); return; } if (target === 'expert-reports') return; document.querySelectorAll('[data-dms-nav]').forEach(node => node.classList.toggle('active', node === item)); if (target === 'requests') { window.DMS?.openDrawingWorklistModal?.(); return; } if (target === 'structure') { document.querySelector('.tree-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } document.querySelector('.tree-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); });
       const observer = new MutationObserver(() => { const permissions = window.DMS?.permissions; if (permissions instanceof Set) applyPermissions([...permissions]); }); observer.observe(document.getElementById('treeContainer'), { childList: true, subtree: true });
     })();
   </script>
@@ -382,6 +391,12 @@
   </div>
 
 
+  <div id="dmsDashboardModal" class="dms-dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dmsDashboardModalTitle">
+    <section class="dms-dashboard-dialog">
+      <header class="dms-dashboard-modal-header"><h2 id="dmsDashboardModalTitle">Admin Dashboard</h2><button id="dmsDashboardModalClose" class="dms-dashboard-modal-close" type="button" aria-label="Close Admin Dashboard">×</button></header>
+      <iframe id="dmsDashboardFrame" class="dms-dashboard-frame" title="DMS Admin Dashboard"></iframe>
+    </section>
+  </div>
   <div id="dmsManagementModal" class="dms-management-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dmsManagementModalTitle">
     <section class="dms-management-dialog">
       <header class="dms-management-modal-header"><h2 id="dmsManagementModalTitle">Database Management</h2><button id="dmsManagementModalClose" class="dms-management-modal-close" type="button" aria-label="Close Database Management">×</button></header>
@@ -390,35 +405,55 @@
   </div>
   <script id="dmsManagementModalController">
     (() => {
-      const modal=document.getElementById('dmsManagementModal');
-      const frame=document.getElementById('dmsManagementFrame');
-      const closeButton=document.getElementById('dmsManagementModalClose');
+      const managementModal=document.getElementById('dmsManagementModal');
+      const managementFrame=document.getElementById('dmsManagementFrame');
+      const managementClose=document.getElementById('dmsManagementModalClose');
+      const dashboardModal=document.getElementById('dmsDashboardModal');
+      const dashboardFrame=document.getElementById('dmsDashboardFrame');
+      const dashboardClose=document.getElementById('dmsDashboardModalClose');
       let previousOverflow='';
       function closeManagementModal(){
-        if(!modal||modal.classList.contains('hidden'))return;
-        modal.classList.add('hidden');
+        if(!managementModal||managementModal.classList.contains('hidden'))return;
+        managementModal.classList.add('hidden');
         document.body.style.overflow=previousOverflow;
-        frame.src='about:blank';
+        managementFrame.src='about:blank';
+      }
+      function closeDashboardModal(){
+        if(!dashboardModal||dashboardModal.classList.contains('hidden'))return;
+        dashboardModal.classList.add('hidden');
+        document.body.style.overflow=previousOverflow;
+        dashboardFrame.src='about:blank';
       }
       window.DMS=window.DMS||{};
       window.DMS.openManagementModal=()=>{
-        if(!modal)return;
+        if(!managementModal)return;
+        closeDashboardModal();
         previousOverflow=document.body.style.overflow;
-        frame.src='management.html?dmsModal=1';
-        modal.classList.remove('hidden');
+        managementFrame.src='management.html?dmsModal=1';
+        managementModal.classList.remove('hidden');
         document.body.style.overflow='hidden';
-        closeButton.focus();
+        managementClose.focus();
       };
-      closeButton.addEventListener('click',closeManagementModal);
-      modal.addEventListener('click',event=>{if(event.target===modal)closeManagementModal();});
-      document.addEventListener('keydown',event=>{if(event.key==='Escape')closeManagementModal();});
+      window.DMS.openDashboardModal=()=>{
+        if(!dashboardModal)return;
+        closeManagementModal();
+        previousOverflow=document.body.style.overflow;
+        dashboardFrame.src='admin-dashboard.html?dmsModal=1';
+        dashboardModal.classList.remove('hidden');
+        document.body.style.overflow='hidden';
+        dashboardClose.focus();
+      };
+      managementClose.addEventListener('click',closeManagementModal);
+      dashboardClose.addEventListener('click',closeDashboardModal);
+      managementModal.addEventListener('click',event=>{if(event.target===managementModal)closeManagementModal();});
+      dashboardModal.addEventListener('click',event=>{if(event.target===dashboardModal)closeDashboardModal();});
+      document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeManagementModal();closeDashboardModal();}});
       window.addEventListener('message',event=>{
         if(event.origin!==window.location.origin||!event.data)return;
         if(event.data.type==='dms-management-close')closeManagementModal();
-        if(event.data.type==='dms-management-navigate'&&event.data.path==='admin-dashboard.html'){
-          closeManagementModal();
-          window.location.href='admin-dashboard.html';
-        }
+        if(event.data.type==='dms-management-navigate'&&event.data.path==='admin-dashboard.html')window.DMS.openDashboardModal();
+        if(event.data.type==='dms-dashboard-close')closeDashboardModal();
+        if(event.data.type==='dms-dashboard-navigate'&&event.data.path==='management.html')window.DMS.openManagementModal();
       });
     })();
   </script>
