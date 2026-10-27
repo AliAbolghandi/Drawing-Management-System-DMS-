@@ -70,6 +70,7 @@
   </style>
   <style id="dmsDashboardModalStyles">
     .dms-dashboard-modal{position:fixed;inset:0;z-index:2990;display:flex;align-items:center;justify-content:center;padding:2vh 2vw;background:rgba(5,10,20,.78)}
+    .dms-dashboard-modal.hidden{display:none!important}
     .dms-dashboard-dialog{display:flex;flex-direction:column;width:min(1800px,96vw);height:94vh;overflow:hidden;border:1px solid var(--line-strong,#334155);border-radius:12px;background:var(--panel,#101827);box-shadow:0 24px 80px rgba(0,0,0,.55)}
     .dms-dashboard-modal-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 16px;border-bottom:1px solid var(--line,#334155)}
     .dms-dashboard-modal-header h2{margin:0;font-size:14px;color:var(--text,#f8fafc)}
@@ -443,6 +444,16 @@
         document.body.style.overflow='hidden';
         dashboardClose.focus();
       };
+      // Capture Dashboard clicks directly so opening the modal does not depend on
+      // the earlier navigation handler or the current active-class state.
+      document.addEventListener('click',event=>{
+        const item=event.target instanceof Element?event.target.closest('[data-dms-nav="home"]'):null;
+        if(!item)return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        window.DMS.openDashboardModal();
+      },true);
       managementClose.addEventListener('click',closeManagementModal);
       dashboardClose.addEventListener('click',closeDashboardModal);
       managementModal.addEventListener('click',event=>{if(event.target===managementModal)closeManagementModal();});
