@@ -323,19 +323,11 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-1. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close record editor, close via × / backdrop / Escape, use Back to DMS, and navigate to Admin Dashboard. Confirm the iframe does not expose the page to unauthenticated/non-Admin users.
+1. Browser-test the Admin Management modal: open from the Admin sidebar, search/select tables, open and close the record editor, close the modal via × / backdrop / Escape, use Back to DMS, and navigate to Admin Dashboard. Confirm unauthenticated and non-Admin users cannot access protected data or operations.
 2. Restart the DMS backend with the latest `backend/server.js`, `backend/auth.js`, and `backend/admin-db.js`.
-2. Test as an authorized user: create a temporary Node, edit its name, toggle active/inactive, then delete it after ensuring it has no children or registered PDF references. Verify the five Node event types as applicable in `dbo.Logs`.
-3. In Admin User Management, create a test user, edit profile, change roles, deactivate/reactivate, and reset password; then edit a test role's permissions. Verify `TargetType`, `TargetID`, and `DetailsJson`. Do not use production accounts for destructive tests.
-4. Test one generic Admin table insert/update/delete only on a safe test record and confirm the audit row contains identifiers/column names but no password or submitted row values.
-5. Investigate why client IP is recorded as `127.0.0.1`. Confirm whether IIS or another trusted reverse proxy forwards requests to Node and whether the Node port is blocked from direct client access. Do not enable broad proxy trust until the topology is confirmed.
-6. Next audit batch: authorization denials and session expiry; preserve the existing RBAC and session behavior.
-7. Do not restore the stopped Stamp phase.
-
-1. Restart the DMS backend with the latest `backend/server.js`, `backend/auth.js`, and `backend/admin-db.js`.
-2. Test as an authorized user: create a temporary Node, edit its name, toggle active/inactive, then delete it after ensuring it has no children or registered PDF references. Verify the five Node event types as applicable in `dbo.Logs`.
-3. In Admin User Management, create a test user, edit profile, change roles, deactivate/reactivate, and reset password; then edit a test role's permissions. Verify `TargetType`, `TargetID`, and `DetailsJson`. Do not use production accounts for destructive tests.
-4. Test one generic Admin table insert/update/delete only on a safe test record and confirm the audit row contains identifiers/column names but no password or submitted row values.
-5. Investigate why client IP is recorded as `127.0.0.1`. Confirm whether IIS or another trusted reverse proxy forwards requests to Node and whether the Node port is blocked from direct client access. Do not enable broad proxy trust until the topology is confirmed.
-6. Next audit batch: authorization denials and session expiry; preserve the existing RBAC and session behavior.
-7. Do not restore the stopped Stamp phase.
+3. Test as an authorized user: create a temporary Node, edit its name, toggle active/inactive, then delete it after ensuring it has no children or registered PDF references. Verify the five Node event types as applicable in `dbo.Logs`.
+4. In Admin User Management, create a test user, edit profile, change roles, deactivate/reactivate, and reset password; then edit a test role's permissions. Verify `TargetType`, `TargetID`, and `DetailsJson`. Do not use production accounts for destructive tests.
+5. Test one generic Admin table insert/update/delete only on a safe test record and confirm the audit row contains identifiers/column names but no password or submitted row values.
+6. Investigate why client IP is recorded as `127.0.0.1`. Confirm whether IIS or another trusted reverse proxy forwards requests to Node and whether the Node port is blocked from direct client access. Do not enable broad proxy trust until the topology is confirmed.
+7. Next audit batch: authorization denials and session expiry; preserve the existing RBAC and session behavior.
+8. Do not restore the stopped Stamp phase.
