@@ -398,12 +398,6 @@
       window.__DMS_IS_ADMIN = data.user?.isAdmin === true;
       dashboardButton.classList.toggle('hidden', !window.__DMS_IS_ADMIN);
     }).catch(() => {});
-  document.addEventListener('click', event => {
-    if (!window.__DMS_IS_ADMIN) return;
-    const button = event.target.closest('[data-dms-nav="home"]');
-    if (!button) return;
-    event.preventDefault(); event.stopImmediatePropagation(); window.location.assign('admin-dashboard.html');
-  }, true);
 })();
 
 // Sidebar notification: counts requests whose CURRENT workflow stage requires
