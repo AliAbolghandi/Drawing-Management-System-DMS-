@@ -40,5 +40,5 @@
 </div>
 <script src="js/date-utils.js?v=20261012-jalali-en"></script>
 <script src="js/management.js?v=20261012-jalali-en"></script>
-<script>document.getElementById('dashboardButton')?.addEventListener('click',()=>window.location.href='admin-dashboard.html');</script>
+<script>document.getElementById('dashboardButton')?.addEventListener('click',()=>{if(new URLSearchParams(location.search).get('dmsModal')==='1'&&window.parent!==window){window.parent.postMessage({type:'dms-management-navigate',path:'admin-dashboard.html'},location.origin);return;}window.location.href='admin-dashboard.html';});</script>
 </body></html>
