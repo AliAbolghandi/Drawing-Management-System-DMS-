@@ -218,6 +218,7 @@
           window.DMS.refreshNodeLabel?.(entry, updated);
         }
         state.currentSelectedNode = updated;
+        window.DMS.refreshActionButtons?.();
         closeModal();
         document.querySelectorAll('.node-row.selected').forEach((row) => row.classList.remove('selected'));
         const selectedRow = document.querySelector(`.tree-node[data-node-id="${CSS.escape(String(id))}"] .node-row`);
