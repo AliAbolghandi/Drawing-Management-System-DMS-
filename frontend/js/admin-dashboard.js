@@ -236,6 +236,9 @@
     }catch(e){console.error(e);message.textContent=e.message||'Could not load production reports.';$('expertPerformanceChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';$('monthlyProductionChart').innerHTML='<div class="chart-empty">Report unavailable.</div>';$('expertPerformanceRows').innerHTML='<tr><td colspan="5" class="report-empty">Report unavailable.</td></tr>';$('monthlyProductionRows').innerHTML='<tr><td colspan="7" class="report-empty">Report unavailable.</td></tr>';}
   }
 
-  $('refreshButton').addEventListener('click',load);$('backButton').addEventListener('click',()=>location.href='index.html');$('backButtonBottom').addEventListener('click',()=>location.href='index.html');$('managementButton').addEventListener('click',()=>location.href='management.html');
+  const inDmsModal=new URLSearchParams(location.search).get('dmsModal')==='1'&&window.parent!==window;
+  const closeDashboard=()=>{if(inDmsModal){window.parent.postMessage({type:'dms-dashboard-close'},location.origin);return;}location.href='index.html';};
+  const openManagement=()=>{if(inDmsModal){window.parent.postMessage({type:'dms-dashboard-navigate',path:'management.html'},location.origin);return;}location.href='management.html';};
+  $('refreshButton').addEventListener('click',load);$('backButton').addEventListener('click',closeDashboard);$('backButtonBottom').addEventListener('click',closeDashboard);$('managementButton').addEventListener('click',openManagement);
   $('loadProductionReports').addEventListener('click',loadProductionReports);$('reportExpertFilter').addEventListener('change',renderExpertReport);reportDefaultDates();loadProductionReports();load();
 })();
