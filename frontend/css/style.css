@@ -288,7 +288,50 @@ button {
     border-radius: 7px;
     background: rgba(232, 163, 61, .08);
     color: var(--text-dim);
-    font-size: 10.5px
+    font-size: 10.5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px
+}
+
+.search-navigation {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px
+}
+
+.search-position {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    padding: 0 4px
+}
+
+.search-nav-button {
+    border: 1px solid var(--line-strong);
+    border-radius: 5px;
+    padding: 4px 9px;
+    background: var(--panel-2);
+    color: var(--text-dim);
+    font: inherit;
+    cursor: pointer
+}
+
+.search-nav-button:hover:not(:disabled) {
+    border-color: var(--cyan-dim);
+    color: var(--cyan)
+}
+
+.search-nav-button:disabled {
+    opacity: .4;
+    cursor: not-allowed
+}
+
+.node-row.search-current {
+    outline: 2px solid var(--cyan);
+    outline-offset: 1px;
+    background: rgba(111, 227, 255, .12)
 }
 
 .hidden {
