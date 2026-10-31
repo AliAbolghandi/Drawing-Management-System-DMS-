@@ -18,6 +18,8 @@
     srscNodeIds: new Set(),
     currentSelectedNode: null,
     currentSearchQuery: '',
+    searchMatches: [],
+    currentSearchIndex: -1,
     searchMode: false,
     srscEditMode: false,
   };
@@ -345,22 +347,65 @@
     return firstMatchEntry;
   }
 
+  function updateSearchInfo() {
+    const total = state.searchMatches.length;
+    if (!total) { searchInfo.textContent = '0 matching nodes found.'; return; }
+    searchInfo.innerHTML = `<span class="search-info-count">${total.toLocaleString('en-US')} matching node${total === 1 ? '' : 's'} found.</span><div class="search-navigation"><span class="search-position">${(state.currentSearchIndex + 1).toLocaleString('en-US')} of ${total.toLocaleString('en-US')}</span><button type="button" class="search-nav-button" data-search-nav="previous" ${state.currentSearchIndex <= 0 ? 'disabled' : ''} aria-label="Previous search result">Previous</button><button type="button" class="search-nav-button" data-search-nav="next" ${state.currentSearchIndex >= total - 1 ? 'disabled' : ''} aria-label="Next search result">Next</button></div>`;
+  }
+
+  function selectSearchResult(index) {
+    const id = Number(state.searchMatches[index]);
+    const entry = state.nodeElements.get(id);
+    if (!entry) return;
+    state.currentSearchIndex = index;
+    document.querySelectorAll('.node-row.search-current').forEach(row => row.classList.remove('search-current'));
+    document.querySelectorAll('.node-row.selected').forEach(row => row.classList.remove('selected'));
+    entry.row.classList.add('search-current', 'selected');
+    state.currentSelectedNode = entry.node;
+    showNodeDetails(entry.node);
+    entry.row.scrollIntoView({ block:'center', behavior:'smooth' });
+    updateSearchInfo();
+  }
+
+  function navigateSearchResults(direction) {
+    const nextIndex = state.currentSearchIndex + direction;
+    if (nextIndex < 0 || nextIndex >= state.searchMatches.length) return;
+    selectSearchResult(nextIndex);
+  }
+
   async function searchTree() {
-    const query = searchInput.value.trim(); state.currentSearchQuery = query; clearSearchHighlights();
+    const query = searchInput.value.trim();
+    state.currentSearchQuery = query;
+    state.searchMatches = [];
+    state.currentSearchIndex = -1;
+    clearSearchHighlights();
     if (!query) { state.searchMode = false; searchInfo.classList.add('hidden'); return; }
-    state.searchMode = true; searchInfo.innerHTML = '<div class="dms-spinner dms-spinner-inline"></div>Searching...'; searchInfo.classList.remove('hidden');
+    state.searchMode = true;
+    searchInfo.innerHTML = '<div class="dms-spinner dms-spinner-inline"></div>Searching...';
+    searchInfo.classList.remove('hidden');
     try {
       const data = await requestJson(`${API}/nodes/search?q=${encodeURIComponent(query)}`);
-      const firstMatch = await revealSearchMatches(data.visibleNodes || [], data.matchIds || []);
+      await revealSearchMatches(data.visibleNodes || [], data.matchIds || []);
       await Promise.all([prefetchPdfs(data.visibleNodes || []), loadSrscStatus(data.visibleNodes || [])]);
-      searchInfo.textContent = `${(data.matches || []).length.toLocaleString('en-US')} matching node${(data.matches || []).length === 1 ? '' : 's'} found.`;
-      firstMatch?.row.scrollIntoView({ block:'center', behavior:'smooth' });
-    } catch (error) { console.error('Search failed:', error); searchInfo.textContent = `Search failed: ${error.message}`; }
+      state.searchMatches = (data.matchIds || []).map(Number).filter(id => state.nodeElements.has(id));
+      if (!state.searchMatches.length) { updateSearchInfo(); return; }
+      selectSearchResult(0);
+    } catch (error) {
+      console.error('Search failed:', error);
+      state.searchMatches = [];
+      state.currentSearchIndex = -1;
+      searchInfo.textContent = `Search failed: ${error.message}`;
+    }
   }
 
   function collapseAll() { state.nodeElements.forEach(e => e.setExpanded(false).catch(console.error)); }
   searchButton?.addEventListener('click', () => searchTree().catch(console.error));
   searchInput?.addEventListener('keydown', event => { if (event.key === 'Enter') searchTree().catch(console.error); });
+  searchInfo?.addEventListener('click', event => {
+    const button = event.target.closest('[data-search-nav]');
+    if (!button || button.disabled) return;
+    navigateSearchResults(button.dataset.searchNav === 'next' ? 1 : -1);
+  });
   $('collapseAllBtn')?.addEventListener('click', collapseAll);
   $('DeleteFilesBtn')?.addEventListener('click', () => { state.srscEditMode = !state.srscEditMode; const btn = $('DeleteFilesBtn'); btn?.classList.toggle('active', state.srscEditMode); if (btn) btn.textContent = state.srscEditMode ? 'Done' : 'Delete Files'; rerenderSrscView(); });
 
