@@ -360,6 +360,13 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commit: `29763f8ccf711b2fae2910e8eebf4f79286020cd`.
 - Validation: `node --check` passed for `backend/auth.js` and `frontend/js/dms-modals.js`. No browser, HTTP-header or SQL Server test was run.
 
+## Node search result navigation — 2026-10-31
+- `frontend/js/script.js`: the node search result IDs returned by the existing permission-protected `GET /api/nodes/search` endpoint are retained in order. The first result is selected automatically; Previous/Next navigate within the result set, update the selected Node details, and scroll the corresponding tree row into view. The counter displays the current position as `n of total`; Previous/Next are disabled at the first/last result. Empty searches and zero-result searches do not expose navigation controls.
+- `frontend/css/style.css`: added compact responsive styling for the result counter/navigation controls and a distinct current-result highlight. No HTML markup, backend/API, SQL, RBAC, permissions, or workflow changes were required.
+- The project-specific `skills/DMS-UI-SKILL.md` is absent from the current `main` branch (GitHub 404). The user explicitly approved continuing while preserving the existing DMS UI design.
+- Commits: `7d31280e5db7ff030e775b6288d0187489778a6b` (`frontend/js/script.js`); `4be6ee4602b93637a117bb63cdee7eccdd22fef3` (`frontend/css/style.css`).
+- Validation: verified the implementation against the existing API response contract (`matchIds`, `visibleNodes`) and checked the inserted event delegation, result-index bounds, first/last disabled states, selection, detail rendering, and scroll behavior in source. JavaScript parser checks, browser interaction, and live API/SQL Server tests have not been run in this session.
+
 # NEXT ACTION
 
 1. Restart the DMS backend, hard-refresh `index.html`, click Dashboard: confirm `admin-dashboard.html` opens in the modal and closes via × / backdrop / Escape. Check response headers: admin pages = `SAMEORIGIN`; `index.html` and APIs = `DENY`.
