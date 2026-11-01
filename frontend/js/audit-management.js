@@ -29,7 +29,7 @@ function drawRows(rows){
 function detailLabel(key){
  const known={LogID:'Log ID',UserID:'User ID',UserName:'Actor',Category:'Category',Action:'Action',IPAddress:'IP address',CreatedAt:'Date / time',TargetType:'Target type',TargetID:'Target ID'};
  if(known[key])return known[key];
- return String(key).replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/[_-]+/g,' ').replace(/\\b\\w/g,c=>c.toUpperCase());
+ return String(key).replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/[_-]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 }
 function addDetailRow(body,field,value){
  const tr=document.createElement('tr'),th=document.createElement('th'),td=document.createElement('td');
