@@ -14,16 +14,28 @@
   <style>
     html,
     body {
-      height: 100%;
+      min-height: 100%;
       margin: 0
     }
 
     body {
+      box-sizing: border-box;
+      min-height: 100vh;
+      padding: 24px 0;
       display: grid;
-      place-items: center;
+      align-content: center;
+      justify-items: center;
+      gap: 18px;
       background: linear-gradient(rgba(3, 10, 16, .48), rgb(0 0 0)), url("assets/images/Login%20Background.png") center/cover no-repeat fixed;
       color: #e8f0f7;
       font-family: system-ui, -apple-system, Segoe UI, sans-serif
+    }
+
+    .srsc-logo {
+      display: block;
+      width: clamp(96px, 13vw, 136px);
+      max-height: 19vh;
+      object-fit: contain
     }
 
     .login-card {
@@ -107,6 +119,7 @@
 </head>
 
 <body>
+  <img class="srsc-logo" src="assets/images/srsc-logo.svg" alt="SRSC">
   <main class="login-card">
     <div class="brand">Drawing Management System</div>
     <div class="sub">Please sign in</div>
