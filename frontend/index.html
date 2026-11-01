@@ -411,8 +411,14 @@
         <p id="dmsAuditStatus" class="dms-audit-status" role="status" aria-live="polite"></p>
         <div class="dms-audit-results-wrap"><div id="dmsAuditResults"></div></div>
         <div class="dms-audit-pagination"><button id="dmsAuditPrev" class="dms-audit-page-btn" type="button" disabled>Previous</button><span id="dmsAuditPage">Page 1 of 1</span><button id="dmsAuditNext" class="dms-audit-page-btn" type="button" disabled>Next</button></div>
-        <section id="dmsAuditDetail" class="dms-audit-detail hidden" aria-label="Audit event details"></section>
+        
       </div>
+    </section>
+  </div>
+  <div id="dmsAuditDetailModal" class="dms-audit-detail-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dmsAuditDetailModalTitle">
+    <section class="dms-audit-detail-dialog">
+      <header class="dms-audit-header"><h2 id="dmsAuditDetailModalTitle">Audit event details</h2><button id="dmsAuditDetailClose" class="dms-audit-close" type="button" aria-label="Close audit event details">×</button></header>
+      <div class="dms-audit-detail-content"><section id="dmsAuditDetail" class="dms-audit-detail" aria-label="Audit event details"></section></div>
     </section>
   </div>
   <div id="dmsDashboardModal" class="dms-dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dmsDashboardModalTitle">
