@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="css/node-upload.css">
   <link rel="stylesheet" href="css/expert-reports.css?v=20261018-expert-reports">
   <link rel="stylesheet" href="css/user-management.css?v=20261022-user-management-v2">
+  <link rel="stylesheet" href="css/audit-management.css?v=20261101-audit-v1">
   <style>
     .node-row.has-pdf,
     .node-row.has-srsc,
@@ -108,7 +109,9 @@
       <button type="button" class="dms-nav-item" data-dms-nav="management"><span
           class="dms-nav-icon">⚙</span><span>Management</span></button>
     </nav>
-    <div class="dms-sidebar-spacer"></div>
+    <div class="dms-sidebar-spacer">
+      <button type="button" id="dmsAuditOpen" class="dms-nav-item hidden"><span class="dms-nav-icon">◷</span><span>Audit Management</span></button>
+    </div>
     <div class="dms-sidebar-footer">
       <div class="dms-profile-avatar" id="dmsProfileAvatar">U</div>
       <div class="dms-profile-copy"><strong id="dmsProfileName">User</strong><span id="dmsProfileRole">Signed in</span>
@@ -263,6 +266,7 @@
   <script src="js/request-workflow.js?v=20261015-jalali-picker"></script>
   <script src="js/expert-reports.js?v=20261018-expert-reports"></script>
   <script src="js/user-management.js?v=20261022-user-management-v2"></script>
+  <script src="js/audit-management.js?v=20261101-audit-v1"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       const profileMenu = document.getElementById('dmsProfileMenu'); const userMenu = document.getElementById('userMenu'); const panel = document.getElementById('userMenuPanel'); const logout = document.getElementById('logoutButton'); const sidebar = document.getElementById('dmsMainSidebar'); const apiBase = (window.DMS_API_BASE || '') + '/api';
@@ -392,6 +396,25 @@
   </div>
 
 
+  <div id="dmsAuditModal" class="dms-audit-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dmsAuditTitle">
+    <section class="dms-audit-dialog">
+      <header class="dms-audit-header"><h2 id="dmsAuditTitle">Audit Management</h2><button id="dmsAuditClose" class="dms-audit-close" type="button" aria-label="Close Audit Management">×</button></header>
+      <div class="dms-audit-content">
+        <form id="dmsAuditSearchForm" class="dms-audit-search">
+          <div class="dms-audit-field"><label for="dmsAuditMode">Search mode</label><select id="dmsAuditMode"><option value="node">By Node</option><option value="user">By User</option></select></div>
+          <div id="dmsAuditNodeField" class="dms-audit-field"><label for="dmsAuditNode">Node code or name</label><input id="dmsAuditNode" type="text" maxlength="150" placeholder="Enter Node code or name"></div>
+          <div id="dmsAuditUserField" class="dms-audit-field hidden"><label for="dmsAuditUsername">Exact username</label><input id="dmsAuditUsername" type="text" maxlength="100" placeholder="Enter username"></div>
+          <div class="dms-audit-field"><label for="dmsAuditFrom">From (Jalali YYYY/MM/DD)</label><input id="dmsAuditFrom" type="text" inputmode="numeric" placeholder="1405/01/01" required></div>
+          <div class="dms-audit-field"><label for="dmsAuditTo">To (Jalali YYYY/MM/DD)</label><input id="dmsAuditTo" type="text" inputmode="numeric" placeholder="1405/12/29" required></div>
+          <button class="dms-audit-search-btn" type="submit">Search</button>
+        </form>
+        <p id="dmsAuditStatus" class="dms-audit-status" role="status" aria-live="polite"></p>
+        <div class="dms-audit-results-wrap"><div id="dmsAuditResults"></div></div>
+        <div class="dms-audit-pagination"><button id="dmsAuditPrev" class="dms-audit-page-btn" type="button" disabled>Previous</button><span id="dmsAuditPage">Page 1 of 1</span><button id="dmsAuditNext" class="dms-audit-page-btn" type="button" disabled>Next</button></div>
+        <section id="dmsAuditDetail" class="dms-audit-detail hidden" aria-label="Audit event details"></section>
+      </div>
+    </section>
+  </div>
   <div id="dmsDashboardModal" class="dms-dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dmsDashboardModalTitle">
     <section class="dms-dashboard-dialog">
       <header class="dms-dashboard-modal-header"><h2 id="dmsDashboardModalTitle">Admin Dashboard</h2><button id="dmsDashboardModalClose" class="dms-dashboard-modal-close" type="button" aria-label="Close Admin Dashboard">×</button></header>
