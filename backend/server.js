@@ -10,6 +10,7 @@ const { exec } = require('child_process');
 const multer = require('multer');
 const { createAuth } = require('./auth');
 const { registerAdminDatabaseRoutes } = require('./admin-db');
+const { registerAuditRoutes } = require('./audit-routes');
 
 const execAsync = util.promisify(exec);
 const app = express();
@@ -96,6 +97,10 @@ app.use((req, res, next) => {
 
 app.use('/api/auth', auth.router);
 app.use('/api', auth.apiSecurity, auth.authenticate);
+
+const auditRouter = express.Router();
+registerAuditRoutes(auditRouter, { sql, rateLimit: (req, res, next) => next(), authenticate: (req, res, next) => next() });
+app.use('/api/auth', auditRouter);
 
 function normalizeRelativePath(value) {
   if (value == null) return null;
