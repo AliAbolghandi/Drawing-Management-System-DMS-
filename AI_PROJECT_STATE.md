@@ -379,11 +379,16 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commits: `7d31280e5db7ff030e775b6288d0187489778a6b` (`frontend/js/script.js`); `4be6ee4602b93637a117bb63cdee7eccdd22fef3` (`frontend/css/style.css`).
 - Validation: verified the implementation against the existing API response contract (`matchIds`, `visibleNodes`) and checked the inserted event delegation, result-index bounds, first/last disabled states, selection, detail rendering, and scroll behavior in source. JavaScript parser checks, browser interaction, and live API/SQL Server tests have not been run in this session.
 
+## Audit event detail table — 2026-11-01
+
+- Updated `frontend/js/audit-management.js`: the Details action now renders audit event metadata and parsed `DetailsJson` values in a semantic two-column Field/Value table instead of a raw JSON `<pre>` block. Nested objects and arrays are expanded into readable field paths; values are inserted with `textContent` to avoid interpreting audit data as HTML.
+- Updated `frontend/css/audit-management.css`: added responsive, independently scrollable detail-table styling consistent with the existing Audit Management modal.
+- No API, SQL schema, permission, or audit-data behavior changed.
+- Commits: `416e6285a97e3c6e220df1f70fcc063dcd33bb68` (detail rendering) and `d1b50c9ca09137d433a9bc74eece50dd23743fe6` (table styling).
+- Validation: reviewed the changed rendering path and CSS structure. Browser rendering and live API/SQL Server tests have not been run in this session.
+
 # NEXT ACTION
 
-1. Restart the DMS backend, hard-refresh `index.html`, click Dashboard: confirm `admin-dashboard.html` opens in the modal and closes via × / backdrop / Escape. Check response headers: admin pages = `SAMEORIGIN`; `index.html` and APIs = `DENY`.
-2. Confirm unauthenticated/non-Admin access to `/admin-dashboard.html` and `/management.html` is still rejected (direct URL and inside an iframe).
-3. If sidebar profile menu / logout / permission-based buttons fail under CSP, move the remaining inline scripts in `frontend/index.html` to external files.
-4. Browser-test the Admin Management modal (open, search, record editor, Back to DMS, switch to Dashboard).
-5. Continue the pending audit-log verification and network-topology investigation documented above.
-6. Browser-test Audit Management after hard refresh: verify the sidebar button appears for a user with at least one active audit PermissionCode, then test both search modes and event details.
+1. Hard-refresh DMS and open Audit Management; select Details on an event with populated `DetailsJson` and confirm metadata plus nested values render in the Field/Value table.
+2. Test events with null, scalar, array, and nested-object details; confirm long values wrap and the detail table scrolls independently on narrow screens.
+3. Continue the pending audit-log verification: test both search modes, permission-denial cases, and API/SQL Server behavior in the target environment.
