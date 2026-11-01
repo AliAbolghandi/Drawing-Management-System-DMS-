@@ -43,7 +43,8 @@ function registerAuditRoutes(router, deps) {
       filter = "(l.UserName=@username AND ((@canFILE=1 AND l.Action IN ("+fileActions+")) OR (@canNODE=1 AND l.Action IN ("+nodeActions+")) OR (@canWORKFLOW=1 AND l.TargetType=N'DRAWING_REQUEST') OR (@canUSER_RBAC=1 AND "+userRbac+") OR (@canAUTHENTICATION=1 AND l.Action IN ("+authActions+"))))";
     }
     try {
-      const q = await r.query(";WITH F AS (SELECT l.LogID,l.UserID,l.UserName,l.Action,l.IPAddress,l.CreatedAt,l.TargetType,l.TargetID,"+categorySql+" AS Category FROM dbo.Logs l WHERE l.CreatedAt>=@fromUtc AND l.CreatedAt<@toUtc AND "+filter+") SELECT COUNT_BIG(*) AS Total FROM F; SELECT LogID,UserID,UserName,Action,IPAddress,CreatedAt,TargetType,TargetID,Category FROM F ORDER BY CreatedAt DESC,LogID DESC OFFSET @offset ROWS FETCH NEXT @fetch ROWS ONLY;");
+      const baseSql = " FROM dbo.Logs l WHERE l.CreatedAt>=@fromUtc AND l.CreatedAt<@toUtc AND "+filter;
+      const q = await r.query("SELECT COUNT_BIG(*) AS Total"+baseSql+"; SELECT l.LogID,l.UserID,l.UserName,l.Action,l.IPAddress,l.CreatedAt,l.TargetType,l.TargetID,"+categorySql+" AS Category"+baseSql+" ORDER BY l.CreatedAt DESC,l.LogID DESC OFFSET @offset ROWS FETCH NEXT @fetch ROWS ONLY;");
       res.set('Cache-Control','no-store').json({mode,page,pageSize,total:Number(q.recordsets?.[0]?.[0]?.Total||0),rows:q.recordsets?.[1]||[]});
     } catch(e) { console.error('Audit search failed:',e.message); res.status(500).json({error:'Audit search failed.'}); }
   });
