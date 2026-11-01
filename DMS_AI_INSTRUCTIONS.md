@@ -15,11 +15,20 @@ AI_PROJECT_STATE.md
 Then inspect the current GitHub source when needed and verify that the documented state matches the repository.
 
 
-## Mandatory UI/UX Skill
-Whenever creating, modifying, fixing, reviewing, or otherwise working on any DMS user interface (UI) or user experience (UX), you MUST first read and follow `skills/DMS-UI-SKILL.md` from the repository's current `main` branch. Treat it as the authoritative project-specific UI/UX guidance. Preserve existing DMS functionality, permissions/RBAC, workflows, API contracts, database structures, file paths, and technology stack as required by that skill and the project instructions. If a UI task conflicts with the skill, follow the user's latest explicit requirement while preserving other established constraints. Do not claim visual verification unless the rendered UI was actually reviewed in a browser.
+## Mandatory Design Skill — Taste Skill
+For every task that creates, modifies, fixes, redesigns, restyles, or reviews any DMS UI/UX (including pages, dashboards, admin screens, modals, forms, tables, and individual components), you MUST use and follow the current upstream **Taste Skill**:
 
-### Optional visual design skills
-The repository also contains opt-in upstream visual skill instructions. Read `skills/README.md` to choose one and use it only when relevant or explicitly requested. Available files: `skills/SKILL.md` (`design-taste-frontend`), `skills/taste-skill-classics/gpt-taste/SKILL.md` (`gpt-taste`), `skills/taste-skill-classics/industrial-brutalist-ui/SKILL.md` (`industrial-brutalist-ui`), and `skills/imagegen-skills/SKILL.md` (`image-to-code`). These are not a substitute for the project-specific UI/UX guidance or security/architecture requirements. They are opt-in: do not apply a visual style merely because the files exist. The repository may contain only each skill's `SKILL.md`, not all companion assets/scripts from upstream.
+- Repository: https://github.com/Leonxlnx/taste-skill
+- Main skill file: `skills/taste-skill/SKILL.md`
+- Install/usage name: `design-taste-frontend`
+
+Before starting a UI/UX task, read the latest `SKILL.md` from the upstream repository's `main` branch. Do not rely on an old local copy or assume that a skill file previously present in this DMS repository is current. For app screens (dashboards, admin views, settings, inboxes, queues, and other work interfaces), also read the complete upstream `skills/taste-skill/references/app-screens.md` and follow its app-specific workflow, design rules, and inspection requirements. Read other Taste Skill reference files when the task touches their subject (for example typography, colour, layout, imagery, motion, or critique).
+
+Follow the skill's applicable process, not just its visual style suggestions. For an existing DMS screen, inspect the current implementation and preserve its working behaviour; use the Taste Skill's before/after review process when the required browser/runtime tools are available. Use the skill's direction-drawing, linting, inspection, and screenshot-review scripts where applicable and available. If Node.js, a supported browser, network access, or another required dependency is unavailable, state the limitation and perform only the checks that are actually possible. Never claim that a script, browser inspection, screenshot review, or visual verification was completed unless it was actually run and reviewed.
+
+Taste Skill governs design decisions, but it does NOT override DMS product requirements or engineering constraints. Preserve existing DMS functionality, branding constraints explicitly fixed by the user, permissions/RBAC, workflows, API contracts, database structures, file paths, accessibility, and technology stack. Do not migrate frameworks or styling libraries merely to satisfy a design preference. Do not invent content, data, assets, or product behaviour. When a Taste Skill recommendation conflicts with a newer explicit user requirement or a mandatory DMS security/architecture rule, preserve the higher-priority requirement and document the necessary deviation.
+
+The upstream skill may evolve. Always consult the current upstream source for each new UI/UX task rather than assuming this instruction file reproduces all of its detailed rules. Do not treat older or locally bundled design skills as substitutes for Taste Skill unless the user explicitly requests a different skill.
 
 ## Mandatory continuity responsibility
 AI_PROJECT_STATE.md is a living project memory and MUST be maintained by every AI working on this project.
