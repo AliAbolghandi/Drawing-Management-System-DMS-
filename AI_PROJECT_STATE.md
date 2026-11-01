@@ -407,7 +407,16 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commit: `c9bc9f4a6f0511ee13a089af3be3c079c01a6f7c`.
 - Validation: confirmed the image exists in the GitHub repository at the referenced path and verified the CSS replacement at source level. Browser rendering/responsive visual verification has not been run.
 
-## NEXT ACTION
+### SRSC logo on login background — 2026-11-02
 
-1. Open `/login.html` on the deployed DMS and hard-refresh; confirm the background image loads and the login card remains readable at desktop and mobile widths.
-2. If the browser still shows the old page, clear the cached frontend assets and reload.
+- Added the supplied SRSC logo as a transparent vector asset at `frontend/assets/images/srsc-logo.svg`; the white image background was removed while retaining the logo colours and white ring.
+- Updated `frontend/login.html` to display the SRSC logo above the existing login card. The existing `Login Background.png` background image and dark overlay remain unchanged; authentication markup, JavaScript, API routes, permissions and database were not changed.
+- Followed the current upstream Taste Skill guidance for the login-screen presentation. The repository-local `skills/DMS-UI-SKILL.md` remains absent.
+- Code commit: `42b842929ba118579e7d51cd3bcc51070942f193`.
+- Validation: source-level checks confirmed the existing background URL remains unchanged, the new logo asset is referenced, and the SVG is valid XML when rendered to a PNG preview. Browser layout, mobile responsiveness and live login behavior have not been runtime-tested.
+
+# NEXT ACTION
+
+1. Open `/login.html` at desktop and mobile widths; confirm the SRSC logo appears above the login card and the original background remains visible.
+2. Confirm the logo has no white rectangular background and does not overlap the login form on short screens.
+3. Hard-refresh or clear cached assets if the previous login page is still displayed.
