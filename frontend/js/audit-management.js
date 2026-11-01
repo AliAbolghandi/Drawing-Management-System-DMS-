@@ -2,6 +2,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const modal=$('dmsAuditModal'), open=$('dmsAuditOpen'), close=$('dmsAuditClose'), form=$('dmsAuditSearchForm');
+const detailModal=$('dmsAuditDetailModal'),detailClose=$('dmsAuditDetailClose');
 const mode=$('dmsAuditMode'), nodeField=$('dmsAuditNodeField'), userField=$('dmsAuditUserField');
 const results=$('dmsAuditResults'), status=$('dmsAuditStatus'), detail=$('dmsAuditDetail');
 const prev=$('dmsAuditPrev'), next=$('dmsAuditNext'), pageLabel=$('dmsAuditPage');
@@ -13,7 +14,8 @@ const text=value=>value===null||value===undefined||value===''?'—':String(value
 const date=value=>window.DMSDate?window.DMSDate.format(value):text(value);
 function setMode(){const isNode=mode.value==='node';nodeField.classList.toggle('hidden',!isNode);userField.classList.toggle('hidden',isNode);$('dmsAuditNode').required=isNode;$('dmsAuditUsername').required=!isNode;}
 function show(){previousOverflow=document.body.style.overflow;modal.classList.remove('hidden');document.body.style.overflow='hidden';mode.focus();}
-function hide(){modal.classList.add('hidden');document.body.style.overflow=previousOverflow;}
+function hide(){detailModal.classList.add('hidden');modal.classList.add('hidden');document.body.style.overflow=previousOverflow;}
+function hideDetail(){detailModal.classList.add('hidden');}
 function drawRows(rows){
  results.replaceChildren();
  if(!rows.length){const p=document.createElement('p');p.className='dms-audit-empty';p.textContent='No audit events found for this search.';results.append(p);return;}
@@ -50,7 +52,7 @@ function detailGroup(body,label){
  const tr=document.createElement('tr'),th=document.createElement('th');tr.className='dms-audit-detail-group';th.colSpan=2;th.textContent=label;tr.append(th);body.append(tr);
 }
 async function loadDetail(id){
- detail.classList.remove('hidden');detail.textContent='Loading…';
+ detailModal.classList.remove('hidden');detail.classList.remove('hidden');detail.textContent='Loading…';detailClose.focus();
  try{
   const response=await fetch(api+'/'+encodeURIComponent(id),{credentials:'include',cache:'no-store'});
   const data=await response.json().catch(()=>({}));
@@ -86,8 +88,10 @@ async function search(targetPage){
  pageLabel.textContent='Page '+page+' of '+pages+' · '+(Number(data.total)||0).toLocaleString()+' events';prev.disabled=page<=1;next.disabled=page>=pages;say('');
 }
 open.addEventListener('click',show);close.addEventListener('click',hide);
+detailClose.addEventListener('click',hideDetail);
 modal.addEventListener('click',event=>{if(event.target===modal)hide();});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!modal.classList.contains('hidden'))hide();});
+detailModal.addEventListener('click',event=>{if(event.target===detailModal)hideDetail();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!detailModal.classList.contains('hidden'))hideDetail();else if(event.key==='Escape'&&!modal.classList.contains('hidden'))hide();});
 mode.addEventListener('change',setMode);
 form.addEventListener('submit',event=>{event.preventDefault();search(1).catch(error=>say(error.message));});
 prev.addEventListener('click',()=>search(page-1).catch(error=>say(error.message)));
