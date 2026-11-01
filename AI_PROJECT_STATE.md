@@ -399,3 +399,15 @@ User reported that the `Production Reports` section calculates incorrect values,
 1. Hard-refresh DMS and open Audit Management; select Details on an event with populated `DetailsJson` and confirm metadata plus nested values render in the Field/Value table.
 2. Test events with null, scalar, array, and nested-object details; confirm long values wrap and the detail table scrolls independently on narrow screens.
 3. Continue the pending audit-log verification: test both search modes, permission-denial cases, and API/SQL Server behavior in the target environment.
+
+## Login background image — 2026-11-01
+
+- Updated `frontend/login.html` to use the existing `frontend/assets/images/Login Background.png` as a full-viewport cover background with a dark translucent overlay so the existing login form remains legible.
+- URL uses the encoded space (`Login%20Background.png`). Login markup, authentication JavaScript, API routes, permissions, and database were not changed.
+- Commit: `c9bc9f4a6f0511ee13a089af3be3c079c01a6f7c`.
+- Validation: confirmed the image exists in the GitHub repository at the referenced path and verified the CSS replacement at source level. Browser rendering/responsive visual verification has not been run.
+
+## NEXT ACTION
+
+1. Open `/login.html` on the deployed DMS and hard-refresh; confirm the background image loads and the login card remains readable at desktop and mobile widths.
+2. If the browser still shows the old page, clear the cached frontend assets and reload.
