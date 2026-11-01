@@ -6,7 +6,7 @@
 - Added idempotent SQL seed `SQL/AuditManagementPermissions.sql` for the five audit PermissionCodes; it does not hard-code identity IDs or assign permissions to roles. Run it once, then grant the required codes to intended roles through the existing Role Permissions UI.
 - Added `backend/audit-routes.js` with read-only paginated search and per-event detail routes. Node mode is restricted to FILE/NODE/WORKFLOW; user mode matches `Logs.UserName` (actor only) and independently gates all five categories by PermissionCode. Detail reads repeat category authorization.
 - Mounted the routes behind the existing API rate limiter, Origin/Referer CSRF middleware, and authenticated session middleware. No RoleID-based authorization, schema change, audit edit/delete, or unbounded fetch was introduced.
-- Commits: `2c214e097692946148896a2b50972edd1c087350` (route creation), `d41d7ba3d26b75873d4f42b404e67f86a1922ada` (secure mount), `a93eb300e2fc1b1c40c0570aab7b300d6dab0188` (frontend behavior), `fa14be02f1523f179a207e358851723e47af6f4a` (styles), `c3049094159d8d6a299923c9c6adf2627b7ff3b2` (navigation/modal).
+- Commits: `2c214e097692946148896a2b50972edd1c087350` (route creation), `d41d7ba3d26b75873d4f42b404e67f86a1922ada` (secure mount), `a93eb300e2fc1b1c40c0570aab7b300d6dab0188` (frontend behavior), `fa14be02f1523f179a207e358851723e47af6f4a` (styles), `c3049094159d8d6a299923c9c6adf2627b7ff3b2` (navigation/modal), `68555d1d009b8bd8027478943611f8643f4263ba` (permission seed), `2a1e7498d2b0b08f56aa46605f28a4ec77994701` (responsive form layout), `1936288c5670298db6bb0e3ad52ace34f30561a6` (single API rate-limit/auth pass), `6827a8ad87ad939d38d2160b753abee552cc3a4c` and `80701e7464c54e01f8825da64afb6e88a51073bc` (documentation).
 - Validation status: source files and route wiring inspected. Runtime JavaScript, SQL Server query, permission-denial, browser responsive, and end-to-end acceptance tests have not yet been run in the target environment; do not mark this feature production-verified until those tests pass.
 
 # Project decision — Stamp phase stopped (2026-10-24)
@@ -21,7 +21,7 @@ The user explicitly stopped the Stamp phase because it did not deploy correctly.
 
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-10-24
+Last updated: 2026-11-01
 
 ## Current change status — 2026-10-24
 - `backend/auth.js`: profile, profile-password and profile-image APIs are implemented in the existing auth router. Image files are resolved under `dbo.tblPath.PathID=5`, named from the active `Username`, accepts JPEG/PNG/WebP, crops selected originals in the browser to 512×512 JPEG, and caps the processed API payload at 8 MB for server safety; endpoints are protected by authentication, rate limiting and CSRF/origin checks on mutations.
