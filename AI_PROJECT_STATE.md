@@ -1,3 +1,13 @@
+# Current task — Audit Management UI and read-only search (2026-11-01)
+
+- Added the Audit Management navigation entry to the main sidebar. It is revealed only when `/api/auth/me` returns at least one of the five audit PermissionCodes.
+- Added a modal with Node and exact-username search modes, mandatory Jalali date range inputs, event details, and bounded 25-row pagination.
+- Frontend converts Jalali input to UTC ISO timestamps using the existing `DMSDate` helper. Audit timestamps are displayed through the existing Jalali formatter.
+- Added `backend/audit-routes.js` with read-only paginated search and per-event detail routes. Node mode is restricted to FILE/NODE/WORKFLOW; user mode matches `Logs.UserName` (actor only) and independently gates all five categories by PermissionCode. Detail reads repeat category authorization.
+- Mounted the routes behind the existing API rate limiter, Origin/Referer CSRF middleware, and authenticated session middleware. No RoleID-based authorization, schema change, audit edit/delete, or unbounded fetch was introduced.
+- Commits: `2c214e097692946148896a2b50972edd1c087350` (route creation), `d41d7ba3d26b75873d4f42b404e67f86a1922ada` (secure mount), `a93eb300e2fc1b1c40c0570aab7b300d6dab0188` (frontend behavior), `fa14be02f1523f179a207e358851723e47af6f4a` (styles), `c3049094159d8d6a299923c9c6adf2627b7ff3b2` (navigation/modal).
+- Validation status: source files and route wiring inspected. Runtime JavaScript, SQL Server query, permission-denial, browser responsive, and end-to-end acceptance tests have not yet been run in the target environment; do not mark this feature production-verified until those tests pass.
+
 # Project decision — Stamp phase stopped (2026-10-24)
 
 The user explicitly stopped the Stamp phase because it did not deploy correctly. Do not restore or continue it. The current schema report for `dbDrawingManagment` contains no Stamp tables. Stamp-only routes/UI/migrations, vendored PDF.js/pdf-lib assets, and active Stamp security documentation have been removed. Preserve the existing Drawing Request workflow and all unrelated features.
