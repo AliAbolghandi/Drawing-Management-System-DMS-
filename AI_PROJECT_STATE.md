@@ -385,7 +385,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Updated `frontend/css/audit-management.css`: added responsive, independently scrollable detail-table styling consistent with the existing Audit Management modal.
 - No API, SQL schema, permission, or audit-data behavior changed.
 - Commits: `416e6285a97e3c6e220df1f70fcc063dcd33bb68` (detail rendering), `d1b50c9ca09137d433a9bc74eece50dd23743fe6` (table styling), and `e0a522cbe1de498374b40839c17bd84b97df5b31` (field-label formatting correction).
-- Validation: reviewed the changed rendering path and CSS structure. Browser rendering and live API/SQL Server tests have not been run in this session.
+- Validation: `node --check` passed for the updated `frontend/js/audit-management.js`; the changed rendering path and CSS structure were inspected. Browser rendering and live API/SQL Server tests have not been run in this session.
 
 # NEXT ACTION
 
