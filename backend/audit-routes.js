@@ -9,7 +9,7 @@ function registerAuditRoutes(router, deps) {
   const userRbac = "(l.TargetType IN (N'USER',N'ROLE') OR l.Action LIKE N'USER[_]%' OR l.Action LIKE N'ROLE[_]%' OR l.Action LIKE N'SELF_PROFILE[_]%' OR (l.TargetType=N'ADMIN_TABLE_ROW' AND ISJSON(l.DetailsJson)=1 AND JSON_VALUE(l.DetailsJson,'$.tableName') IN (N'Users',N'Roles',N'UserRoles',N'RolePermissions',N'Permissions')))";
   const categorySql = "CASE WHEN l.Action IN ("+fileActions+") THEN N'FILE' WHEN l.Action IN ("+nodeActions+") THEN N'NODE' WHEN l.TargetType=N'DRAWING_REQUEST' THEN N'WORKFLOW' WHEN l.Action IN ("+authActions+") THEN N'AUTHENTICATION' WHEN "+userRbac+" THEN N'USER_RBAC' ELSE NULL END";
   const validUtc = value => {
-    if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)) return null;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return null;
     const date = new Date(value);
     return Number.isNaN(date.getTime()) || date.toISOString() !== value ? null : date;
   };
