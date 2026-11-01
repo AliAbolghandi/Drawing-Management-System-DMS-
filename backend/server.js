@@ -100,7 +100,7 @@ app.use('/api', auth.apiSecurity, auth.authenticate);
 
 const auditRouter = express.Router();
 registerAuditRoutes(auditRouter, { sql, rateLimit: (req, res, next) => next(), authenticate: (req, res, next) => next() });
-app.use('/api/auth', auditRouter);
+app.use('/api/auth', auth.apiSecurity, auth.authenticate, auditRouter);
 
 function normalizeRelativePath(value) {
   if (value == null) return null;
