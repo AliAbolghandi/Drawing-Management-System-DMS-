@@ -26,10 +26,50 @@ function drawRows(rows){
  const td=document.createElement('td'),button=document.createElement('button');button.type='button';button.className='dms-audit-detail-btn';button.textContent='Details';button.addEventListener('click',()=>loadDetail(row.LogID));td.append(button);tr.append(td);body.append(tr);});
  table.append(body);results.append(table);
 }
+function detailLabel(key){
+ const known={LogID:'Log ID',UserID:'User ID',UserName:'Actor',Category:'Category',Action:'Action',IPAddress:'IP address',CreatedAt:'Date / time',TargetType:'Target type',TargetID:'Target ID'};
+ if(known[key])return known[key];
+ return String(key).replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/[_-]+/g,' ').replace(/\\b\\w/g,c=>c.toUpperCase());
+}
+function addDetailRow(body,field,value){
+ const tr=document.createElement('tr'),th=document.createElement('th'),td=document.createElement('td');
+ th.scope='row';th.textContent=field;td.textContent=value;tr.append(th,td);body.append(tr);
+}
+function appendDetailValue(body,path,value,depth){
+ if(value&&typeof value==='object'){
+  const entries=Array.isArray(value)?value.map((item,index)=>[String(index+1),item]):Object.entries(value);
+  if(!entries.length){addDetailRow(body,path,Array.isArray(value)?'Empty list':'No values');return;}
+  if(depth>=5){addDetailRow(body,path,JSON.stringify(value));return;}
+  entries.forEach(([key,item])=>appendDetailValue(body,path?path+(Array.isArray(value)?' ['+key+']': ' / '+detailLabel(key)):detailLabel(key),item,depth+1));
+  return;
+ }
+ const rendered=value===null||value===undefined||value===''?'—':typeof value==='boolean'?(value?'Yes':'No'):String(value);
+ addDetailRow(body,path||'Details',rendered);
+}
+function detailGroup(body,label){
+ const tr=document.createElement('tr'),th=document.createElement('th');tr.className='dms-audit-detail-group';th.colSpan=2;th.textContent=label;tr.append(th);body.append(tr);
+}
 async function loadDetail(id){
  detail.classList.remove('hidden');detail.textContent='Loading…';
- try{const response=await fetch(api+'/'+encodeURIComponent(id),{credentials:'include',cache:'no-store'});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Unable to load event details.');const pre=document.createElement('pre');const event=data.event||{};pre.textContent=JSON.stringify({...event,CreatedAt:date(event.CreatedAt)},null,2);detail.replaceChildren(pre);}
- catch(error){detail.textContent=error.message;}
+ try{
+  const response=await fetch(api+'/'+encodeURIComponent(id),{credentials:'include',cache:'no-store'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error||'Unable to load event details.');
+  const event=data.event||{},table=document.createElement('table'),head=document.createElement('thead'),headRow=document.createElement('tr'),body=document.createElement('tbody');
+  table.className='dms-audit-detail-table';
+  ['Field','Value'].forEach(label=>{const th=document.createElement('th');th.scope='col';th.textContent=label;headRow.append(th);});
+  head.append(headRow);table.append(head);
+  detailGroup(body,'Event information');
+  [['LogID',event.LogID],['UserName',event.UserName],['Category',event.Category],['Action',event.Action],['IPAddress',event.IPAddress],['CreatedAt',event.CreatedAt?date(event.CreatedAt):null],['TargetType',event.TargetType],['TargetID',event.TargetID]].forEach(([key,value])=>addDetailRow(body,detailLabel(key),value===null||value===undefined||value===''?'—':String(value)));
+  detailGroup(body,'Additional details');
+  if(event.details===null||event.details===undefined){addDetailRow(body,'Details','No additional details were recorded.');}
+  else if(typeof event.details==='object'){appendDetailValue(body,'',event.details,0);}
+  else{appendDetailValue(body,'Details',event.details,0);}
+  table.append(body);
+  const heading=document.createElement('h3');heading.className='dms-audit-detail-title';heading.textContent='Audit event details';
+  const wrap=document.createElement('div');wrap.className='dms-audit-detail-table-wrap';wrap.append(table);
+  detail.replaceChildren(heading,wrap);
+ }catch(error){detail.textContent=error.message;}
 }
 async function search(targetPage){
  const from=$('dmsAuditFrom').value.trim(),to=$('dmsAuditTo').value.trim();
