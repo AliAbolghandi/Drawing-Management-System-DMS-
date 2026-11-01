@@ -1,4 +1,11 @@
 # Current task — Audit Management UI and read-only search (2026-11-01)
+## Audit event detail modal — 2026-11-01
+- The Details action (.dms-audit-detail-btn) now opens a dedicated, larger modal (#dmsAuditDetailModal) above the Audit Management search modal. The existing field/value detail table and read-only API are preserved.
+- The detail modal closes with its close button, backdrop click, or Escape. Escape closes the detail modal first and leaves the underlying Audit Management search modal open; closing the parent closes both.
+- Responsive dialog uses up to 98vw × 96vh on desktop and full viewport on small screens. No database, API, or permission changes.
+- Files: frontend/index.html, frontend/js/audit-management.js, frontend/css/audit-management.css.
+- Validation: source-level replacement checks completed; browser visual/runtime and live API tests remain pending.
+
 
 - Added the Audit Management navigation entry to the main sidebar. It is revealed only when `/api/auth/me` returns at least one of the five audit PermissionCodes.
 - Added a modal with Node and exact-username search modes, mandatory Jalali date range inputs, event details, and bounded 25-row pagination.
