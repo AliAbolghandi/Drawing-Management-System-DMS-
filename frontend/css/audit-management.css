@@ -10,3 +10,15 @@
 .dms-audit-detail-table tbody th[scope="row"]{width:30%;min-width:150px;color:var(--text-dim);font-weight:500}
 .dms-audit-detail-table td{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
 .dms-audit-detail-table .dms-audit-detail-group th{padding-top:11px;padding-bottom:8px;background:var(--panel-2);color:var(--text);font-weight:600}
+
+/* Event details use a separate, larger dialog above the search window. */
+.dms-audit-detail-modal{position:fixed;inset:0;z-index:3210;display:flex;align-items:center;justify-content:center;padding:2vh 2vw;background:rgba(3,9,17,.88)}
+.dms-audit-detail-modal.hidden{display:none!important}
+.dms-audit-detail-dialog{display:flex;flex-direction:column;width:min(1700px,98vw);height:min(96vh,1200px);min-height:360px;overflow:hidden;border:1px solid var(--line-strong);border-radius:10px;background:var(--panel);box-shadow:0 24px 72px rgba(0,0,0,.5)}
+.dms-audit-detail-content{display:flex;flex:1;min-height:0;overflow:auto;padding:18px}
+.dms-audit-detail{display:flex;flex:1;min-height:0;max-height:none;flex-direction:column;overflow:visible;border:0;padding:0}
+.dms-audit-detail-title{font-size:15px;margin-bottom:14px}
+.dms-audit-detail-table-wrap{flex:1;min-height:0;overflow:auto}
+.dms-audit-detail-table{min-width:560px;font-size:13px}
+.dms-audit-detail-table th,.dms-audit-detail-table td{padding:11px 14px}
+@media(max-width:760px){.dms-audit-detail-modal{padding:0}.dms-audit-detail-dialog{width:100%;height:100dvh;min-height:0;border-radius:0}.dms-audit-detail-content{padding:12px}.dms-audit-detail-table{min-width:520px}}
