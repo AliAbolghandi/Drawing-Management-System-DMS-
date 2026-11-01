@@ -170,3 +170,18 @@ For production:
 - Both pages still go through `authenticateAdminPage` (authenticated active Admin required server-side); framing does not change authorization. Cross-origin framing remains blocked.
 - CSP `script-src` was not relaxed: the modal controller was moved from an inline script to `frontend/js/dms-modals.js`.
 - Commit: `29763f8ccf711b2fae2910e8eebf4f79286020cd`.
+
+## Audit Management — 2026-11-01
+
+- Read-only endpoints: `GET /api/auth/audit/search` and `GET /api/auth/audit/:logId`. They are mounted behind API rate limiting, Origin/Referer CSRF policy, and authenticated session middleware.
+- Effective authorization is checked from the authenticated session's SQL-refreshed `Permissions.PermissionCode` set, never from RoleID or client-supplied claims:
+  - `LOG_ACCESS_FILE`
+  - `LOG_ACCESS_NODE`
+  - `LOG_ACCESS_WORKFLOW`
+  - `LOG_ACCESS_USER_RBAC`
+  - `LOG_ACCESS_AUTHENTICATION`
+- Node search can return only FILE, NODE and WORKFLOW events, and only for categories the actor is authorized to inspect. User search matches `Logs.UserName` as the acting user and gates all five categories independently; it does not search target-user activity.
+- Event-detail reads repeat the category permission check. Search is parameterized, date-bounded, paginated (maximum 100 rows per page), and returns no raw DetailsJson field. No audit update, delete or cleanup route is provided.
+- Sidebar visibility is a convenience only; backend authorization remains authoritative. No SQL schema or permission seed changes were made by this UI/API implementation. The five PermissionCodes must exist and be assigned through the existing RBAC tables for users to see the corresponding categories.
+- Validation still pending in the target environment: SQL Server execution, permission matrix (401/403/category isolation), Jalali date boundaries, and browser end-to-end checks. Do not treat code inspection as runtime verification.
+
