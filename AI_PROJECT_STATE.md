@@ -415,8 +415,15 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Code commit: `42b842929ba118579e7d51cd3bcc51070942f193`.
 - Validation: source-level checks confirmed the existing background URL remains unchanged, the new logo asset is referenced, and the SVG is valid XML when rendered to a PNG preview. Browser layout, mobile responsiveness and live login behavior have not been runtime-tested.
 
+### SRSC logo beside login subtitle — 2026-11-02
+
+- Updated `frontend/login.html` so `.login-sub-row` places `.sub` ("Please sign in") on the left and `frontend/assets/images/SRSC-Logo.png` on the right using a flex row.
+- Logo is rendered at 56×56 px, reduced to 48×48 px on narrow screens, with `object-fit: contain`. The existing background, login form, authentication JavaScript, API, permissions, and database are unchanged.
+- Commit: `a60f837c9c253b561c9ab0d52bc0f9da2cf6c02f`.
+- Validation: source-level checks confirmed the logo path, flex layout, and unchanged login submit handler. Browser rendering and responsive visual checks have not been run.
+
 # NEXT ACTION
 
-1. Open `/login.html` at desktop and mobile widths; confirm the SRSC logo appears above the login card and the original background remains visible.
-2. Confirm the logo has no white rectangular background and does not overlap the login form on short screens.
-3. Hard-refresh or clear cached assets if the previous login page is still displayed.
+1. Open `/login.html` at desktop and mobile widths; confirm the subtitle is left-aligned and the SRSC logo is on its right without overlap.
+2. Confirm the logo sizing and alignment inside the login card; hard-refresh if cached assets persist.
+3. Test a successful and failed login to confirm existing authentication behavior remains unchanged.
