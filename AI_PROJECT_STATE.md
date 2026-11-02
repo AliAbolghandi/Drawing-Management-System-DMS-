@@ -396,34 +396,6 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-1. Hard-refresh DMS and open Audit Management; select Details on an event with populated `DetailsJson` and confirm metadata plus nested values render in the Field/Value table.
-2. Test events with null, scalar, array, and nested-object details; confirm long values wrap and the detail table scrolls independently on narrow screens.
-3. Continue the pending audit-log verification: test both search modes, permission-denial cases, and API/SQL Server behavior in the target environment.
-
-## Login background image — 2026-11-01
-
-- Updated `frontend/login.html` to use the existing `frontend/assets/images/Login Background.png` as a full-viewport cover background with a dark translucent overlay so the existing login form remains legible.
-- URL uses the encoded space (`Login%20Background.png`). Login markup, authentication JavaScript, API routes, permissions, and database were not changed.
-- Commit: `c9bc9f4a6f0511ee13a089af3be3c079c01a6f7c`.
-- Validation: confirmed the image exists in the GitHub repository at the referenced path and verified the CSS replacement at source level. Browser rendering/responsive visual verification has not been run.
-
-### SRSC logo on login background — 2026-11-02
-
-- Added the supplied SRSC logo as a transparent vector asset at `frontend/assets/images/srsc-logo.svg`; the white image background was removed while retaining the logo colours and white ring.
-- Updated `frontend/login.html` to display the SRSC logo above the existing login card. The existing `Login Background.png` background image and dark overlay remain unchanged; authentication markup, JavaScript, API routes, permissions and database were not changed.
-- Followed the current upstream Taste Skill guidance for the login-screen presentation. The repository-local `skills/DMS-UI-SKILL.md` remains absent.
-- Code commit: `42b842929ba118579e7d51cd3bcc51070942f193`.
-- Validation: source-level checks confirmed the existing background URL remains unchanged, the new logo asset is referenced, and the SVG is valid XML when rendered to a PNG preview. Browser layout, mobile responsiveness and live login behavior have not been runtime-tested.
-
-### SRSC logo beside login subtitle — 2026-11-02
-
-- Updated `frontend/login.html` so `.login-sub-row` places `.sub` ("Please sign in") on the left and `frontend/assets/images/SRSC-Logo.png` on the right using a flex row.
-- Logo is rendered at 56×56 px, reduced to 48×48 px on narrow screens, with `object-fit: contain`. The existing background, login form, authentication JavaScript, API, permissions, and database are unchanged.
-- Commit: `a60f837c9c253b561c9ab0d52bc0f9da2cf6c02f`.
-- Validation: source-level checks confirmed the logo path, flex layout, and unchanged login submit handler. Browser rendering and responsive visual checks have not been run.
-
-# NEXT ACTION
-
-1. Open `/login.html` at desktop and mobile widths; confirm the subtitle is left-aligned and the SRSC logo is on its right without overlap.
-2. Confirm the logo sizing and alignment inside the login card; hard-refresh if cached assets persist.
-3. Test a successful and failed login to confirm existing authentication behavior remains unchanged.
+1. Open `/login.html` at desktop and mobile widths; verify the rotating SVG gear aligns with the original gear in the background without obscuring the DMS wordmark or login card.
+2. Confirm the 38-second rotation and blue glow are smooth; test with the operating-system Reduce Motion preference enabled.
+3. Test successful and failed login to confirm authentication behavior remains unchanged.
