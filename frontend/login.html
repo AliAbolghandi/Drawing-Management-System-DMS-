@@ -50,6 +50,7 @@
     .brand {
       font-size: 25px;
       font-weight: 700;
+      margin-top: 30px;
       margin-bottom: 6px
     }
 
@@ -120,8 +121,8 @@
       cursor: pointer
     }
 
-    button:hover{
-      background: #f3b65c;
+    button:hover {
+      background: var(--ok);
     }
 
     button:disabled {
@@ -145,12 +146,25 @@
       color: #657c8c;
       font-size: 12px
     }
+
+    .x{
+      margin: auto;
+      flex: 0 0 auto;
+      width: 145px;
+      height: 145px;
+      background: #fcfcfc;
+      border: #000000;
+      border-radius: 50% ;
+    }
   </style>
 </head>
 
 <body>
   <main class="login-card">
-    <img class="login-sub-logo" src="assets/images/SRSC-Logo.png" alt="SRSC logo">
+    <div class="x">
+      <img class="login-sub-logo" src="assets/images/SRSC-Logo.png" alt="SRSC logo">
+    </div>
+
     <div class="brand">Drawing Management System</div>
     <div class="login-sub-row">
       <div class="sub">Please sign in</div>
