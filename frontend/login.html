@@ -41,9 +41,9 @@
     .login-card {
       width: min(420px, calc(100% - 32px));
       padding: 34px;
-      border: 1px solid #008bf9;
+      border: 1px solid var(--amber);
       border-radius: 18px;
-      background: #001b37;
+      background: #000000;
       box-shadow: 0 20px 60px #0008
     }
 
@@ -71,9 +71,10 @@
     .login-sub-logo {
       display: block;
       flex: 0 0 auto;
-      width: 56px;
-      height: 56px;
-      object-fit: contain
+      width: 145px;
+      height: 145px;
+      object-fit: fill;
+      margin: auto;
     }
 
     @media (max-width: 420px) {
@@ -112,11 +113,15 @@
       padding: 13px;
       border: 0;
       border-radius: 9px;
-      background: #55c8e8;
+      background: var(--amber);
       color: #041018;
       font-weight: 700;
       font-size: 15px;
       cursor: pointer
+    }
+
+    button:hover{
+      background: #f3b65c;
     }
 
     button:disabled {
@@ -144,11 +149,12 @@
 </head>
 
 <body>
-    <main class="login-card">
+  <main class="login-card">
+    <img class="login-sub-logo" src="assets/images/SRSC-Logo.png" alt="SRSC logo">
     <div class="brand">Drawing Management System</div>
     <div class="login-sub-row">
       <div class="sub">Please sign in</div>
-      <img class="login-sub-logo" src="assets/images/SRSC-Logo.png" alt="SRSC logo">
+
     </div>
     <form id="loginForm" autocomplete="on">
       <label for="username">Username</label>
