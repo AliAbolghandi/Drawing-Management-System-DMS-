@@ -53,9 +53,34 @@
       margin-bottom: 6px
     }
 
-    .sub {
-      color: #8fa5b5;
+    .login-sub-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
       margin-bottom: 28px
+    }
+
+    .sub {
+      flex: 1;
+      color: #8fa5b5;
+      margin: 0;
+      text-align: left
+    }
+
+    .login-sub-logo {
+      display: block;
+      flex: 0 0 auto;
+      width: 56px;
+      height: 56px;
+      object-fit: contain
+    }
+
+    @media (max-width: 420px) {
+      .login-sub-logo {
+        width: 48px;
+        height: 48px
+      }
     }
 
     label {
@@ -121,7 +146,10 @@
 <body>
     <main class="login-card">
     <div class="brand">Drawing Management System</div>
-    <div class="sub">Please sign in</div>
+    <div class="login-sub-row">
+      <div class="sub">Please sign in</div>
+      <img class="login-sub-logo" src="assets/images/SRSC-Logo.png" alt="SRSC logo">
+    </div>
     <form id="loginForm" autocomplete="on">
       <label for="username">Username</label>
       <input id="username" name="username" autocomplete="username" maxlength="100" required>
