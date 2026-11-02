@@ -145,10 +145,76 @@
       color: #657c8c;
       font-size: 12px
     }
+  
+    /* Decorative live gear: the blueprint image itself stays static. */
+    .login-gear {
+      position: fixed;
+      z-index: 0;
+      top: clamp(118px, 21.5vh, 230px);
+      right: clamp(18px, 2.2vw, 40px);
+      width: clamp(88px, 11vw, 178px);
+      height: auto;
+      pointer-events: none;
+      transform-origin: 50% 50%;
+      animation: dmsGearSpin 38s linear infinite, dmsGearGlow 5s ease-in-out infinite alternate;
+      filter: drop-shadow(0 0 8px rgba(38, 151, 255, .38));
+    }
+
+    @keyframes dmsGearSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes dmsGearGlow {
+      from { filter: drop-shadow(0 0 5px rgba(38, 151, 255, .24)); }
+      to { filter: drop-shadow(0 0 15px rgba(38, 151, 255, .72)); }
+    }
+
+    .login-card {
+      position: relative;
+      z-index: 1;
+    }
+
+    @media (max-width: 640px) {
+      .login-gear {
+        top: 13vh;
+        right: 5vw;
+        width: clamp(68px, 17vw, 104px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .login-gear {
+        animation: none;
+        filter: drop-shadow(0 0 7px rgba(38, 151, 255, .42));
+      }
+    }
+
   </style>
 </head>
 
 <body>
+
+  <svg class="login-gear" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="dmsGearMetal" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#f4fbff"/>
+        <stop offset=".34" stop-color="#9bbbd8"/>
+        <stop offset=".62" stop-color="#e8f3ff"/>
+        <stop offset="1" stop-color="#397db7"/>
+      </linearGradient>
+      <linearGradient id="dmsGearBlue" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#55c9ff"/>
+        <stop offset="1" stop-color="#0875e8"/>
+      </linearGradient>
+    </defs>
+    <path d="M 174.54,85.17 L 175.32,89.88 L 190.49,90.37 L 190.90,95.71 L 190.90,104.29 L 190.49,109.63 L 175.32,110.12 L 174.54,114.83 L 174.54,114.83 L 173.46,119.48 L 187.29,125.73 L 185.62,130.83 L 182.34,138.75 L 179.92,143.53 L 165.72,138.17 L 163.19,142.22 L 163.19,142.22 L 160.42,146.11 L 170.80,157.18 L 167.31,161.24 L 161.24,167.31 L 157.18,170.80 L 146.11,160.42 L 142.22,163.19 L 142.22,163.19 L 138.17,165.72 L 143.53,179.92 L 138.75,182.34 L 130.83,185.62 L 125.73,187.29 L 119.48,173.46 L 114.83,174.54 L 114.83,174.54 L 110.12,175.32 L 109.63,190.49 L 104.29,190.90 L 95.71,190.90 L 90.37,190.49 L 89.88,175.32 L 85.17,174.54 L 85.17,174.54 L 80.52,173.46 L 74.27,187.29 L 69.17,185.62 L 61.25,182.34 L 56.47,179.92 L 61.83,165.72 L 57.78,163.19 L 57.78,163.19 L 53.89,160.42 L 42.82,170.80 L 38.76,167.31 L 32.69,161.24 L 29.20,157.18 L 39.58,146.11 L 36.81,142.22 L 36.81,142.22 L 34.28,138.17 L 20.08,143.53 L 17.66,138.75 L 14.38,130.83 L 12.71,125.73 L 26.54,119.48 L 25.46,114.83 L 25.46,114.83 L 24.68,110.12 L 9.51,109.63 L 9.10,104.29 L 9.10,95.71 L 9.51,90.37 L 24.68,89.88 L 25.46,85.17 L 25.46,85.17 L 26.54,80.52 L 12.71,74.27 L 14.38,69.17 L 17.66,61.25 L 20.08,56.47 L 34.28,61.83 L 36.81,57.78 L 36.81,57.78 L 39.58,53.89 L 29.20,42.82 L 32.69,38.76 L 38.76,32.69 L 42.82,29.20 L 53.89,39.58 L 57.78,36.81 L 57.78,36.81 L 61.83,34.28 L 56.47,20.08 L 61.25,17.66 L 69.17,14.38 L 74.27,12.71 L 80.52,26.54 L 85.17,25.46 L 85.17,25.46 L 89.88,24.68 L 90.37,9.51 L 95.71,9.10 L 104.29,9.10 L 109.63,9.51 L 110.12,24.68 L 114.83,25.46 L 114.83,25.46 L 119.48,26.54 L 125.73,12.71 L 130.83,14.38 L 138.75,17.66 L 143.53,20.08 L 138.17,34.28 L 142.22,36.81 L 142.22,36.81 L 146.11,39.58 L 157.18,29.20 L 161.24,32.69 L 167.31,38.76 L 170.80,42.82 L 160.42,53.89 L 163.19,57.78 L 163.19,57.78 L 165.72,61.83 L 179.92,56.47 L 182.34,61.25 L 185.62,69.17 L 187.29,74.27 L 173.46,80.52 L 174.54,85.17 Z" fill="url(#dmsGearMetal)" stroke="#d9edff" stroke-width="2.2" />
+    <circle cx="100" cy="100" r="72" fill="#071b36" stroke="#8fb5d6" stroke-width="4"/>
+    <circle cx="100" cy="100" r="61" fill="none" stroke="#347fb9" stroke-width="3" opacity=".85"/>
+    <path d="M 54 116 A 51 51 0 0 1 139 60" fill="none" stroke="url(#dmsGearBlue)" stroke-width="12" stroke-linecap="round"/>
+    <path d="M 146 79 A 51 51 0 0 1 82 151" fill="none" stroke="#1b8de9" stroke-width="4" stroke-linecap="round" opacity=".8"/>
+    <circle cx="100" cy="100" r="18" fill="#071b36" stroke="#dceeff" stroke-width="4"/>
+    <circle cx="100" cy="100" r="7" fill="#62c8ff"/>
+  </svg>
   <main class="login-card">
     <img class="login-sub-logo" src="assets/images/SRSC-Logo.png" alt="SRSC logo">
     <div class="brand">Drawing Management System</div>
