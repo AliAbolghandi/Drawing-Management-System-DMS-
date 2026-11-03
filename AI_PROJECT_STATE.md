@@ -394,8 +394,16 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commits: `416e6285a97e3c6e220df1f70fcc063dcd33bb68` (detail rendering), `d1b50c9ca09137d433a9bc74eece50dd23743fe6` (table styling), and `e0a522cbe1de498374b40839c17bd84b97df5b31` (field-label formatting correction).
 - Validation: `node --check` passed for the updated `frontend/js/audit-management.js`; the changed rendering path and CSS structure were inspected. Browser rendering and live API/SQL Server tests have not been run in this session.
 
+## Node folder rename — SLD to DWG (2026-11-03)
+
+- Replaced the SRSC node folder name `SLD` with `DWG` in the backend allowlist and folder-resolution logic, upload folder choices/validation text, and frontend folder browsing/PDF opening.
+- The only allowed top-level folders are now `DWG`, `DOC`, `PIC`, and `Catalog`. Backend canonical-folder validation remains in place; existing authentication, `FILE_VIEW`/file permissions, path containment checks, and audit logging are unchanged.
+- Legacy `SLD` directories are not migrated or read by the application. No automatic filesystem deletion was implemented; they may remain physically on the file server until removed separately. No database schema or data changes.
+- Code commit: `46593e53f83028fa44095a028add8777dd4f8d80`.
+- Validation: searched the indexed repository for `SLD`; the active references were limited to the three changed source files. The changed files were checked for remaining `SLD`/`sld` references. Node syntax checks, browser upload/browse tests, and live file-server tests remain pending.
+
 # NEXT ACTION
 
-1. Open `/login.html` at desktop and mobile widths; verify the rotating SVG gear aligns with the original gear in the background without obscuring the DMS wordmark or login card.
-2. Confirm the 38-second rotation and blue glow are smooth; test with the operating-system Reduce Motion preference enabled.
-3. Test successful and failed login to confirm authentication behavior remains unchanged.
+1. Test the Node file browser and upload modal with the new `DWG` folder on the pilot file server.
+2. Confirm that `DOC`, `PIC`, and `Catalog` still browse, upload, open, and delete correctly.
+3. If legacy `SLD` directories are to be removed, remove them separately from the file server after confirming their exact locations.
