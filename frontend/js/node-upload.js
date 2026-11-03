@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const SRSC_FOLDERS = ['SLD', 'DOC', 'PIC', 'Catalog'];
+  const SRSC_FOLDERS = ['DWG', 'DOC', 'PIC', 'Catalog'];
   const $ = (id) => document.getElementById(id);
 
   const openBtn = $('uploadFilesBtn');
@@ -44,8 +44,8 @@
   }
 
   // Auto-suggests stripping the outer folder when its name matches the chosen target
-  // (e.g. dragging/browsing the "SLD" folder itself while "SLD" is the target — the
-  // bug this avoids is ending up with SLD/SLD/...). The user can still override it.
+  // (e.g. dragging/browsing the "DWG" folder itself while "DWG" is the target — the
+  // bug this avoids is ending up with DWG/DWG/...). The user can still override it.
   function autoDetectStrip() {
     const top = commonTopSegment();
     stripOuterFolder = Boolean(top && selectedFolder && top.toLowerCase() === selectedFolder.toLowerCase());
@@ -278,7 +278,7 @@
   submitBtn?.addEventListener('click', async () => {
     const node = getState()?.currentSelectedNode;
     if (!node) { showError('No Node is selected.'); return; }
-    if (!selectedFolder) { showError('Choose a target folder (SLD, DOC, PIC or Catalog).'); return; }
+    if (!selectedFolder) { showError('Choose a target folder (DWG, DOC, PIC or Catalog).'); return; }
     if (!files.length) { showError('Add at least one file.'); return; }
 
     clearError();

@@ -29,7 +29,7 @@ const config = {
   pool: { max: 30, min: 2, idleTimeoutMillis: 30000 },
 };
 
-const ALLOWED_SRSC_FOLDERS = ['SLD', 'DOC', 'PIC', 'Catalog'];
+const ALLOWED_SRSC_FOLDERS = ['DWG', 'DOC', 'PIC', 'Catalog'];
 const IMAGE_EXTENSIONS = new Set(['.jpg','.jpeg','.png','.gif','.bmp','.webp','.svg','.tif','.tiff','.ico']);
 const INLINE_EXTENSIONS = new Set(['.pdf', ...IMAGE_EXTENSIONS]);
 
@@ -139,7 +139,7 @@ function getFileKind(fileName) {
   if (ext === '.pdf') return 'pdf';
   if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (['.doc','.docx','.xls','.xlsx','.ppt','.pptx','.txt','.rtf'].includes(ext)) return 'document';
-  if (['.dwg','.dxf','.dws','.dwt','.sldprt','.sldasm','.slddrw','.step','.stp','.iges','.igs'].includes(ext)) return 'cad';
+  if (['.dwg','.dxf','.dws','.dwt','.dwgprt','.dwgasm','.dwgdrw','.step','.stp','.iges','.igs'].includes(ext)) return 'cad';
   return 'file';
 }
 
@@ -463,14 +463,14 @@ app.get('/api/srsc-pdfs/:nodeId', auth.requirePermission('PDF_VIEW'), async (req
     if (!node) return res.status(404).json({ error: 'Node not found' });
     const root = getSafeNodeRoot(node.RootPath, node.FolderPath);
     if (!root) return res.json({ nodeId:id, files:[] });
-    const sld = path.join(root, 'SLD');
-    if (!isPathInside(root, sld) || !fs.existsSync(sld) || !fs.statSync(sld).isDirectory()) {
+    const dwg = path.join(root, 'DWG');
+    if (!isPathInside(root, dwg) || !fs.existsSync(dwg) || !fs.statSync(dwg).isDirectory()) {
       return res.json({ nodeId:id, files:[] });
     }
     const files = [];
-    for (const entry of fs.readdirSync(sld, { withFileTypes:true })) {
+    for (const entry of fs.readdirSync(dwg, { withFileTypes:true })) {
       if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.pdf' || entry.name.startsWith('~$')) continue;
-      const full = path.join(sld, entry.name);
+      const full = path.join(dwg, entry.name);
       const stat = fs.statSync(full);
       files.push({ name:entry.name, size:stat.size, modifiedAt:stat.mtime.toISOString() });
     }
@@ -577,7 +577,7 @@ app.get('/api/node-folder-files/:nodeId/:folderName', auth.requirePermission('FI
 app.get('/api/node-file', async(req,res)=>{const id=Number(req.query.nodeId);const folder=getCanonicalAllowedFolder(req.query.folder);const file=req.query.file;const subPath=typeof req.query.subPath==='string'?req.query.subPath:'';if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid Node ID'});if(!folder||!file||typeof file!=='string')return res.status(400).json({error:'Invalid folder or file'});try{const node=await getNodeStorage(id);if(!node)return res.status(404).json({error:'Node not found'});const root=getSafeNodeRoot(node.RootPath,node.FolderPath);const base=root?path.join(root,folder):null;const sub=base&&subPath?isSafeChildPath(base,subPath):base;const full=sub?isSafeChildPath(sub,file):null;if(!full||!fs.existsSync(full)||!fs.statSync(full).isFile())return res.status(404).json({error:'File not found'});const ext=path.extname(full).toLowerCase();const requiredPermission=ext==='.pdf'?'PDF_VIEW':'FILE_VIEW';if(!req.user.permissions.has(requiredPermission))return res.status(403).json({error:'Permission denied.'});const delivery=INLINE_EXTENSIONS.has(ext)?'inline':'attachment';res.setHeader('Content-Disposition',`${delivery}; filename="${path.basename(full).replace(/"/g,'')}"`);res.sendFile(full,async err=>{if(err){if(!res.headersSent)sendServerError(res,'Node file request failed',err);return;}await auth.writeAudit(req.user.userId,req.user.username,delivery==='inline'?'FILE_VIEW':'FILE_DOWNLOAD',req.ip||req.socket.remoteAddress||null,{targetType:'NODE',targetId:String(id),details:{nodeId:id,nodeCode:node.NodeCode||null,nodeName:node.NodeName||null,pathId:node.PathID==null?null:Number(node.PathID),folder,subPath,fileName:path.basename(full),relativePath:[folder,...(subPath?subPath.split(/[\\/]+/).filter(Boolean):[]),path.basename(full)].join('/'),fileSize:(await fs.promises.stat(full).catch(()=>null))?.size??null,fileExtension:ext,delivery}});});}catch(e){sendServerError(res,'Node file request failed',e);}});
 
 // Deletes a file, or a subfolder (recursively, with everything inside it), from one of a
-// Node's SLD/DOC/PIC/Catalog folders. Never allows deleting the SLD/DOC/PIC/Catalog folder
+// Node's DWG/DOC/PIC/Catalog folders. Never allows deleting the DWG/DOC/PIC/Catalog folder
 // itself — only files/folders inside it.
 app.delete('/api/node-file', auth.requirePermission('FILE_Edit'), async (req, res) => {
   const id = Number(req.query.nodeId);
@@ -595,7 +595,7 @@ app.delete('/api/node-file', auth.requirePermission('FILE_Edit'), async (req, re
     const parent = base && subPath ? isSafeChildPath(base, subPath) : base;
     const target = parent ? isSafeChildPath(parent, name) : null;
     if (!root || !base || !parent || !target) return res.status(400).json({ error: 'Invalid path' });
-    if (path.resolve(target) === path.resolve(base)) return res.status(400).json({ error: 'Cannot delete a top-level company folder (SLD/DOC/PIC/Catalog).' });
+    if (path.resolve(target) === path.resolve(base)) return res.status(400).json({ error: 'Cannot delete a top-level company folder (DWG/DOC/PIC/Catalog).' });
     if (!fs.existsSync(target)) return res.status(404).json({ error: 'Item not found' });
     const stat = await fs.promises.lstat(target);
     const relativePath = [folder, ...(subPath ? subPath.split(/[\\/]+/).filter(Boolean) : []), name].join('/');
@@ -643,11 +643,11 @@ app.delete('/api/node-file', auth.requirePermission('FILE_Edit'), async (req, re
 });
 
 // Uploads files (optionally a whole dragged/browsed folder, via parallel relativePaths[])
-// into one of the SLD/DOC/PIC/Catalog folders for a Node. The Node's own storage folder
+// into one of the DWG/DOC/PIC/Catalog folders for a Node. The Node's own storage folder
 // (RootPath + FolderPath) is created on disk automatically if it doesn't exist yet — e.g.
 // for a brand-new Node — and any subfolder structure is allowed underneath the chosen
 // root folder.
-// Creates an empty folder inside one of a Node's SLD/DOC/PIC/Catalog folders (or a
+// Creates an empty folder inside one of a Node's DWG/DOC/PIC/Catalog folders (or a
 // subfolder of one). Used by the "Manage Files" New Folder action.
 app.post('/api/node-folder', auth.requirePermission('FILE_Edit'), async (req, res) => {
   const id = Number(req.body?.nodeId);

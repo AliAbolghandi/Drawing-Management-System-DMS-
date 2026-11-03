@@ -8,7 +8,7 @@
   'use strict';
 
   const API = `${window.DMS_API_BASE || ''}/api`;
-  const SRSC_FOLDERS = ['SLD', 'DOC', 'PIC', 'Catalog'];
+  const SRSC_FOLDERS = ['DWG', 'DOC', 'PIC', 'Catalog'];
 
   const state = {
     nodeElements: new Map(),
@@ -242,12 +242,12 @@
     try {
       const data = await requestJson(`${API}/srsc-pdfs/${encodeURIComponent(id)}`);
       const files = data.files || [];
-      srscBox.innerHTML = files.length ? files.map(file => `<div class="pdf-item" data-srsc-name="${escapeHtml(file.name)}"><span class="pdf-icon">📄</span><span class="pdf-name">${escapeHtml(file.name)}</span></div>`).join('') : '<div class="pdf-empty">No SRSC PDF files in SLD root.</div>';
+      srscBox.innerHTML = files.length ? files.map(file => `<div class="pdf-item" data-srsc-name="${escapeHtml(file.name)}"><span class="pdf-icon">📄</span><span class="pdf-name">${escapeHtml(file.name)}</span></div>`).join('') : '<div class="pdf-empty">No SRSC PDF files in DWG root.</div>';
       srscBox.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => openSrscPdf(id, item.dataset.srscName)));
     } catch (error) { srscBox.innerHTML = '<div class="pdf-empty">Unable to load SRSC PDF files.</div>'; console.error('SRSC PDF load failed:', error); }
   }
 
-  async function openSrscPdf(nodeId, fileName) { window.open(`${API}/node-file?nodeId=${encodeURIComponent(nodeId)}&folder=SLD&file=${encodeURIComponent(fileName)}`, '_blank', 'noopener'); }
+  async function openSrscPdf(nodeId, fileName) { window.open(`${API}/node-file?nodeId=${encodeURIComponent(nodeId)}&folder=DWG&file=${encodeURIComponent(fileName)}`, '_blank', 'noopener'); }
   async function openPdf(id) { try { await requestJson(`${API}/pdf-open/${encodeURIComponent(id)}`); } catch (error) { alert(`Unable to open PDF: ${error.message}`); } }
 
   let currentSrscNodeId = null;
