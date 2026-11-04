@@ -402,8 +402,16 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Code commit: `46593e53f83028fa44095a028add8777dd4f8d80`.
 - Validation: searched the indexed repository for `SLD`; the active references were limited to the three changed source files. The changed files were checked for remaining `SLD`/`sld` references. Node syntax checks, browser upload/browse tests, and live file-server tests remain pending.
 
+## DanieliDWG SQL import script — 2026-11-04
+
+- Added `SQL/Create_DanieliDWG.sql` to create and populate `dbo.DanieliDWG` from the five-column `DanieliDWG_Import.csv` file (`DWGID`, `NodeID`, `NodeCode`, `DWGName`, `PathID`).
+- The script uses the existing shared `dbo.tblPath.PathID=3` (Danieli Drawing), expects 1,298 rows, validates eight-digit `.dwg` names, CSV PathID values, duplicate keys, and each `NodeID + NodeCode` against `dbo.Nodes`.
+- Table creation and insertion are transactional; failed runs roll back and clean up local temporary tables. CSV path is currently `C:\\Temp\\DanieliDWG_Import.csv` and must be accessible to the SQL Server service.
+- Git commit: `6ae22e878cafa40c90c8c89b03b438a5c78ad9b7`.
+- Validation: inspected the uploaded CSV and confirmed its header plus 1,298 data rows, five columns, and PathID value 3 in the sample rows. The SQL script has been committed but has NOT been executed against SQL Server. The previously reported SQL Server error 7301 (BULK provider IID_IColumnsInfo) remains unresolved until the import is tested in the target SQL Server instance.
+
 # NEXT ACTION
 
-1. Test the Node file browser and upload modal with the new `DWG` folder on the pilot file server.
-2. Confirm that `DOC`, `PIC`, and `Catalog` still browse, upload, open, and delete correctly.
-3. If legacy `SLD` directories are to be removed, remove them separately from the file server after confirming their exact locations.
+1. Test `SQL/Create_DanieliDWG.sql` against the pilot SQL Server using the uploaded `DanieliDWG_Import.csv`; confirm whether the BULK provider error 7301 persists.
+2. If import succeeds, verify the row count (1,298), distinct Node count, PathID=3, foreign keys, and sample DWG records.
+3. If error 7301 persists, diagnose the SQL Server BULK provider/build and file-access configuration before changing the import mechanism.
