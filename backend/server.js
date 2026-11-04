@@ -1,5 +1,5 @@
 const express = require('express');
-const sql = require('mssql/msnodesqlv8');
+const sql = require('mssql');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -23,11 +23,23 @@ const auth = createAuth(FRONTEND_ORIGINS);
 const PORT = Number(process.env.PORT) || 3000;
 
 const config = {
-  connectionString: 'Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=dbDrawingManagment;Trusted_Connection=Yes;TrustServerCertificate=Yes;',
+  server: 'localhost',
+  database: 'dbDrawingManagment',
+  user: 'sa',
+  password: 't5w8GZTQZEniijm',
+  options: {
+    encrypt: false,
+    trustServerCertificate: true,
+  },
   connectionTimeout: 15000,
   requestTimeout: 30000,
-  pool: { max: 30, min: 2, idleTimeoutMillis: 30000 },
+  pool: {
+    max: 10,
+    min: 0,
+    idleTimeoutMillis: 30000,
+  },
 };
+
 
 const ALLOWED_SRSC_FOLDERS = ['DWG', 'DOC', 'PIC', 'Catalog'];
 const IMAGE_EXTENSIONS = new Set(['.jpg','.jpeg','.png','.gif','.bmp','.webp','.svg','.tif','.tiff','.ico']);
@@ -43,7 +55,7 @@ const NODE_COLUMNS_N = NODE_COLUMNS.split(', ').map(c => `N.${c}`).join(', ');
 let pdfCache = null;
 let pdfCacheComputing = null;
 
-const UPLOAD_TMP_DIR = path.join(os.tmpdir(), 'dms-uploads');
+const UPLOAD_TMP_DIR = path.join(__dirname, 'dms-uploads');
 try { fs.rmSync(UPLOAD_TMP_DIR, { recursive: true, force: true }); } catch (_) {}
 fs.mkdirSync(UPLOAD_TMP_DIR, { recursive: true });
 
@@ -1310,7 +1322,7 @@ registerAdminDatabaseRoutes(app, { sql, auth, crypto, sendServerError });
 
 setInterval(() => auth.cleanup(), 10 * 60 * 1000);
 
-const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
+const FRONTEND_DIR = 'C:\\inetpub\\wwwroot\\DMSApp\\frontend';
 app.get('/', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'login.html')));
 app.get('/login.html', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'login.html')));
 app.get('/index.html', auth.authenticatePage, (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'index.html')));
