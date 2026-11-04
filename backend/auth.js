@@ -1,6 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
-const sql = require('mssql/msnodesqlv8');
+const sql = require('mssql');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
