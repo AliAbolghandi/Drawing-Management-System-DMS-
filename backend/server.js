@@ -352,6 +352,42 @@ app.get('/api/pdfs', auth.requirePermission('PDF_VIEW'), async (req,res)=>{
   } catch(e){sendServerError(res,'PDF query failed',e);}
 });
 
+app.get('/api/danieli-dwgs', auth.requirePermission('FILE_VIEW'), async(req,res)=>{
+  try {
+    let ids=null;
+    if(req.query.nodeIds!==undefined) ids=String(req.query.nodeIds).split(',').map(Number);
+    else if(req.query.nodeId!==undefined) ids=[Number(req.query.nodeId)];
+    if(ids && (!ids.length || ids.some(id=>!Number.isInteger(id)||id<=0))) return res.status(400).json({error:'Invalid Node ID.'});
+    const db=new sql.Request();
+    let where='';
+    if(ids){
+      const params=ids.map((id,index)=>{const name='nodeId'+index;db.input(name,sql.Int,id);return '@'+name;});
+      where='WHERE d.NodeID IN ('+params.join(',')+')';
+    }
+    const result=await db.query(`SELECT d.DWGID,d.NodeID,d.NodeCode,d.DWGName,d.PathID
+      FROM dbo.DanieliDWG d ${where}
+      ORDER BY d.NodeID,d.DWGName;`);
+    res.json(result.recordset);
+  } catch(e){sendServerError(res,'Danieli DWG query failed',e);}
+});
+
+app.get('/api/danieli-dwg-file/:dwgId', auth.requirePermission('FILE_VIEW'), async(req,res)=>{
+  const id=Number(req.params.dwgId);
+  if(!Number.isInteger(id)||id<=0) return res.status(400).json({error:'Invalid DWG ID.'});
+  try {
+    const db=new sql.Request(); db.input('id',sql.Int,id);
+    const result=await db.query('SELECT d.DWGName,p.RootPath,d.NodeID,d.NodeCode,d.PathID FROM dbo.DanieliDWG d INNER JOIN dbo.tblPath p ON p.PathID=d.PathID WHERE d.DWGID=@id;');
+    const row=result.recordset[0];
+    if(!row) return res.status(404).json({error:'DWG record not found.'});
+    const full=isSafeChildPath(row.RootPath,row.DWGName);
+    if(!full||!fs.existsSync(full)||!fs.statSync(full).isFile()) return res.status(404).json({error:'DWG file not found on disk.'});
+    res.download(full,path.basename(full),async err=>{
+      if(err){if(!res.headersSent) sendServerError(res,'DWG file download failed',err);return;}
+      await auth.writeAudit(req.user.userId,req.user.username,'FILE_DOWNLOAD',req.ip||req.socket.remoteAddress||null,{targetType:'NODE',targetId:String(row.NodeID),details:{nodeId:Number(row.NodeID),nodeCode:row.NodeCode||null,pathId:Number(row.PathID),fileName:path.basename(full),fileExtension:'.dwg',delivery:'attachment'}});
+    });
+  } catch(e){sendServerError(res,'DWG file request failed',e);}
+});
+
 async function getPdfRecord(id){ const r=new sql.Request(); r.input('id',sql.Int,id); const q=await r.query('SELECT d.PDFName,p.RootPath FROM dbo.DanieliPDF d JOIN dbo.tblPath p ON d.PathID=p.PathID WHERE d.PDFID=@id;'); return q.recordset[0]||null; }
 app.get('/api/pdf-open/:pdfId', auth.requirePermission('PDF_VIEW'),async(req,res)=>{const id=Number(req.params.pdfId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid PDF ID'});try{const row=await getPdfRecord(id);if(!row)return res.status(404).json({error:'PDF record not found'});const full=isSafeChildPath(row.RootPath,row.PDFName);if(!full||!fs.existsSync(full))return res.status(404).json({error:'PDF file not found on disk'});await execAsync(`start "" "${full.replace(/"/g,'')}"`,{windowsHide:true});res.json({success:true});}catch(e){sendServerError(res,'PDF open failed',e);}});
 app.get('/api/pdf-file/:pdfId', auth.requirePermission('PDF_VIEW'),async(req,res)=>{const id=Number(req.params.pdfId);if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Invalid PDF ID'});try{const row=await getPdfRecord(id);if(!row)return res.status(404).json({error:'PDF record not found'});const full=isSafeChildPath(row.RootPath,row.PDFName);if(!full||!fs.existsSync(full))return res.status(404).json({error:'PDF file not found on disk'});res.sendFile(full);}catch(e){sendServerError(res,'PDF file request failed',e);}});
