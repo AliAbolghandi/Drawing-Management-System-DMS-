@@ -15,6 +15,7 @@
     nodeCache: new Map(),
     loadedParents: new Set(),
     pdfsByNodeId: new Map(),
+    dwgsByNodeId: new Map(),
     srscNodeIds: new Set(),
     currentSelectedNode: null,
     currentSearchQuery: '',
@@ -103,6 +104,22 @@
     });
   }
 
+  async function prefetchDwgs(nodes) {
+    const ids = [...new Set(nodes.map(n => toId(n.NodeID)).filter(Boolean))];
+    if (!ids.length) return;
+    try {
+      const records = await requestJson(`${API}/danieli-dwgs?nodeIds=${ids.join(',')}`);
+      (records || []).forEach(dwg => {
+        const id = toId(dwg.NodeID);
+        if (id === null) return;
+        const list = state.dwgsByNodeId.get(id) || [];
+        if (!list.some(x => String(x.DWGID) === String(dwg.DWGID))) list.push(dwg);
+        state.dwgsByNodeId.set(id, list);
+      });
+      ids.forEach(id => { if (Number(state.currentSelectedNode?.NodeID) === id) renderPdfs(id); });
+    } catch (error) { console.error('DWG prefetch failed:', error); }
+  }
+
   async function prefetchPdfs(nodes) {
     const ids = [...new Set(nodes.map(n => toId(n.NodeID)).filter(Boolean))];
     if (!ids.length) return;
@@ -180,7 +197,7 @@
         childrenBox.className = 'tree-children';
         children.forEach(child => childrenBox.appendChild(createNode(child)));
         wrapper.appendChild(childrenBox);
-        await Promise.all([prefetchPdfs(children), loadSrscStatus(children)]);
+        await Promise.all([prefetchPdfs(children), prefetchDwgs(children), loadSrscStatus(children)]);
       } finally { updateExpand(); }
     }
     async function setExpanded(value) {
@@ -228,23 +245,49 @@
     $('detailJet').textContent = node.JET_Position ?? '-'; $('detailNorme').textContent = node.Norme ?? '-'; $('detailMass').textContent = node.Mass ?? '-';
     const active = node.IsActive === true || Number(node.IsActive) === 1;
     $('detailStatus').textContent = active ? 'Active' : 'Inactive'; $('detailStatus').className = active ? 'node-status' : 'node-status inactive';
-    loadNodeHierarchy(toId(node.NodeID)); renderPdfs(toId(node.NodeID)); loadSrscFolders(toId(node.NodeID));
+    loadNodeHierarchy(toId(node.NodeID)); renderPdfs(toId(node.NodeID)); prefetchDwgs([node]); loadSrscFolders(toId(node.NodeID));
   }
 
-  async function renderPdfs(id) {
+  function renderPdfs(id) {
     const box = $('pdfList');
     const pdfs = state.pdfsByNodeId.get(id) || [];
-    box.innerHTML = pdfs.length ? pdfs.map(pdf => `<div class="pdf-item" data-pdf-id="${escapeHtml(pdf.PDFID)}"><span class="pdf-icon">📄</span><span class="pdf-name">${escapeHtml(pdf.PDFName || '(Unnamed)')}</span></div>`).join('') : '<div class="pdf-empty">No PDF files registered.</div>';
-    box.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => openPdf(item.dataset.pdfId)));
+    const dwgs = state.dwgsByNodeId.get(id) || [];
+    const entries = [
+      ...pdfs.map(pdf => ({ type: 'pdf', id: pdf.PDFID, name: pdf.PDFName || '(Unnamed)' })),
+      ...dwgs.map(dwg => ({ type: 'dwg', id: dwg.DWGID, name: dwg.DWGName || '(Unnamed)' }))
+    ];
+    box.innerHTML = entries.length ? entries.map(file =>
+      `<div class="pdf-item ${file.type === 'dwg' ? 'dwg-item' : 'pdf-file-item'}" data-file-type="${file.type}" data-file-id="${escapeHtml(file.id)}"><span class="pdf-icon">${file.type === 'dwg' ? '📐' : '📄'}</span><span class="pdf-name">${escapeHtml(file.name)}</span><span class="pdf-type">${file.type.toUpperCase()}</span></div>`
+    ).join('') : '<div class="pdf-empty">No PDF or DWG files registered.</div>';
+    box.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => {
+      if (item.dataset.fileType === 'dwg') downloadDanieliDwg(item.dataset.fileId);
+      else openPdf(item.dataset.fileId);
+    }));
     const srscBox = $('srscPdfList');
     if (!srscBox) return;
     srscBox.innerHTML = '<div class="pdf-empty">Loading SRSC PDF files...</div>';
-    try {
-      const data = await requestJson(`${API}/srsc-pdfs/${encodeURIComponent(id)}`);
+    requestJson(`${API}/srsc-pdfs/${encodeURIComponent(id)}`).then(data => {
       const files = data.files || [];
       srscBox.innerHTML = files.length ? files.map(file => `<div class="pdf-item" data-srsc-name="${escapeHtml(file.name)}"><span class="pdf-icon">📄</span><span class="pdf-name">${escapeHtml(file.name)}</span></div>`).join('') : '<div class="pdf-empty">No SRSC PDF files in DWG root.</div>';
       srscBox.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => openSrscPdf(id, item.dataset.srscName)));
-    } catch (error) { srscBox.innerHTML = '<div class="pdf-empty">Unable to load SRSC PDF files.</div>'; console.error('SRSC PDF load failed:', error); }
+    }).catch(error => { srscBox.innerHTML = '<div class="pdf-empty">Unable to load SRSC PDF files.</div>'; console.error('SRSC PDF load failed:', error); });
+  }
+
+  async function downloadDanieliDwg(id) {
+    try {
+      const response = await fetch(`${API}/danieli-dwg-file/${encodeURIComponent(id)}`, { credentials: 'include' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `drawing-${id}.dwg`;
+      document.body.appendChild(link); link.click(); link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) { alert(`Unable to download DWG: ${error.message}`); }
   }
 
   async function openSrscPdf(nodeId, fileName) { window.open(`${API}/node-file?nodeId=${encodeURIComponent(nodeId)}&folder=DWG&file=${encodeURIComponent(fileName)}`, '_blank', 'noopener'); }
@@ -317,14 +360,14 @@
 
   async function loadRoots() {
     state.searchMode = false; state.currentSearchQuery = '';
-    state.nodeElements.clear(); state.nodeCache.clear(); state.loadedParents.clear(); state.pdfsByNodeId.clear(); state.currentSelectedNode = null;
+    state.nodeElements.clear(); state.nodeCache.clear(); state.loadedParents.clear(); state.pdfsByNodeId.clear(); state.dwgsByNodeId.clear(); state.currentSelectedNode = null;
     $('emptyDetails')?.classList.remove('hidden'); $('nodeDetails')?.classList.add('hidden');
     tree.innerHTML = '<div class="loading"><div class="dms-spinner"></div><div>Loading equipment structure...</div></div>';
     try {
       const roots = await getChildren(null); tree.innerHTML = ''; setConnection(true, 'Connected');
       if (!roots.length) { tree.innerHTML = '<div class="error">No root nodes were found.</div>'; return; }
       roots.forEach(root => tree.appendChild(createNode(root, { root })));
-      await Promise.all([prefetchPdfs(roots), loadSrscStatus(roots)]);
+      await Promise.all([prefetchPdfs(roots), prefetchDwgs(roots), loadSrscStatus(roots)]);
     } catch (error) { console.error('Tree load failed:', error); setConnection(false, 'Connection Error'); tree.innerHTML = `<div class="error"><strong>Unable to load equipment structure</strong><br><br>${escapeHtml(error.message)}</div>`; }
   }
 
