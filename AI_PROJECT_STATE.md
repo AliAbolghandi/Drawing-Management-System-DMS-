@@ -402,6 +402,14 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Code commit: `46593e53f83028fa44095a028add8777dd4f8d80`.
 - Validation: searched the indexed repository for `SLD`; the active references were limited to the three changed source files. The changed files were checked for remaining `SLD`/`sld` references. Node syntax checks, browser upload/browse tests, and live file-server tests remain pending.
 
+## Danieli DWG RBAC — 2026-11-05
+
+- The Danieli DWG list endpoint `GET /api/danieli-dwgs` now requires `DWG_Danieli_View`.
+- The file delivery endpoint `GET /api/danieli-dwg-file/:dwgId` now requires `DWG_Danieli_Download`.
+- Frontend reads the effective permission codes from `GET /api/auth/me`; it requests and renders Danieli DWG metadata only with the View permission, and only starts the file download action when the Download permission is present.
+- Backend permission middleware remains authoritative for direct API requests. Existing parameterized DWG lookup, PathID root resolution, path containment validation and download audit logging are preserved. No SQL schema, permission records, or role assignments were changed.
+- Validation in this session: source-level changes only. JavaScript syntax, SQL Server, 401/403 permission matrix, browser behavior and actual file transfer have not yet been tested. Code commits: backend and frontend commits recorded in the Git history for this task; project-state documentation commit follows.
+
 ## DanieliDWG SQL import script — 2026-11-04
 
 - Added `SQL/Create_DanieliDWG.sql` to create and populate `dbo.DanieliDWG` from the five-column `DanieliDWG_Import.csv` file (`DWGID`, `NodeID`, `NodeCode`, `DWGName`, `PathID`).
@@ -412,6 +420,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-1. Test `SQL/Create_DanieliDWG.sql` against the pilot SQL Server using the uploaded `DanieliDWG_Import.csv`; confirm whether the BULK provider error 7301 persists.
-2. If import succeeds, verify the row count (1,298), distinct Node count, PathID=3, foreign keys, and sample DWG records.
-3. If error 7301 persists, diagnose the SQL Server BULK provider/build and file-access configuration before changing the import mechanism.
+1. Run `node --check backend/server.js` and `node --check frontend/js/script.js` on the deployed source.
+2. Test Danieli DWG RBAC: no permissions (list 403, download 403), View only (list 200, download 403), Download only (list 403, download 200 for a known DWG ID), both permissions (list and download 200), and unauthenticated requests (401).
+3. Verify the UI lists Danieli DWGs only for `DWG_Danieli_View` and blocks the download action without `DWG_Danieli_Download`.
+4. Continue the pending SQL import validation for `SQL/Create_DanieliDWG.sql` and the 1,298 expected rows.
