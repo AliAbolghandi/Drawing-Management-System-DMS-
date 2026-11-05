@@ -16,6 +16,8 @@
     loadedParents: new Set(),
     pdfsByNodeId: new Map(),
     dwgsByNodeId: new Map(),
+    canViewDanieliDwg: false,
+    canDownloadDanieliDwg: false,
     srscNodeIds: new Set(),
     currentSelectedNode: null,
     currentSearchQuery: '',
@@ -105,6 +107,7 @@
   }
 
   async function prefetchDwgs(nodes) {
+    if (!state.canViewDanieliDwg) return;
     const ids = [...new Set(nodes.map(n => toId(n.NodeID)).filter(Boolean))];
     if (!ids.length) return;
     try {
@@ -254,13 +257,16 @@
     const dwgs = state.dwgsByNodeId.get(id) || [];
     const entries = [
       ...pdfs.map(pdf => ({ type: 'pdf', id: pdf.PDFID, name: pdf.PDFName || '(Unnamed)' })),
-      ...dwgs.map(dwg => ({ type: 'dwg', id: dwg.DWGID, name: dwg.DWGName || '(Unnamed)' }))
+      ...(state.canViewDanieliDwg ? dwgs.map(dwg => ({ type: 'dwg', id: dwg.DWGID, name: dwg.DWGName || '(Unnamed)' })) : [])
     ];
     box.innerHTML = entries.length ? entries.map(file =>
       `<div class="pdf-item ${file.type === 'dwg' ? 'dwg-item' : 'pdf-file-item'}" data-file-type="${file.type}" data-file-id="${escapeHtml(file.id)}"><span class="pdf-icon">${file.type === 'dwg' ? '📐' : '📄'}</span><span class="pdf-name">${escapeHtml(file.name)}</span><span class="pdf-type">${file.type.toUpperCase()}</span></div>`
     ).join('') : '<div class="pdf-empty">No PDF or DWG files registered.</div>';
     box.querySelectorAll('.pdf-item').forEach(item => item.addEventListener('click', () => {
-      if (item.dataset.fileType === 'dwg') downloadDanieliDwg(item.dataset.fileId);
+      if (item.dataset.fileType === 'dwg') {
+        if (!state.canDownloadDanieliDwg) { alert('You do not have permission to download Danieli DWG files.'); return; }
+        downloadDanieliDwg(item.dataset.fileId);
+      }
       else openPdf(item.dataset.fileId);
     }));
     const srscBox = $('srscPdfList');
@@ -471,7 +477,20 @@
       document.querySelectorAll('.node-row.selected').forEach(row=>row.classList.remove('selected')); target.row.classList.add('selected'); state.currentSelectedNode=target.node; showNodeDetails(target.node); target.row.scrollIntoView({block:'center',behavior:'smooth'}); return true;
     }
   };
-  loadRoots();
+  async function loadDanieliDwgPermissions() {
+    try {
+      const response = await fetch(`${API}/auth/me`, { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) return;
+      const data = await response.json().catch(() => ({}));
+      const permissions = new Set(Array.isArray(data.permissions) ? data.permissions : []);
+      state.canViewDanieliDwg = permissions.has('DWG_Danieli_View');
+      state.canDownloadDanieliDwg = permissions.has('DWG_Danieli_Download');
+    } catch (error) {
+      console.error('Danieli DWG permission load failed:', error);
+    }
+  }
+
+  loadDanieliDwgPermissions().finally(() => loadRoots());
 })();
 
 (() => {
