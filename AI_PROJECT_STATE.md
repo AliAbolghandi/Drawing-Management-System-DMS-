@@ -29,7 +29,7 @@ The user explicitly stopped the Stamp phase because it did not deploy correctly.
 
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-11-01
+Last updated: 2026-11-05
 
 ## Current change status — 2026-10-24
 - `backend/auth.js`: profile, profile-password and profile-image APIs are implemented in the existing auth router. Image files are resolved under `dbo.tblPath.PathID=5`, named from the active `Username`, accepts JPEG/PNG/WebP, crops selected originals in the browser to 512×512 JPEG, and caps the processed API payload at 8 MB for server safety; endpoints are protected by authentication, rate limiting and CSRF/origin checks on mutations.
@@ -434,3 +434,11 @@ User reported that the `Production Reports` section calculates incorrect values,
 2. Test Danieli DWG RBAC: no permissions (list 403, download 403), View only (list 200, download 403), Download only (list 403, download 200 for a known DWG ID), both permissions (list and download 200), and unauthenticated requests (401).
 3. Verify the UI lists Danieli DWGs only for `DWG_Danieli_View` and blocks the download action without `DWG_Danieli_Download`.
 4. Continue the pending SQL import validation for `SQL/Create_DanieliDWG.sql` and the 1,298 expected rows.
+
+## Profile photo crop coordinate fix — 2026-11-05
+- Fixed the crop-to-source coordinate conversion in `frontend/js/profile.js`. The previous `sourceX` / `sourceY` expressions reversed the offset between the centered image and the viewport, selecting a different region for non-square images. The corrected expressions calculate the source square from the rendered image center minus the user's pan offset, then clamp the source rectangle to image bounds.
+- Crop viewport dimensions now come from its computed CSS dimensions rather than a separate viewport-width estimate, avoiding disagreement between the crop math and the responsive dialog size.
+- Pointer dragging is constrained to keep the crop viewport inside the image, preventing selections beyond the image edges.
+- Updated the `frontend/index.html` profile script query version to `20261105-crop-fix` so browsers request the corrected JavaScript.
+- Commits: `30aff7a3397ec773bf3f8b2b9dad806b4206ff5f` (crop logic), `3bc02d46efcf365007454ab5e944444aea73edc3` (cache version).
+- Validation: source replacement checks passed. Browser interaction, visual review, and upload/API runtime tests have not been run; verify landscape, portrait, square, zoom, and drag cases in the target browser.
