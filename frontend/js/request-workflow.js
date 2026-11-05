@@ -222,7 +222,7 @@
 
   function openRequestModal(node){if(!node)return;selectedNode=node;$('rwNodeCode').textContent=node.NodeCode||'-';$('rwNodeName').textContent=node.NodeName||'-';$('rwRequestDescription').value='';$('rwRequestError').textContent='';$('rwRequestModal')?.classList.remove('hidden');}
   function closeRequestModal(){$('rwRequestModal')?.classList.add('hidden');selectedNode=null;}
-  async function submitRequest(){if(!selectedNode)return;const b=$('rwRequestSubmit');b.disabled=true;try{const data=await requestJson(`${API}/drawing-requests`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:Number(selectedNode.NodeID),description:$('rwRequestDescription').value.trim()})});closeRequestModal();openSidebar();alert(`Request ${data.request?.RequestNumber||''} was submitted successfully.`);}catch(e){$('rwRequestError').textContent=e.message;}finally{b.disabled=false;}}
+  async function submitRequest(){if(!selectedNode)return;const b=$('rwRequestSubmit');b.disabled=true;try{const data=await requestJson(`${API}/drawing-requests`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:Number(selectedNode.NodeID),description:$('rwRequestDescription').value.trim()})});const requestNumber=data.request?.RequestNumber||'';closeRequestModal();openSidebar();const message=$('rwRequestSuccessMessage');if(message)message.textContent=requestNumber?`Request ${requestNumber} was submitted successfully.`:'Your drawing request was submitted successfully.';$('rwRequestSuccessModal')?.classList.remove('hidden');}catch(e){$('rwRequestError').textContent=e.message;}finally{b.disabled=false;}}
 
   document.addEventListener('DOMContentLoaded',async()=>{
     injectExpertWorkStyles();await loadCurrentUser();await loadPendingCount();
@@ -247,6 +247,8 @@
     document.addEventListener('keydown',e=>{if(e.key==='Escape')closeJalaliCalendars();});
     document.addEventListener('click',e=>{if(e.target.closest('#rwSaveExpertWorkProgress'))saveProgress();});
     $('rwConfirmNo')?.addEventListener('click',()=>$('rwConfirmModal')?.classList.add('hidden'));$('rwConfirmClose')?.addEventListener('click',()=>$('rwConfirmModal')?.classList.add('hidden'));$('rwConfirmYes')?.addEventListener('click',executePendingAction);
+    $('rwRequestSuccessOk')?.addEventListener('click',()=>$('rwRequestSuccessModal')?.classList.add('hidden'));
+    $('rwRequestSuccessModal')?.addEventListener('click',e=>{if(e.target===$('rwRequestSuccessModal'))$('rwRequestSuccessModal').classList.add('hidden');});
     $('addRequestBtn')?.addEventListener('click',()=>openRequestModal(window.DMS?.state?.currentSelectedNode));$('rwRequestCancel')?.addEventListener('click',closeRequestModal);$('rwRequestClose')?.addEventListener('click',closeRequestModal);$('rwRequestSubmit')?.addEventListener('click',submitRequest);
     setInterval(loadPendingCount,30000);
   });
