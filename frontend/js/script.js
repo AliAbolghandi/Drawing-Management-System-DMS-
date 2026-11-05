@@ -291,7 +291,7 @@
   }
 
   async function openSrscPdf(nodeId, fileName) { window.open(`${API}/node-file?nodeId=${encodeURIComponent(nodeId)}&folder=DWG&file=${encodeURIComponent(fileName)}`, '_blank', 'noopener'); }
-  async function openPdf(id) { try { await requestJson(`${API}/pdf-open/${encodeURIComponent(id)}`); } catch (error) { alert(`Unable to open PDF: ${error.message}`); } }
+  async function openPdf(id) { window.open(`${API}/pdf-file/${encodeURIComponent(id)}`, '_blank', 'noopener'); }
 
   let currentSrscNodeId = null;
   let currentSrscView = null;
@@ -327,7 +327,7 @@
     const header = `<div class="srsc-browser-header"><button type="button" class="srsc-back-button" id="srscBackButton">← Back</button><div class="srsc-current-folder"><span>📁</span><strong>${escapeHtml(crumb)}</strong><small>${items.length} item${items.length === 1 ? '' : 's'}</small></div>${newFolderBtn}</div>`;
     if (!items.length) { box.innerHTML = `${header}<div class="srsc-empty"><strong>This folder is empty</strong></div>`; $('srscBackButton')?.addEventListener('click', () => backFolder(id, folder, subPath)); $('srscNewFolderBtn')?.addEventListener('click', () => createSrscFolder(id, folder, subPath)); return; }
     const icon = item => item.type === 'folder' ? '📁' : item.kind === 'pdf' ? '📄' : item.kind === 'image' ? '🖼️' : item.kind === 'cad' ? '📐' : item.kind === 'document' ? '📝' : '📎';
-    const action = item => item.type === 'folder' ? 'Open' : (item.kind === 'pdf' || item.kind === 'image' ? 'Open' : 'Download');
+    const action = item => item.type === 'folder' ? 'Open' : (item.kind === 'pdf' ? 'Open' : 'Download');
     const size = bytes => { const n = Number(bytes); if (!Number.isFinite(n)) return ''; if (n < 1024) return `${n} B`; if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`; if (n < 1073741824) return `${(n / 1048576).toFixed(1)} MB`; return `${(n / 1073741824).toFixed(1)} GB`; };
     const deleteBtn = item => editMode ? `<button type="button" class="srsc-delete-btn" data-name="${escapeHtml(item.name)}" data-type="${item.type}" title="Delete" aria-label="Delete">×</button>` : '';
     box.innerHTML = `${header}<div class="srsc-file-list">${items.map(item => item.type === 'folder' ? `<div class="srsc-file-row srsc-subfolder" data-subfolder="${escapeHtml(item.name)}"><span class="srsc-file-icon">${icon(item)}</span><span class="srsc-file-main"><strong>${escapeHtml(item.name)}</strong><small>Folder</small></span><span class="srsc-file-action">Open ›</span>${deleteBtn(item)}</div>` : `<div class="srsc-file-row srsc-file" data-file="${escapeHtml(item.name)}" data-kind="${escapeHtml(item.kind || 'file')}"><span class="srsc-file-icon">${icon(item)}</span><span class="srsc-file-main"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.extension || '').replace('.', '').toUpperCase() || 'FILE'}${item.size !== undefined ? ` · ${size(item.size)}` : ''}</small></span><span class="srsc-file-action">${action(item)}</span>${deleteBtn(item)}</div>`).join('')}</div>`;
@@ -354,7 +354,7 @@
   function openFile(id, folder, subPath, file, kind) {
     const relative = subPath ? `${subPath}/${file}` : file;
     const url = `${API}/node-file?nodeId=${encodeURIComponent(id)}&folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(relative)}`;
-    if (kind === 'pdf' || kind === 'image') window.open(url, '_blank', 'noopener');
+    if (kind === 'pdf') window.open(url, '_blank', 'noopener');
     else { const a = document.createElement('a'); a.href = url; a.download = file; document.body.appendChild(a); a.click(); a.remove(); }
   }
 
