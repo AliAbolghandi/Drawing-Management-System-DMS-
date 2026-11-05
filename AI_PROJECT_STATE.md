@@ -440,5 +440,5 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Crop viewport dimensions now come from its computed CSS dimensions rather than a separate viewport-width estimate, avoiding disagreement between the crop math and the responsive dialog size.
 - Pointer dragging is constrained to keep the crop viewport inside the image, preventing selections beyond the image edges.
 - Updated the `frontend/index.html` profile script query version to `20261105-crop-fix` so browsers request the corrected JavaScript.
-- Commits: `30aff7a3397ec773bf3f8b2b9dad806b4206ff5f` (crop logic), `3bc02d46efcf365007454ab5e944444aea73edc3` (cache version).
+- Commits: `30aff7a3397ec773bf3f8b2b9dad806b4206ff5f` (crop logic), `3bc02d46efcf365007454ab5e944444aea73edc3` (cache version), `c8ac4cc7d1595ea777993b1ac85168125d2b3564` (keep crop position within image after zoom changes).
 - Validation: source replacement checks passed. Browser interaction, visual review, and upload/API runtime tests have not been run; verify landscape, portrait, square, zoom, and drag cases in the target browser.
