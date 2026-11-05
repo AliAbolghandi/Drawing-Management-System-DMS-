@@ -185,3 +185,10 @@ For production:
 - Sidebar visibility is a convenience only; backend authorization remains authoritative. No SQL schema or permission seed changes were made by this UI/API implementation. The five PermissionCodes must exist and be assigned through the existing RBAC tables for users to see the corresponding categories.
 - Validation still pending in the target environment: SQL Server execution, permission matrix (401/403/category isolation), Jalali date boundaries, and browser end-to-end checks. Do not treat code inspection as runtime verification.
 
+
+
+## Danieli DWG authorization — 2026-11-05
+- `GET /api/danieli-dwgs` requires the effective `DWG_Danieli_View` PermissionCode.
+- `GET /api/danieli-dwg-file/:dwgId` requires the effective `DWG_Danieli_Download` PermissionCode.
+- Both checks are server-side and use the existing authenticated session permission set populated from `UserRoles -> Roles -> RolePermissions -> Permissions`. Frontend visibility is not the security boundary.
+- Runtime verification remains pending: unauthenticated 401, unauthorized 403, and independent View-only / Download-only / both-permission cases.
