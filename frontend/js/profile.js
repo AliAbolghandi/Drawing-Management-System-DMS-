@@ -218,7 +218,12 @@
     cropImage.src = cropObjectUrl;
   }
 
-  function cropViewportSize() { return Math.min(CROP_SIZE, Math.max(180, window.innerWidth - 80)); }
+  function cropViewportSize() {
+    const viewport = document.getElementById('dmsProfileCropViewport');
+    if (!viewport) return CROP_SIZE;
+    const style = window.getComputedStyle(viewport);
+    return Math.min(parseFloat(style.width) || CROP_SIZE, parseFloat(style.height) || CROP_SIZE);
+  }
   function renderCrop() {
     if (!cropImage) return;
     const scale = cropBaseScale * cropZoom;
@@ -233,9 +238,9 @@
     const ctx = canvas.getContext('2d');
     const scale = cropBaseScale * cropZoom;
     const drawW = cropImage.naturalWidth * scale, drawH = cropImage.naturalHeight * scale;
-    const sourceX = (size / 2 - cropX - drawW / 2) / scale;
-    const sourceY = (size / 2 - cropY - drawH / 2) / scale;
     const sourceSize = size / scale;
+    const sourceX = Math.max(0, Math.min(cropImage.naturalWidth - sourceSize, (drawW / 2 - size / 2 - cropX) / scale));
+    const sourceY = Math.max(0, Math.min(cropImage.naturalHeight - sourceSize, (drawH / 2 - size / 2 - cropY) / scale));
     ctx.drawImage(cropImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
     canvas.toBlob(blob => {
       if (!blob) return showMessage('Could not create the cropped image.', true);
@@ -331,7 +336,7 @@
     document.getElementById('dmsProfileZoom').addEventListener('input',e=>{cropZoom=Number(e.target.value)||1;renderCrop();});
     const cropViewport=document.getElementById('dmsProfileCropViewport');
     cropViewport.addEventListener('pointerdown',e=>{if(!cropImage)return;cropDragging=true;cropDragStartX=e.clientX;cropDragStartY=e.clientY;cropStartX=cropX;cropStartY=cropY;cropViewport.classList.add('dragging');cropViewport.setPointerCapture?.(e.pointerId);e.preventDefault();});
-    cropViewport.addEventListener('pointermove',e=>{if(!cropDragging)return;cropX=cropStartX+e.clientX-cropDragStartX;cropY=cropStartY+e.clientY-cropDragStartY;renderCrop();});
+    cropViewport.addEventListener('pointermove',e=>{if(!cropDragging)return;const size=cropViewportSize();const scale=cropBaseScale*cropZoom;const maxX=Math.max(0,(cropImage.naturalWidth*scale-size)/2);const maxY=Math.max(0,(cropImage.naturalHeight*scale-size)/2);cropX=Math.max(-maxX,Math.min(maxX,cropStartX+e.clientX-cropDragStartX));cropY=Math.max(-maxY,Math.min(maxY,cropStartY+e.clientY-cropDragStartY));renderCrop();});
     cropViewport.addEventListener('pointerup',e=>{cropDragging=false;cropViewport.classList.remove('dragging');try{cropViewport.releasePointerCapture?.(e.pointerId);}catch(_){} });
     document.getElementById('dmsProfileConfirmCancel').addEventListener('click',()=>document.getElementById('dmsProfileConfirmModal').classList.add('hidden'));
     document.getElementById('dmsProfileConfirmYes').addEventListener('click',commitChanges);
