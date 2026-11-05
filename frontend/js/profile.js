@@ -226,7 +226,12 @@
   }
   function renderCrop() {
     if (!cropImage) return;
+    const size = cropViewportSize();
     const scale = cropBaseScale * cropZoom;
+    const maxX = Math.max(0, (cropImage.naturalWidth * scale - size) / 2);
+    const maxY = Math.max(0, (cropImage.naturalHeight * scale - size) / 2);
+    cropX = Math.max(-maxX, Math.min(maxX, cropX));
+    cropY = Math.max(-maxY, Math.min(maxY, cropY));
     cropImage.style.width = `${cropImage.naturalWidth * scale}px`;
     cropImage.style.height = `${cropImage.naturalHeight * scale}px`;
     cropImage.style.transform = `translate(-50%, -50%) translate(${cropX}px, ${cropY}px)`;
@@ -336,7 +341,7 @@
     document.getElementById('dmsProfileZoom').addEventListener('input',e=>{cropZoom=Number(e.target.value)||1;renderCrop();});
     const cropViewport=document.getElementById('dmsProfileCropViewport');
     cropViewport.addEventListener('pointerdown',e=>{if(!cropImage)return;cropDragging=true;cropDragStartX=e.clientX;cropDragStartY=e.clientY;cropStartX=cropX;cropStartY=cropY;cropViewport.classList.add('dragging');cropViewport.setPointerCapture?.(e.pointerId);e.preventDefault();});
-    cropViewport.addEventListener('pointermove',e=>{if(!cropDragging)return;const size=cropViewportSize();const scale=cropBaseScale*cropZoom;const maxX=Math.max(0,(cropImage.naturalWidth*scale-size)/2);const maxY=Math.max(0,(cropImage.naturalHeight*scale-size)/2);cropX=Math.max(-maxX,Math.min(maxX,cropStartX+e.clientX-cropDragStartX));cropY=Math.max(-maxY,Math.min(maxY,cropStartY+e.clientY-cropDragStartY));renderCrop();});
+    cropViewport.addEventListener('pointermove',e=>{if(!cropDragging)return;cropX=cropStartX+e.clientX-cropDragStartX;cropY=cropStartY+e.clientY-cropDragStartY;renderCrop();});
     cropViewport.addEventListener('pointerup',e=>{cropDragging=false;cropViewport.classList.remove('dragging');try{cropViewport.releasePointerCapture?.(e.pointerId);}catch(_){} });
     document.getElementById('dmsProfileConfirmCancel').addEventListener('click',()=>document.getElementById('dmsProfileConfirmModal').classList.add('hidden'));
     document.getElementById('dmsProfileConfirmYes').addEventListener('click',commitChanges);
