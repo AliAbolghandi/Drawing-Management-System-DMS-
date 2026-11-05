@@ -408,7 +408,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 - The file delivery endpoint `GET /api/danieli-dwg-file/:dwgId` now requires `DWG_Danieli_Download`.
 - Frontend reads the effective permission codes from `GET /api/auth/me`; it requests and renders Danieli DWG metadata only with the View permission, and only starts the file download action when the Download permission is present.
 - Backend permission middleware remains authoritative for direct API requests. Existing parameterized DWG lookup, PathID root resolution, path containment validation and download audit logging are preserved. No SQL schema, permission records, or role assignments were changed.
-- Validation in this session: source-level changes only. JavaScript syntax, SQL Server, 401/403 permission matrix, browser behavior and actual file transfer have not yet been tested. Code commits: backend and frontend commits recorded in the Git history for this task; project-state documentation commit follows.
+- Validation in this session: source-level changes only. JavaScript syntax, SQL Server, 401/403 permission matrix, browser behavior and actual file transfer have not yet been tested. Commits: `fd383646c137889973d1858d7123579346a9674a` (backend authorization), `1761fe3fd948e1d3461f45fb4dbd6e4d76259d2b` (frontend permission-aware listing/download), `8467655ae95b668da3d00593cce14a781b802fde` (security changelog), and `516b1347b596bfd8cf8bed33ad217ca577f52266` (project state).
 
 ## DanieliDWG SQL import script — 2026-11-04
 
