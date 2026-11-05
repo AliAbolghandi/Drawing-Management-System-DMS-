@@ -119,6 +119,7 @@
         if (!list.some(x => String(x.DWGID) === String(dwg.DWGID))) list.push(dwg);
         state.dwgsByNodeId.set(id, list);
       });
+      ids.forEach(refreshStatus);
       ids.forEach(id => { if (Number(state.currentSelectedNode?.NodeID) === id) renderPdfs(id); });
     } catch (error) { console.error('DWG prefetch failed:', error); }
   }
@@ -147,11 +148,12 @@
   function refreshStatus(id) {
     const entry = state.nodeElements.get(id);
     if (!entry) return;
-    const pdf = state.pdfsByNodeId.has(id);
+    // Danieli is present when the Node has either a registered Danieli PDF or DWG.
+    const danieli = state.pdfsByNodeId.has(id) || (state.dwgsByNodeId.get(id) || []).length > 0;
     const srsc = state.srscNodeIds.has(id);
-    entry.row.classList.toggle('has-pdf', pdf && !srsc);
+    entry.row.classList.toggle('has-pdf', danieli && !srsc);
     entry.row.classList.toggle('has-srsc', srsc);
-    entry.row.classList.toggle('has-both', pdf && srsc);
+    entry.row.classList.toggle('has-both', danieli && srsc);
   }
 
   function createLabel(node) {
