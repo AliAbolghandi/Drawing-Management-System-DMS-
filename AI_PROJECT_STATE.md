@@ -418,6 +418,16 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Git commit: `6ae22e878cafa40c90c8c89b03b438a5c78ad9b7`.
 - Validation: inspected the uploaded CSV and confirmed its header plus 1,298 data rows, five columns, and PathID value 3 in the sample rows. The SQL script has been committed but has NOT been executed against SQL Server. The previously reported SQL Server error 7301 (BULK provider IID_IColumnsInfo) remains unresolved until the import is tested in the target SQL Server instance.
 
+## Danieli DWG included in Node status colors — 2026-11-05
+
+- Updated `frontend/js/script.js` so a Node is treated as having Danieli files when it has either a registered Danieli PDF or at least one registered Danieli DWG.
+- Existing status classes and CSS colors are preserved: Danieli only = orange (`has-pdf`); SRSC only = green (`has-srsc`); Danieli plus SRSC = green (`has-both`); neither = no status class / existing default appearance.
+- `prefetchDwgs()` now refreshes the affected Node status after DWG metadata is loaded, so orange/green status updates when DWGs arrive asynchronously.
+- Updated the `frontend/js/script.js` cache-busting query in `frontend/index.html`.
+- No database, API, RBAC, or security behavior changed.
+- Commits: `6b3799ec866f632d91993553ed816a4c9c73247d` (Node status logic) and `d8992e39abda98ffeda0c09c82e87d5fcb0b066a` (frontend cache version).
+- Validation: inspected the exact status-class logic, existing CSS color selectors, and DWG prefetch flow. Browser rendering, JavaScript runtime, and live API tests have not been run in this session.
+
 # NEXT ACTION
 
 1. Run `node --check backend/server.js` and `node --check frontend/js/script.js` on the deployed source.
