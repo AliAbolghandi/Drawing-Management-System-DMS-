@@ -365,7 +365,7 @@ app.get('/api/pdfs', auth.requirePermission('PDF_VIEW'), async (req,res)=>{
   } catch(e){sendServerError(res,'PDF query failed',e);}
 });
 
-app.get('/api/danieli-dwgs', auth.requirePermission('FILE_VIEW'), async(req,res)=>{
+app.get('/api/danieli-dwgs', auth.requirePermission('DWG_Danieli_View'), async(req,res)=>{
   try {
     let ids=null;
     if(req.query.nodeIds!==undefined) ids=String(req.query.nodeIds).split(',').map(Number);
@@ -384,7 +384,7 @@ app.get('/api/danieli-dwgs', auth.requirePermission('FILE_VIEW'), async(req,res)
   } catch(e){sendServerError(res,'Danieli DWG query failed',e);}
 });
 
-app.get('/api/danieli-dwg-file/:dwgId', auth.requirePermission('FILE_VIEW'), async(req,res)=>{
+app.get('/api/danieli-dwg-file/:dwgId', auth.requirePermission('DWG_Danieli_Download'), async(req,res)=>{
   const id=Number(req.params.dwgId);
   if(!Number.isInteger(id)||id<=0) return res.status(400).json({error:'Invalid DWG ID.'});
   try {
