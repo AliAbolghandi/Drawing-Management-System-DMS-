@@ -428,11 +428,18 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commits: `6b3799ec866f632d91993553ed816a4c9c73247d` (Node status logic) and `d8992e39abda98ffeda0c09c82e87d5fcb0b066a` (frontend cache version).
 - Validation: inspected the exact status-class logic, existing CSS color selectors, and DWG prefetch flow. Browser rendering, JavaScript runtime, and live API tests have not been run in this session.
 
+## Password policy update — 2026-11-07
+- User Management password validation now enforces length only: minimum 8 characters, maximum 256 characters. Uppercase, lowercase, and digit composition requirements have been removed.
+- Frontend: `frontend/js/user-management.js` updates the shared client validator and the New User, My Password, and Reset Password labels; `frontend/index.html` cache-busts the script as `20261107-password-length-only`.
+- Backend: `backend/auth.js` updates the shared `validateNewPassword()` used by user creation, Admin password reset, and Admin self-service password change. The profile-password endpoint already enforced length only and remains unchanged.
+- Password hashing (scrypt), current-password verification, session revocation, rate limiting, CSRF checks, and RBAC remain unchanged.
+- Validation: pending JavaScript syntax checks and runtime acceptance tests for passwords with lowercase-only, uppercase-only, digits-only, symbols, 7 characters, 8 characters, and 257 characters.
+
 # NEXT ACTION
 
-1. Run `node --check backend/server.js` and `node --check frontend/js/script.js` on the deployed source.
-2. Test Danieli DWG RBAC: no permissions (list 403, download 403), View only (list 200, download 403), Download only (list 403, download 200 for a known DWG ID), both permissions (list and download 200), and unauthenticated requests (401).
-3. Verify the UI lists Danieli DWGs only for `DWG_Danieli_View` and blocks the download action without `DWG_Danieli_Download`.
+1. Run `node --check backend/auth.js` and a JavaScript syntax check for `frontend/js/user-management.js` after deployment.
+2. Verify User Management password validation: accept any composition at 8–256 characters; reject fewer than 8 and more than 256 characters; confirm create/reset/self-change API behavior.
+3. Test Danieli DWG RBAC: no permissions (list 403, download 403), View only (list 200, download 403), Download only (list 403, download 200 for a known DWG ID), both permissions (list and download 200), and unauthenticated requests (401).
 4. Continue the pending SQL import validation for `SQL/Create_DanieliDWG.sql` and the 1,298 expected rows.
 
 ## Profile photo crop coordinate fix — 2026-11-05
