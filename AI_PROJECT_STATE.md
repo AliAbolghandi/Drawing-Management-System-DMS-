@@ -457,16 +457,16 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 
 ## Upload request-size limit — 2026-11-07
-- User decision: limit each upload request (including a selected folder and all its files) to a maximum aggregate HTTP body size of 500 MiB.
-- `backend/web.config` now configures IIS request filtering with `<requestLimits maxAllowedContentLength="524288000" />`. This limit applies to the complete multipart request, so multipart overhead counts toward the 500 MiB ceiling.
+- User decision: limit each upload request (including a selected folder and all its files) to a maximum aggregate HTTP body size of 500 MB.
+- `backend/web.config` now configures IIS request filtering with `<requestLimits maxAllowedContentLength="500000000" />`. This limit applies to the complete multipart request, so multipart overhead counts toward the 500 MB ceiling.
 - `backend/server.js` Multer limits were intentionally left unchanged: 1 GiB per file and 1,000 files per request. The IIS aggregate limit governs the total request size when traffic passes through this IIS application.
 - No API route, database, permission, RBAC, file-path, or audit behavior was changed.
 - Commit: `c87a5082644e54a29a4dd3bdcf22dfb7d73a9040` (IIS config); security documentation commit follows in Git history.
-- Validation: XML source structure inspected; no IIS runtime, deployed upload, or boundary-size test has been run. Confirm that the active IIS application for `/api/node-file-upload/:nodeId` uses this `backend/web.config`, then test a folder upload below 500 MiB and one exceeding the limit.
+- Validation: XML source structure inspected; no IIS runtime, deployed upload, or boundary-size test has been run. Confirm that the active IIS application for `/api/node-file-upload/:nodeId` uses this `backend/web.config`, then test a folder upload below 500 MB and one exceeding the limit.
 
 # NEXT ACTION
 
-1. Deploy the 500 MiB IIS request-size configuration to the active backend IIS application; verify the effective `web.config` location, then test aggregate folder uploads below and above the limit. After that, deploy the upload changes and test from the SRSC root: verify no upload is possible until one of `DWG`, `DOC`, `PIC`, or `Catalog` is selected, then verify files and selected folders land directly inside the selected folder with their internal structure preserved.
+1. Deploy the 500 MB IIS request-size configuration to the active backend IIS application; verify the effective `web.config` location, then test aggregate folder uploads below and above the limit. After that, deploy the upload changes and test from the SRSC root: verify no upload is possible until one of `DWG`, `DOC`, `PIC`, or `Catalog` is selected, then verify files and selected folders land directly inside the selected folder with their internal structure preserved.
 2. Open `DWG/Part` and upload both individual files and a selected/dropped folder; verify the destination is fixed to `DWG/Part`, no folder choice or manual subfolder field appears, and the selected folder name plus its contents are preserved.
 3. Verify upload permission denial (unauthenticated 401 and authenticated user without `FILE_Edit` 403) and confirm successful upload audit rows in `dbo.Logs`.
 4. Complete password-policy acceptance tests: accept any composition at 8–256 characters; reject fewer than 8 and more than 256; verify create/reset/self-change API behavior.
