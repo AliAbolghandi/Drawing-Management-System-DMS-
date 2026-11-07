@@ -435,13 +435,6 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Password hashing (scrypt), current-password verification, session revocation, rate limiting, CSRF checks, and RBAC remain unchanged.
 - Validation: pending JavaScript syntax checks and runtime acceptance tests for passwords with lowercase-only, uppercase-only, digits-only, symbols, 7 characters, 8 characters, and 257 characters.
 
-# NEXT ACTION
-
-1. Run `node --check backend/auth.js` and a JavaScript syntax check for `frontend/js/user-management.js` after deployment.
-2. Verify User Management password validation: accept any composition at 8–256 characters; reject fewer than 8 and more than 256 characters; confirm create/reset/self-change API behavior.
-3. Test Danieli DWG RBAC: no permissions (list 403, download 403), View only (list 200, download 403), Download only (list 403, download 200 for a known DWG ID), both permissions (list and download 200), and unauthenticated requests (401).
-4. Continue the pending SQL import validation for `SQL/Create_DanieliDWG.sql` and the 1,298 expected rows.
-
 ## Profile photo crop coordinate fix — 2026-11-05
 - Fixed the crop-to-source coordinate conversion in `frontend/js/profile.js`. The previous `sourceX` / `sourceY` expressions reversed the offset between the centered image and the viewport, selecting a different region for non-square images. The corrected expressions calculate the source square from the rendered image center minus the user's pan offset, then clamp the source rectangle to image bounds.
 - Crop viewport dimensions now come from its computed CSS dimensions rather than a separate viewport-width estimate, avoiding disagreement between the crop math and the responsive dialog size.
@@ -449,3 +442,23 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Updated the `frontend/index.html` profile script query version to `20261105-crop-fix` so browsers request the corrected JavaScript.
 - Commits: `30aff7a3397ec773bf3f8b2b9dad806b4206ff5f` (crop logic), `3bc02d46efcf365007454ab5e944444aea73edc3` (cache version), `c8ac4cc7d1595ea777993b1ac85168125d2b3564` (keep crop position within image after zoom changes).
 - Validation: source replacement checks passed. Browser interaction, visual review, and upload/API runtime tests have not been run; verify landscape, portrait, square, zoom, and drag cases in the target browser.
+
+
+## Upload destination behavior — 2026-11-07
+
+- Reworked `frontend/js/node-upload.js` so upload destination is determined by the current SRSC browser view.
+- From the SRSC root/grid (`currentSrscView.type === 'grid'`), the user must select one of `DWG`, `DOC`, `PIC`, or `Catalog`; uploads go directly into that selected top-level folder.
+- From any open folder (`currentSrscView.type === 'folder'`), the destination folder and subpath are taken from the current view and displayed as read-only. The target-folder choices and manually editable subfolder field are not available.
+- Removed the `upload-strip-row` checkbox and its `stripOuterFolder`, `commonTopSegment`, `autoDetectStrip`, and `effectiveRelativePath` logic. Selected file/folder relative paths are now passed unchanged, preserving the selected folder itself and its internal hierarchy below the fixed destination.
+- `frontend/index.html` removes the manual subfolder input, adds the fixed-destination display, and cache-busts `node-upload.js`. `frontend/css/node-upload.css` removes obsolete checkbox styling and styles the destination display.
+- No backend/API, SQL schema, permission, or RBAC changes. The existing upload API still validates the four allowed top-level folders, sanitizes relative paths, checks path containment, and enforces `FILE_Edit`.
+- Commits: `0e223a23ec3b901cc81f65bb029cb748cfb43848` (upload routing), `435e137e71ff5a60489dd107699aafd9242867d0` (dialog markup/cache version), `49b191a11c30f3e18b04805d901fb87eff013735` (upload dialog styles).
+- Validation: V8 JavaScript syntax parse passed for `frontend/js/node-upload.js`; source checks confirmed removal of strip/subfolder controls, fixed destination wiring, and preservation of selected relative paths. Browser upload, nested-folder, drag/drop, and live file-server tests remain pending.
+
+# NEXT ACTION
+
+1. Deploy the upload changes and test from the SRSC root: verify no upload is possible until one of `DWG`, `DOC`, `PIC`, or `Catalog` is selected, then verify files and selected folders land directly inside the selected folder with their internal structure preserved.
+2. Open `DWG/Part` and upload both individual files and a selected/dropped folder; verify the destination is fixed to `DWG/Part`, no folder choice or manual subfolder field appears, and the selected folder name plus its contents are preserved.
+3. Verify upload permission denial (unauthenticated 401 and authenticated user without `FILE_Edit` 403) and confirm successful upload audit rows in `dbo.Logs`.
+4. Complete password-policy acceptance tests: accept any composition at 8–256 characters; reject fewer than 8 and more than 256; verify create/reset/self-change API behavior.
+5. Test Danieli DWG RBAC and continue SQL import validation for `SQL/Create_DanieliDWG.sql` and the 1,298 expected rows.
