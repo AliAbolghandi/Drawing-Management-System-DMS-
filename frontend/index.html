@@ -226,15 +226,14 @@
       <div class="create-node-dialog-header">
         <div>
           <h2 id="uploadModalTitle">Upload Files</h2>
-          <p id="uploadModalDesc">Choose a company folder, then add files or drag a folder in.</p>
+          <p id="uploadModalDesc">Choose a company folder when uploading from the root, or upload directly to the folder currently open.</p>
         </div><button id="uploadModalClose" class="create-node-close" type="button" aria-label="Close">×</button>
       </div>
       <div class="upload-body">
-        <div class="create-node-field"><label>Target Folder *</label>
+        <div class="create-node-field" id="uploadFolderField"><label>Target Folder *</label>
           <div id="uploadFolderChoices" class="upload-folder-choices"></div>
         </div>
-        <div class="create-node-field"><label for="uploadSubPath">Subfolder (optional)</label><input id="uploadSubPath"
-            placeholder="e.g. Revision-A/Scans" autocomplete="off"></div>
+        <div id="uploadTargetPath" class="upload-target-path hidden" aria-live="polite"></div>
         <div id="uploadDropZone" class="upload-drop-zone">
           <div class="upload-drop-icon">⬆</div>
           <div class="upload-drop-text">Drag files or a folder here</div>
@@ -262,7 +261,7 @@
   <script src="js/profile.js?v=20261105-crop-fix"></script>
   <script src="js/node-actions.js"></script>
   <script src="js/node-create.js"></script>
-  <script src="js/node-upload.js"></script>
+  <script src="js/node-upload.js?v=20261107-upload-target-routing"></script>
   <script src="js/request-workflow.js?v=20261105-modal-notices"></script>
   <script src="js/expert-reports.js?v=20261018-expert-reports"></script>
   <script src="js/user-management.js?v=20261107-password-length-only"></script>
