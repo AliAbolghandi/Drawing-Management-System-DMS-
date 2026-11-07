@@ -192,3 +192,10 @@ For production:
 - `GET /api/danieli-dwg-file/:dwgId` requires the effective `DWG_Danieli_Download` PermissionCode.
 - Both checks are server-side and use the existing authenticated session permission set populated from `UserRoles -> Roles -> RolePermissions -> Permissions`. Frontend visibility is not the security boundary.
 - Runtime verification remains pending: unauthenticated 401, unauthorized 403, and independent View-only / Download-only / both-permission cases.
+
+
+## Password policy update — 2026-11-07
+- User Management password policy is length-only: minimum 8 and maximum 256 characters. No uppercase, lowercase, digit, or symbol composition rules are enforced.
+- The shared backend validator in `backend/auth.js` applies this policy to user creation, Admin password reset, and Admin self-service password change. The profile-password endpoint already uses the same length-only policy.
+- Frontend validation and labels in `frontend/js/user-management.js` match the backend policy. Passwords continue to be stored only as scrypt hashes; authentication, rate limiting, CSRF, and session-revocation controls are unchanged.
+- Runtime acceptance tests remain pending.
