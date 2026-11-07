@@ -434,8 +434,7 @@ function createAuth(frontendOrigins) {
   const userManagementGuard = [rateLimit, csrf, authenticate, requireAdmin()];
 
   function validateNewPassword(password) {
-    if (typeof password !== 'string' || password.length < 8 || password.length > 256) return 'New password must be between 8 and 256 characters.';
-    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) return 'Password must contain upper-case, lower-case letters and a digit.';
+    if (typeof password !== 'string' || password.length < 8 || password.length > 256) return 'New password must be 8 to 256 characters.';
     return null;
   }
 
