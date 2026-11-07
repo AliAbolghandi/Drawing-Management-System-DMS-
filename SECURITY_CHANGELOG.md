@@ -202,6 +202,6 @@ For production:
 
 
 ## Upload request-size limit — 2026-11-07
-- IIS request filtering in `backend/web.config` now caps the complete HTTP request body at 500 MiB (`maxAllowedContentLength=524288000`). For folder uploads, this is the combined size of all files plus multipart request overhead.
+- IIS request filtering in `backend/web.config` now caps the complete HTTP request body at 500 MB (`maxAllowedContentLength=500000000`). For folder uploads, this is the combined size of all files plus multipart request overhead.
 - The existing Multer limits remain unchanged: 1 GiB per file and up to 1,000 files per request. The IIS aggregate request limit is the effective lower ceiling for requests reaching this IIS application.
 - Authentication, `FILE_Edit` authorization, path validation, and upload audit behavior are unchanged. Deploy/runtime validation is pending.
