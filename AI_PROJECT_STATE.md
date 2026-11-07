@@ -461,7 +461,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 - `backend/web.config` now configures IIS request filtering with `<requestLimits maxAllowedContentLength="500000000" />`. This limit applies to the complete multipart request, so multipart overhead counts toward the 500 MB ceiling.
 - `backend/server.js` Multer limits were intentionally left unchanged: 1 GiB per file and 1,000 files per request. The IIS aggregate limit governs the total request size when traffic passes through this IIS application.
 - No API route, database, permission, RBAC, file-path, or audit behavior was changed.
-- Commit: `c87a5082644e54a29a4dd3bdcf22dfb7d73a9040` (IIS config); security documentation commit follows in Git history.
+- Commit: `abbd1c2aa7236283478d6a3cb1430ca373b3e851` (IIS config); security documentation commit follows in Git history.
 - Validation: XML source structure inspected; no IIS runtime, deployed upload, or boundary-size test has been run. Confirm that the active IIS application for `/api/node-file-upload/:nodeId` uses this `backend/web.config`, then test a folder upload below 500 MB and one exceeding the limit.
 
 # NEXT ACTION
