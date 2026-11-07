@@ -10,7 +10,8 @@
   const cancelBtn = $('uploadCancelBtn');
   const submitBtn = $('uploadSubmitBtn');
   const folderChoices = $('uploadFolderChoices');
-  const subPathInput = $('uploadSubPath');
+  const folderField = $('uploadFolderField');
+  const targetPathDisplay = $('uploadTargetPath');
   const dropZone = $('uploadDropZone');
   const browseFilesBtn = $('uploadBrowseFilesBtn');
   const browseFolderBtn = $('uploadBrowseFolderBtn');
@@ -28,34 +29,11 @@
   }
 
   let selectedFolder = null;
+  let targetSubPath = '';
   let files = []; // { file, relativePath }
-  let stripOuterFolder = false;
 
   function getState() { return window.DMS && window.DMS.state ? window.DMS.state : null; }
   function apiBase() { return (window.DMS?.apiUrl || '').replace(/\/nodes$/, ''); }
-
-  // When every selected file shares the same first path segment (a single dropped/browsed
-  // folder), returns that segment's name; otherwise null.
-  function commonTopSegment() {
-    if (!files.length) return null;
-    const first = files[0].relativePath.split('/')[0];
-    if (!first) return null;
-    return files.every(f => f.relativePath.split('/')[0] === first) ? first : null;
-  }
-
-  // Auto-suggests stripping the outer folder when its name matches the chosen target
-  // (e.g. dragging/browsing the "DWG" folder itself while "DWG" is the target — the
-  // bug this avoids is ending up with DWG/DWG/...). The user can still override it.
-  function autoDetectStrip() {
-    const top = commonTopSegment();
-    stripOuterFolder = Boolean(top && selectedFolder && top.toLowerCase() === selectedFolder.toLowerCase());
-  }
-
-  function effectiveRelativePath(entry) {
-    if (!stripOuterFolder) return entry.relativePath;
-    const parts = entry.relativePath.split('/');
-    return parts.length > 1 ? parts.slice(1).join('/') : parts[0];
-  }
 
   function escapeHtmlLocal(value) {
     return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -79,7 +57,6 @@
     folderChoices.querySelectorAll('.upload-folder-pill').forEach(btn => {
       btn.addEventListener('click', () => {
         selectedFolder = btn.dataset.folder;
-        autoDetectStrip();
         renderFolderChoices();
         renderFileList();
         updateSubmitState();
@@ -92,22 +69,15 @@
     fileListBox.classList.remove('hidden');
     const totalSize = files.reduce((sum, f) => sum + (f.file.size || 0), 0);
     const shown = files.slice(0, 200);
-    const topSegment = commonTopSegment();
-    const stripRow = topSegment
-      ? `<label class="upload-strip-row"><input type="checkbox" id="uploadStripOuter"${stripOuterFolder ? ' checked' : ''}> These files are inside an outer "${escapeHtmlLocal(topSegment)}" folder — upload its contents directly, without nesting</label>`
-      : '';
     fileListBox.innerHTML =
       `<div class="upload-file-summary">${files.length} file${files.length === 1 ? '' : 's'} selected · ${formatSize(totalSize)} <button type="button" id="uploadClearBtn" class="upload-clear-btn">Clear</button></div>` +
-      stripRow +
       `<div class="upload-file-rows">${shown.map((f, i) =>
         `<div class="upload-file-row"><span class="upload-file-name">${escapeHtmlLocal(f.relativePath)}</span><span class="upload-file-size">${formatSize(f.file.size)}</span><button type="button" class="upload-file-remove" data-index="${i}" aria-label="Remove">×</button></div>`
       ).join('')}${files.length > shown.length ? `<div class="upload-file-more">+ ${files.length - shown.length} more</div>` : ''}</div>`;
     $('uploadClearBtn')?.addEventListener('click', () => { files = []; renderFileList(); updateSubmitState(); });
-    $('uploadStripOuter')?.addEventListener('change', (event) => { stripOuterFolder = event.target.checked; });
     fileListBox.querySelectorAll('.upload-file-remove').forEach(btn => {
       btn.addEventListener('click', () => {
         files.splice(Number(btn.dataset.index), 1);
-        autoDetectStrip();
         renderFileList();
         updateSubmitState();
       });
@@ -121,12 +91,6 @@
   function addFiles(newFiles) {
     if (!newFiles || !newFiles.length) return;
     files = files.concat(newFiles);
-    if (!selectedFolder) {
-      const top = commonTopSegment();
-      const match = top && SRSC_FOLDERS.find(name => name.toLowerCase() === top.toLowerCase());
-      if (match) selectedFolder = match;
-    }
-    autoDetectStrip();
     renderFolderChoices();
     renderFileList();
     updateSubmitState();
@@ -180,9 +144,8 @@
 
   function resetModal() {
     selectedFolder = null;
+    targetSubPath = '';
     files = [];
-    stripOuterFolder = false;
-    subPathInput.value = '';
     clearError();
     progressWrap.classList.add('hidden');
     progressFill.style.width = '0%';
@@ -197,8 +160,6 @@
     const node = getState()?.currentSelectedNode;
     if (!node) { alert('Select a Node from the tree first.'); return; }
 
-    // If the user is currently browsing an SRSC folder, use that exact location
-    // as the default upload destination.
     const currentView = window.DMS?.getCurrentSrscView?.();
     const currentFolder = currentView?.type === 'folder' ? currentView.folder : null;
     const currentSubPath = currentView?.type === 'folder' ? (currentView.subPath || '') : '';
@@ -209,15 +170,25 @@
       const match = SRSC_FOLDERS.find(
         name => name.toLowerCase() === String(currentFolder).toLowerCase()
       );
-      if (match) {
-        selectedFolder = match;
-        subPathInput.value = currentSubPath;
-        renderFolderChoices();
-        renderFileList();
-        updateSubmitState();
+      if (!match) {
+        showError('The current folder is not a valid upload destination.');
+        return;
       }
+      selectedFolder = match;
+      targetSubPath = currentSubPath;
+      folderField?.classList.add('hidden');
+      if (targetPathDisplay) {
+        targetPathDisplay.textContent = `Upload destination: ${[match, ...(currentSubPath ? currentSubPath.split('/') : [])].join('/')}`;
+        targetPathDisplay.classList.remove('hidden');
+      }
+    } else {
+      folderField?.classList.remove('hidden');
+      targetPathDisplay?.classList.add('hidden');
     }
 
+    renderFolderChoices();
+    renderFileList();
+    updateSubmitState();
     modal.classList.remove('hidden');
   }
 
@@ -290,8 +261,8 @@
 
     const formData = new FormData();
     formData.append('folder', selectedFolder);
-    formData.append('subPath', subPathInput.value.trim());
-    files.forEach(f => formData.append('relativePaths', effectiveRelativePath(f)));
+    formData.append('subPath', targetSubPath);
+    files.forEach(f => formData.append('relativePaths', f.relativePath));
     files.forEach(f => formData.append('files', f.file, f.file.name));
 
     const nodeId = Number(node.NodeID);
