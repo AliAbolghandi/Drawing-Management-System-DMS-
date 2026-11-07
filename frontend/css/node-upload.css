@@ -204,22 +204,15 @@
     border-bottom: 1px solid var(--line);
 }
 
-.upload-strip-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 8px 12px;
-    background: rgba(232, 163, 61, .08);
-    border-bottom: 1px solid var(--line);
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.4;
-    cursor: pointer;
-}
-
-.upload-strip-row input {
-    margin-top: 2px;
-    flex: 0 0 auto;
+.upload-target-path {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-2, rgba(255, 255, 255, .03));
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--mono);
 }
 
 .upload-clear-btn {
