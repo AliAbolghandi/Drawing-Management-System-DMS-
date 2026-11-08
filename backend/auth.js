@@ -10,6 +10,8 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 8;
 const API_WINDOW_MS = 60 * 1000;
 const API_MAX_REQUESTS = 240;
+const SEARCH_API_WINDOW_MS = 60 * 1000;
+const SEARCH_API_MAX_REQUESTS = 20;
 const AUTH_REFRESH_MS = 15 * 1000;
 
 function createAuth(frontendOrigins) {
@@ -17,6 +19,7 @@ function createAuth(frontendOrigins) {
   const sessions = new Map();
   const loginAttempts = new Map();
   const apiRateLimits = new Map();
+  const searchRateLimits = new Map();
   const accountAttempts = new Map();
 
   const clientIp = req => String(req.ip || req.socket.remoteAddress || '').trim();
@@ -164,13 +167,29 @@ function createAuth(frontendOrigins) {
   }
 
   function rateLimit(req, res, next) {
-    const key = clientIp(req), now = Date.now();
+    if (!req.user?.userId) return res.status(401).json({ error: 'Authentication required.' });
+    // Search has its own budget and must not consume the general API allowance.
+    if (req.path === '/nodes/search') return next();
+    const key = String(req.user.userId), now = Date.now();
     let state = apiRateLimits.get(key);
     if (!state || now - state.startedAt >= API_WINDOW_MS) { state = { startedAt: now, count: 0 }; apiRateLimits.set(key, state); }
     state.count++;
     if (state.count > API_MAX_REQUESTS) {
       res.setHeader('Retry-After', String(Math.max(1, Math.ceil((API_WINDOW_MS - (now - state.startedAt)) / 1000))));
-      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+      return res.status(429).json({ error: 'API request limit exceeded. Please try again later.' });
+    }
+    next();
+  }
+
+  function searchRateLimit(req, res, next) {
+    if (!req.user?.userId) return res.status(401).json({ error: 'Authentication required.' });
+    const key = String(req.user.userId), now = Date.now();
+    let state = searchRateLimits.get(key);
+    if (!state || now - state.startedAt >= SEARCH_API_WINDOW_MS) { state = { startedAt: now, count: 0 }; searchRateLimits.set(key, state); }
+    state.count++;
+    if (state.count > SEARCH_API_MAX_REQUESTS) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil((SEARCH_API_WINDOW_MS - (now - state.startedAt)) / 1000))));
+      return res.status(429).json({ error: 'Search limit exceeded. Please wait before searching again.' });
     }
     next();
   }
@@ -732,8 +751,8 @@ function createAuth(frontendOrigins) {
     }
   });
 
-  function cleanup(){const now=Date.now();for(const[token,s]of sessions)if(s.expiresAt<=now)sessions.delete(token);for(const[ip,s]of loginAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)loginAttempts.delete(ip);for(const[k,s]of accountAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)accountAttempts.delete(k);for(const[ip,s]of apiRateLimits)if(now-s.startedAt>API_WINDOW_MS)apiRateLimits.delete(ip);}
-  return { router, securityHeaders, authenticate, requirePermission, requireAdmin, writeAudit, apiSecurity:(req,res,next)=>rateLimit(req,res,err=>{if(err)return next(err);csrf(req,res,next);}), authenticatePage, authenticateAdminPage, cleanup };
+  function cleanup(){const now=Date.now();for(const[token,s]of sessions)if(s.expiresAt<=now)sessions.delete(token);for(const[ip,s]of loginAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)loginAttempts.delete(ip);for(const[k,s]of accountAttempts)if(s.blockedUntil<=now&&now-s.firstAt>LOGIN_WINDOW_MS)accountAttempts.delete(k);for(const[k,s]of apiRateLimits)if(now-s.startedAt>API_WINDOW_MS)apiRateLimits.delete(k);for(const[k,s]of searchRateLimits)if(now-s.startedAt>SEARCH_API_WINDOW_MS)searchRateLimits.delete(k);}
+  return { router, securityHeaders, authenticate, requirePermission, requireAdmin, writeAudit, apiSecurity:csrf, apiRateLimit:rateLimit, searchRateLimit, authenticatePage, authenticateAdminPage, cleanup };
 }
 
 module.exports={createAuth};
