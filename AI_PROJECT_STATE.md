@@ -1,3 +1,18 @@
+# Current task — Optional child scope in Advance Search (2026-11-08)
+
+- Updated the Advance Search form so `advanceSearchBranch` is optional; only `advanceSearchParent` and `advanceSearchQuery` are required.
+- On submit, if a child branch is selected, the search scope is that child and its descendants. If `advanceSearchBranch` is empty, the search scope is the selected `advanceSearchParent` and its entire descendant subtree.
+- Reused `executeSearch(query, scopeNodeId, ...)` and the existing parameterized `rootNodeId` API. No backend, SQL schema, or RBAC changes.
+- Updated the child selector placeholder to communicate that leaving it empty searches the entire selected first-level branch.
+- Commits: `frontend/js/script.js` `aec9d47940448ebd357c5283e8597970deb58c62`; `frontend/index.html` markup `1529dc320d2f0a05b222437c5e9a5d2783275e00` and cache bust `911991c01eef3bae62982cf9477ccce6e9b4a90a`.
+- Validation: inspected the exact frontend/API call chain and verified source replacements. Browser behavior, JavaScript syntax, SQL Server execution, and authorization/rate-limit integration tests have not been run.
+
+## NEXT ACTION
+1. Hard-refresh the deployed DMS and test Advance Search with a parent selected and child branch left empty; results must include matches anywhere under that parent.
+2. Select a child branch and verify results remain restricted to that child subtree.
+3. Confirm the rest of the equipment tree remains visible and existing result navigation still works.
+4. Run JavaScript syntax checks and verify the existing 401, 403, and search rate-limit behavior.
+
 # Current task — Advance Search modal click fix (2026-11-08)
 
 - User reported that clicking `advanceSearchOpenBtn` did nothing; no screenshot was required.
