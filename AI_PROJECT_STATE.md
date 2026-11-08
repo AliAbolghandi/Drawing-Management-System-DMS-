@@ -1,4 +1,14 @@
-# Current task — User Management API middleware regression fix (2026-11-08)
+# Current task — Preserve the complete equipment tree during search (2026-11-08)
+
+- User requirement: search must not replace/filter the normal equipment tree. All roots, siblings, previously loaded branches and normal lazy loading must remain intact.
+- Root cause: `renderSearchTree()` cleared `treeContainer` and rebuilt it using only SQL search matches and their ancestors; `searchMode/searchTreeChildren` then limited child loading to this filtered subset.
+- Fix: removed the dedicated search-tree rendering/cache mode. Search now validates SQL-provided ancestor paths, expands those ancestors through the normal `getChildren()` API (therefore loading every sibling under each expanded parent), and highlights the matching rows in the existing tree. Clearing the query removes search highlighting and does not reload or clear the tree.
+- Search result count, SQL source of truth, query cache, single-flight guard, and per-user rate limits are unchanged.
+- Files: `frontend/js/script.js`, `frontend/index.html`, `AI_PROJECT_STATE.md`.
+- Commit: script `03831c5dce248a8569b894c66b4e3cc23054a2a7`; cache bust and project-state commits recorded below.
+- Validation: source-level inspection confirms `searchMode`, `searchTreeChildren`, and `renderSearchTree` are removed. Browser behavior, JavaScript syntax check, and SQL Server integration tests remain pending. Taste Skill `SKILL.md` was read; the referenced `app-screens.md` path returned 404. No visual redesign was made.
+
+# Previous task — User Management API middleware regression fix (2026-11-08)
 
 - Root cause: `rateLimit` was moved to require `req.user.userId`, but `userManagementGuard` still ran it before `authenticate`. This caused every User Management API request to return HTTP 401 before the session was attached to the request.
 - Fixed middleware order to `[csrf, authenticate, rateLimit, requireAdmin()]`. CSRF validation remains before authenticated state-changing operations; authenticated per-user rate limiting now runs after session authentication; Admin authorization remains server-side.
@@ -8,7 +18,7 @@
 
 
 ## Implemented status
-- Search results are sourced from SQL Server API output, not the client's previously loaded tree state. All matching Nodes and their complete ancestor paths are rendered in a dedicated search tree; the displayed total is `data.matchIds.length`.
+- Search results are sourced from SQL Server API output, not the client's previously loaded tree state. The original equipment tree is preserved; each result's ancestor path is expanded in that same tree, without filtering or replacing sibling nodes. Matching Nodes are highlighted and the displayed total is `data.matchIds.length`.
 - Search requests are single-flight, the Search button is disabled while running, and successful exact-query responses are cached for 30 seconds (up to 20 query entries).
 - General protected API traffic is limited to 240 requests per authenticated UserID per minute. Node search has an independent limit of 20 requests per authenticated UserID per minute and does not consume the general API counter.
 - Main implementation commits: `1605722b6993a33227a1ef92e9b9b8847cab2268`, `26185eadee0c3684deca47828b4f280605b78c08`, `1d775cb471456e523673789c987dd7b51cf03755`, `ba5b2834c7de6676833107878a6e405acca397af`, `ef1a48068a67b034e42f7abf8b4e7427405b3e0f`, `fc32c5846e60679b6aba83913c472ddb7c382b13`, `b9d25a464a62e3daf7742b91ffd8cf1a189103e6`, `2795adb8e10c40715443184625f3d552fff72ed5`.
@@ -495,7 +505,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-1. Run `node --check` for `backend/auth.js`, `backend/server.js`, and `frontend/js/script.js`; then test User Management as Admin (modal and list load) and as non-Admin (API must return 403), plus unauthenticated access (401).
+1. Run `node --check` for `frontend/js/script.js`; in the browser, search for Nodes under unloaded branches and verify the full tree and siblings remain present, result paths expand, all matches highlight, clearing search preserves expanded branches, and normal manual expansion still works. Also run the pending User Management Admin/non-Admin and 401/403 tests.
 2. In a browser with SQL Server connected, search a term that returns matches under unloaded branches. Confirm every match is rendered, the counter equals SQL `matchIds.length`, and the same query returns the same result IDs/count for two users with `NODE_VIEW`.
 3. Test repeated Search clicks and Enter during an active search; confirm only one request runs, the button disables/re-enables, and repeated identical searches within 30 seconds use cache. Clear the query and confirm the normal full tree returns.
 4. Test rate limits: two users sharing one client IP retain independent 240/min API budgets; Search allows 20/min per user without consuming the general API counter; the 21st search returns 429 with `Retry-After`; unauthenticated search returns 401 and a user without `NODE_VIEW` returns 403.
