@@ -4,7 +4,7 @@
 - Search results are sourced from SQL Server API output, not the client's previously loaded tree state. All matching Nodes and their complete ancestor paths are rendered in a dedicated search tree; the displayed total is `data.matchIds.length`.
 - Search requests are single-flight, the Search button is disabled while running, and successful exact-query responses are cached for 30 seconds (up to 20 query entries).
 - General protected API traffic is limited to 240 requests per authenticated UserID per minute. Node search has an independent limit of 20 requests per authenticated UserID per minute and does not consume the general API counter.
-- Main implementation commits: `1605722b6993a33227a1ef92e9b9b8847cab2268`, `26185eadee0c3684deca47828b4f280605b78c08`, `1d775cb471456e523673789c987dd7b51cf03755`, `ba5b2834c7de6676833107878a6e405acca397af`, `ef1a48068a67b034e42f7abf8b4e7427405b3e0f`, `fc32c5846e60679b6aba83913c472ddb7c382b13`, `2795adb8e10c40715443184625f3d552fff72ed5`.
+- Main implementation commits: `1605722b6993a33227a1ef92e9b9b8847cab2268`, `26185eadee0c3684deca47828b4f280605b78c08`, `1d775cb471456e523673789c987dd7b51cf03755`, `ba5b2834c7de6676833107878a6e405acca397af`, `ef1a48068a67b034e42f7abf8b4e7427405b3e0f`, `fc32c5846e60679b6aba83913c472ddb7c382b13`, `b9d25a464a62e3daf7742b91ffd8cf1a189103e6`, `2795adb8e10c40715443184625f3d552fff72ed5`.
 - Code has been committed to `main`. Syntax, browser, SQL Server, shared-IP, and 401/403/429 runtime tests remain pending.
 
 # Previous task — Audit Management UI and read-only search (2026-11-01)
