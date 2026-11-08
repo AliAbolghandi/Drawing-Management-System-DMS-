@@ -32,6 +32,10 @@
   };
 
   const $ = id => document.getElementById(id);
+  // Delegate this control early so later initialization cannot prevent the modal trigger from binding.
+  document.addEventListener('click', event => {
+    if (event.target.closest('#advanceSearchOpenBtn')) openAdvanceSearch();
+  });
   const tree = $('treeContainer');
   const searchInput = $('searchInput');
   const searchButton = $('searchBtn');
@@ -572,7 +576,6 @@
     }
   });
 
-  $('advanceSearchOpenBtn')?.addEventListener('click', openAdvanceSearch);
   $('advanceSearchCloseBtn')?.addEventListener('click', closeAdvanceSearch);
   $('advanceSearchCancelBtn')?.addEventListener('click', closeAdvanceSearch);
   advanceSearchModal?.addEventListener('click', event => { if (event.target === advanceSearchModal) closeAdvanceSearch(); });
