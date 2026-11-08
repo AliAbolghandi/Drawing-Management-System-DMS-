@@ -60,6 +60,31 @@
       color: var(--ok) !important
     }
   </style>
+  <style id="dmsAdvanceSearchStyles">
+    .search-box #advanceSearchOpenBtn{flex:none;border:1px solid var(--cyan-dim);background:rgba(111,227,255,.08);color:var(--cyan);font-size:11.5px;font-weight:600;padding:0 12px;border-radius:var(--radius)}
+    .search-box #advanceSearchOpenBtn:hover{background:rgba(111,227,255,.15);border-color:var(--cyan)}
+    .advance-search-modal{position:fixed;inset:0;z-index:3100;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,10,20,.78)}
+    .advance-search-modal.hidden{display:none!important}
+    .advance-search-dialog{width:min(520px,96vw);border:1px solid var(--line-strong);border-radius:12px;background:var(--panel);box-shadow:0 24px 80px rgba(0,0,0,.55);overflow:hidden}
+    .advance-search-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid var(--line)}
+    .advance-search-header h2{font-size:15px;font-weight:600;color:var(--text)}
+    .advance-search-header p{margin-top:4px;color:var(--text-faint);font-size:11px}
+    .advance-search-close{width:32px;height:32px;border:1px solid var(--line-strong);border-radius:7px;background:var(--panel-2);color:var(--text);font-size:22px;cursor:pointer}
+    .advance-search-form{display:grid;gap:14px;padding:18px}
+    .advance-search-field{display:grid;gap:7px}
+    .advance-search-field label{font-size:11px;font-weight:600;color:var(--text-dim)}
+    .advance-search-field select,.advance-search-field input{width:100%;height:39px;padding:0 11px;border:1px solid var(--line-strong);border-radius:var(--radius);outline:none;background:var(--panel-2);color:var(--text);font:12px var(--sans)}
+    .advance-search-field select:focus,.advance-search-field input:focus{border-color:var(--cyan-dim);box-shadow:0 0 0 2px rgba(111,227,255,.08)}
+    .advance-search-field select:disabled{opacity:.55;cursor:not-allowed}
+    .advance-search-error{padding:9px 10px;border:1px solid rgba(239,107,107,.3);border-radius:7px;background:rgba(239,107,107,.08);color:var(--danger);font-size:11px}
+    .advance-search-error.hidden{display:none}
+    .advance-search-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+    .advance-search-actions button{min-height:35px;padding:0 13px;border:1px solid var(--line-strong);border-radius:7px;font-size:11px;font-weight:600}
+    .advance-search-cancel{background:var(--panel-2);color:var(--text-dim)}
+    .advance-search-submit{border-color:var(--cyan-dim)!important;background:rgba(111,227,255,.1);color:var(--cyan)}
+    .advance-search-actions button:disabled{opacity:.55;cursor:wait}
+    @media(max-width:560px){.advance-search-modal{padding:10px}.advance-search-dialog{width:100%}.advance-search-form{padding:14px}}
+  </style>
   <style id="dmsManagementModalStyles">
     .dms-management-modal{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;padding:2vh 2vw;background:rgba(5,10,20,.78)}
     .dms-management-dialog{display:flex;flex-direction:column;width:min(1800px,96vw);height:94vh;overflow:hidden;border:1px solid var(--line-strong,#334155);border-radius:12px;background:var(--panel,#101827);box-shadow:0 24px 80px rgba(0,0,0,.55)}
@@ -137,7 +162,7 @@
             id="collapseAllBtn" type="button">Collapse All</button></div>
       </div>
       <div class="search-box"><input type="search" id="searchInput" placeholder="Search by node code or name..."
-          autocomplete="off" aria-label="Search nodes"><button id="searchBtn" type="button">Search</button></div>
+          autocomplete="off" aria-label="Search nodes"><button id="searchBtn" type="button">Search</button><button id="advanceSearchOpenBtn" type="button">Advance Search</button></div>
       <div id="searchInfo" class="search-info hidden"></div>
       <div id="treeContainer" class="tree-container">
         <div class="loading">Loading equipment structure...</div>
@@ -190,6 +215,18 @@
       </div>
     </section>
   </main>
+  <div id="advanceSearchModal" class="advance-search-modal hidden" role="dialog" aria-modal="true" aria-labelledby="advanceSearchTitle">
+    <div class="advance-search-dialog">
+      <div class="advance-search-header"><div><h2 id="advanceSearchTitle">Advance Search</h2><p>Search within a selected equipment branch.</p></div><button id="advanceSearchCloseBtn" class="advance-search-close" type="button" aria-label="Close">×</button></div>
+      <form id="advanceSearchForm" class="advance-search-form">
+        <div class="advance-search-field"><label for="advanceSearchParent">First-level branch</label><select id="advanceSearchParent" required><option value="">Select a branch...</option></select></div>
+        <div class="advance-search-field"><label for="advanceSearchBranch">Child branch</label><select id="advanceSearchBranch" required disabled><option value="">Select a branch first...</option></select></div>
+        <div class="advance-search-field"><label for="advanceSearchQuery">Search text</label><input id="advanceSearchQuery" type="search" maxlength="255" required autocomplete="off" placeholder="Enter node code or name..."></div>
+        <div id="advanceSearchError" class="advance-search-error hidden" role="alert"></div>
+        <div class="advance-search-actions"><button id="advanceSearchCancelBtn" type="button" class="advance-search-cancel">Cancel</button><button id="advanceSearchSubmitBtn" type="submit" class="advance-search-submit">Advance Search</button></div>
+      </form>
+    </div>
+  </div>
   <div id="createNodeModal" class="create-node-modal hidden" role="dialog" aria-modal="true"
     aria-labelledby="createNodeTitle">
     <div class="create-node-dialog">
@@ -257,7 +294,7 @@
     </div>
   </div>
   <script>(() => { const hasFiles = event => event.dataTransfer && Array.from(event.dataTransfer.types || []).includes('Files'); document.addEventListener('dragover', event => { if (hasFiles(event)) event.preventDefault(); }, true); document.addEventListener('drop', event => { if (hasFiles(event) && document.getElementById('uploadModal') && !document.getElementById('uploadModal').classList.contains('hidden')) event.preventDefault(); }, true); })();</script>
-  <script src="js/script.js?v=20261108-full-tree-search-v1"></script>
+  <script src="js/script.js?v=20261108-full-tree-search-v1?v=20261108-advance-search"></script>
   <script src="js/profile.js?v=20261105-crop-fix"></script>
   <script src="js/node-actions.js"></script>
   <script src="js/node-create.js"></script>
