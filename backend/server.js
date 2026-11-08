@@ -109,7 +109,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/auth', auth.router);
-app.use('/api', auth.apiSecurity, auth.authenticate);
+app.use('/api', auth.apiSecurity, auth.authenticate, auth.apiRateLimit);
 
 const auditRouter = express.Router();
 registerAuditRoutes(auditRouter, { sql, rateLimit: (req, res, next) => next(), authenticate: (req, res, next) => next() });
@@ -204,7 +204,7 @@ app.get('/api/nodes', auth.requirePermission('NODE_VIEW'), async (req, res) => {
   } catch (e) { sendServerError(res, 'Nodes query failed', e); }
 });
 
-app.get('/api/nodes/search', auth.requirePermission('NODE_VIEW'), async (req, res) => {
+app.get('/api/nodes/search', auth.requirePermission('NODE_VIEW'), auth.searchRateLimit, async (req, res) => {
   const text = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (!text) return res.json({ matches: [], ancestorIds: [], matchIds: [], visibleNodes: [] });
   try {
