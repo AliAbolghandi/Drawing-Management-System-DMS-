@@ -1,4 +1,11 @@
-# Current task — SQL-backed node search and per-user request limits (2026-11-08)
+# Current task — User Management API middleware regression fix (2026-11-08)
+
+- Root cause: `rateLimit` was moved to require `req.user.userId`, but `userManagementGuard` still ran it before `authenticate`. This caused every User Management API request to return HTTP 401 before the session was attached to the request.
+- Fixed middleware order to `[csrf, authenticate, rateLimit, requireAdmin()]`. CSRF validation remains before authenticated state-changing operations; authenticated per-user rate limiting now runs after session authentication; Admin authorization remains server-side.
+- Files: `backend/auth.js`, `AI_PROJECT_STATE.md`.
+- Validation: source-level middleware-order check only. Runtime Admin/non-Admin, 401/403/429, browser modal, and SQL Server tests remain pending.
+
+
 
 ## Implemented status
 - Search results are sourced from SQL Server API output, not the client's previously loaded tree state. All matching Nodes and their complete ancestor paths are rendered in a dedicated search tree; the displayed total is `data.matchIds.length`.
