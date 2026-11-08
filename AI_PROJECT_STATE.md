@@ -1,12 +1,19 @@
-# Current task — Preserve the complete equipment tree during search (2026-11-08)
+# Current task — Scoped Advance Search (2026-11-08)
 
-- User requirement: search must not replace/filter the normal equipment tree. All roots, siblings, previously loaded branches and normal lazy loading must remain intact.
-- Root cause: `renderSearchTree()` cleared `treeContainer` and rebuilt it using only SQL search matches and their ancestors; `searchMode/searchTreeChildren` then limited child loading to this filtered subset.
-- Fix: removed the dedicated search-tree rendering/cache mode. Search now validates SQL-provided ancestor paths, expands those ancestors through the normal `getChildren()` API (therefore loading every sibling under each expanded parent), and highlights the matching rows in the existing tree. Clearing the query removes search highlighting and does not reload or clear the tree.
-- Search result count, SQL source of truth, query cache, single-flight guard, and per-user rate limits are unchanged.
-- Files: `frontend/js/script.js`, `frontend/index.html`, `AI_PROJECT_STATE.md`.
-- Commits: script `03831c5dce248a8569b894c66b4e3cc23054a2a7`; index cache bust `b9537cf869423403e851dc6e07743bfecc381dee`.
-- Validation: source-level inspection confirms `searchMode`, `searchTreeChildren`, and `renderSearchTree` are removed. Browser behavior, JavaScript syntax check, and SQL Server integration tests remain pending. Taste Skill `SKILL.md` was read; the referenced `app-screens.md` path returned 404. No visual redesign was made.
+- Added an Advance Search button beside the standard Search control and a modal with two dependent branch selectors plus a search-text field.
+- Selector 1 lists children of every SQL root node, grouped by root. Selector 2 loads direct children of the selected first-level branch. Search scope is the selected second-level Node and all descendants, including the selected Node.
+- Frontend reuses the existing search-result pipeline. It does not rebuild or filter the tree; unrelated roots, siblings and branches remain visible. Match highlighting, result count, Previous/Next navigation and node selection are shared with standard Search.
+- `GET /api/nodes/search` accepts optional `rootNodeId`. SQL recursive CTE restricts matches to that Node's subtree while returning complete ancestors for tree path expansion.
+- Existing `NODE_VIEW` authorization and `auth.searchRateLimit` remain enforced. The root ID is validated and all SQL values are parameterized. No schema or RBAC changes.
+- Files: `frontend/index.html`, `frontend/js/script.js`, `backend/server.js`, `AI_PROJECT_STATE.md`.
+- Validation: source-level patch only. Syntax checks, SQL Server execution, browser interaction, and authorization/rate-limit integration tests remain pending.
+- Commit: pending.
+
+## NEXT ACTION
+1. Run JavaScript syntax checks for `frontend/js/script.js` and `backend/server.js`.
+2. Test standard and scoped searches against SQL Server, including empty results and nested descendants.
+3. Confirm unrelated tree branches remain visible and Previous/Next navigates every scoped match.
+4. Verify 401, 403 and rate-limit responses remain unchanged.
 
 # Previous task — User Management API middleware regression fix (2026-11-08)
 
