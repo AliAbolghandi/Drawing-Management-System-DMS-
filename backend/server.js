@@ -206,35 +206,42 @@ app.get('/api/nodes', auth.requirePermission('NODE_VIEW'), async (req, res) => {
 
 app.get('/api/nodes/search', auth.requirePermission('NODE_VIEW'), auth.searchRateLimit, async (req, res) => {
   const text = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  const rawRootId = req.query.rootNodeId;
+  const rootNodeId = rawRootId === undefined || rawRootId === '' ? null : Number(rawRootId);
+  if (rootNodeId !== null && (!Number.isSafeInteger(rootNodeId) || rootNodeId <= 0)) return res.status(400).json({ error: 'Invalid search root Node ID.' });
   if (!text) return res.json({ matches: [], ancestorIds: [], matchIds: [], visibleNodes: [] });
   try {
     const request = new sql.Request();
     request.input('q', sql.NVarChar(255), `%${text}%`);
-    // Walks ancestors entirely in SQL (matches + their parent chain only) instead of
-    // pulling the whole Nodes table into Node.js to compute ancestors in JS.
+    request.input('rootNodeId', sql.Int, rootNodeId);
+    if (rootNodeId !== null) {
+      const check = await new sql.Request().input('rootNodeId', sql.Int, rootNodeId).query('SELECT TOP 1 NodeID FROM dbo.Nodes WHERE NodeID = @rootNodeId;');
+      if (!check.recordset.length) return res.status(404).json({ error: 'Search root Node was not found.' });
+    }
     const result = await request.query(`
-      ;WITH MatchSeed AS (
-        SELECT NodeID, ParentID, CAST(1 AS BIT) AS IsMatch
-        FROM dbo.Nodes
-        WHERE NodeCode LIKE @q OR NodeName LIKE @q
+      ;WITH Subtree AS (
+        SELECT NodeID FROM dbo.Nodes WHERE @rootNodeId IS NOT NULL AND NodeID = @rootNodeId
+        UNION ALL
+        SELECT N.NodeID FROM dbo.Nodes N INNER JOIN Subtree S ON N.ParentID = S.NodeID
+      ),
+      MatchSeed AS (
+        SELECT N.NodeID, N.ParentID, CAST(1 AS BIT) AS IsMatch
+        FROM dbo.Nodes N
+        WHERE (N.NodeCode LIKE @q OR N.NodeName LIKE @q)
+          AND (@rootNodeId IS NULL OR EXISTS (SELECT 1 FROM Subtree S WHERE S.NodeID = N.NodeID))
       ),
       Ancestry AS (
         SELECT NodeID, ParentID, IsMatch FROM MatchSeed
         UNION ALL
-        SELECT N.NodeID, N.ParentID, CAST(0 AS BIT)
-        FROM dbo.Nodes N
-        INNER JOIN Ancestry A ON N.NodeID = A.ParentID
+        SELECT N.NodeID, N.ParentID, CAST(0 AS BIT) FROM dbo.Nodes N INNER JOIN Ancestry A ON N.NodeID = A.ParentID
       ),
       DistinctIds AS (
-        SELECT NodeID, MAX(CAST(IsMatch AS INT)) AS IsMatch
-        FROM Ancestry
-        GROUP BY NodeID
+        SELECT NodeID, MAX(CAST(IsMatch AS INT)) AS IsMatch FROM Ancestry GROUP BY NodeID
       )
       SELECT ${NODE_COLUMNS_N},
              CASE WHEN EXISTS (SELECT 1 FROM dbo.Nodes C WHERE C.ParentID = N.NodeID) THEN 1 ELSE 0 END AS HasChildren,
              D.IsMatch
-      FROM dbo.Nodes N
-      INNER JOIN DistinctIds D ON D.NodeID = N.NodeID
+      FROM dbo.Nodes N INNER JOIN DistinctIds D ON D.NodeID = N.NodeID
       ORDER BY N.NodeID
       OPTION (MAXRECURSION 1000);
     `);
