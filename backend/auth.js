@@ -450,7 +450,7 @@ function createAuth(frontendOrigins) {
 
   // User Management — Admin-only (authenticated, active user holding the active Admin role, verified server-side from SQL).
   // It is intentionally NOT assignable through a permission code.
-  const userManagementGuard = [rateLimit, csrf, authenticate, requireAdmin()];
+  const userManagementGuard = [csrf, authenticate, rateLimit, requireAdmin()];
 
   function validateNewPassword(password) {
     if (typeof password !== 'string' || password.length < 8 || password.length > 256) return 'New password must be 8 to 256 characters.';
