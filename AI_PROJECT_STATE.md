@@ -5,7 +5,7 @@
 - Fix: removed the dedicated search-tree rendering/cache mode. Search now validates SQL-provided ancestor paths, expands those ancestors through the normal `getChildren()` API (therefore loading every sibling under each expanded parent), and highlights the matching rows in the existing tree. Clearing the query removes search highlighting and does not reload or clear the tree.
 - Search result count, SQL source of truth, query cache, single-flight guard, and per-user rate limits are unchanged.
 - Files: `frontend/js/script.js`, `frontend/index.html`, `AI_PROJECT_STATE.md`.
-- Commit: script `03831c5dce248a8569b894c66b4e3cc23054a2a7`; cache bust and project-state commits recorded below.
+- Commits: script `03831c5dce248a8569b894c66b4e3cc23054a2a7`; index cache bust `b9537cf869423403e851dc6e07743bfecc381dee`.
 - Validation: source-level inspection confirms `searchMode`, `searchTreeChildren`, and `renderSearchTree` are removed. Browser behavior, JavaScript syntax check, and SQL Server integration tests remain pending. Taste Skill `SKILL.md` was read; the referenced `app-screens.md` path returned 404. No visual redesign was made.
 
 # Previous task — User Management API middleware regression fix (2026-11-08)
