@@ -1,4 +1,13 @@
-# Current task — Audit Management UI and read-only search (2026-11-01)
+# Current task — SQL-backed node search and per-user request limits (2026-11-08)
+
+## Implemented status
+- Search results are sourced from SQL Server API output, not the client's previously loaded tree state. All matching Nodes and their complete ancestor paths are rendered in a dedicated search tree; the displayed total is `data.matchIds.length`.
+- Search requests are single-flight, the Search button is disabled while running, and successful exact-query responses are cached for 30 seconds (up to 20 query entries).
+- General protected API traffic is limited to 240 requests per authenticated UserID per minute. Node search has an independent limit of 20 requests per authenticated UserID per minute and does not consume the general API counter.
+- Main implementation commits: `1605722b6993a33227a1ef92e9b9b8847cab2268`, `26185eadee0c3684deca47828b4f280605b78c08`, `1d775cb471456e523673789c987dd7b51cf03755`, `ba5b2834c7de6676833107878a6e405acca397af`, `ef1a48068a67b034e42f7abf8b4e7427405b3e0f`, `fc32c5846e60679b6aba83913c472ddb7c382b13`, `2795adb8e10c40715443184625f3d552fff72ed5`.
+- Code has been committed to `main`. Syntax, browser, SQL Server, shared-IP, and 401/403/429 runtime tests remain pending.
+
+# Previous task — Audit Management UI and read-only search (2026-11-01)
 ## Audit event detail modal — 2026-11-01
 - The Details action (.dms-audit-detail-btn) now opens a dedicated, larger modal (#dmsAuditDetailModal) above the Audit Management search modal. The existing field/value detail table and read-only API are preserved.
 - The detail modal closes with its close button, backdrop click, or Escape. Escape closes the detail modal first and leaves the underlying Audit Management search modal open; closing the parent closes both.
@@ -29,7 +38,7 @@ The user explicitly stopped the Stamp phase because it did not deploy correctly.
 
 # DMS — AI Project State / Handoff
 
-Last updated: 2026-11-05
+Last updated: 2026-11-08
 
 ## Current change status — 2026-10-24
 - `backend/auth.js`: profile, profile-password and profile-image APIs are implemented in the existing auth router. Image files are resolved under `dbo.tblPath.PathID=5`, named from the active `Username`, accepts JPEG/PNG/WebP, crops selected originals in the browser to 512×512 JPEG, and caps the processed API payload at 8 MB for server safety; endpoints are protected by authentication, rate limiting and CSRF/origin checks on mutations.
