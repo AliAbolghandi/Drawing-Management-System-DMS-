@@ -205,3 +205,10 @@ For production:
 - IIS request filtering in `backend/web.config` now caps the complete HTTP request body at 500 MB (`maxAllowedContentLength=500000000`). For folder uploads, this is the combined size of all files plus multipart request overhead.
 - The existing Multer limits remain unchanged: 1 GiB per file and up to 1,000 files per request. The IIS aggregate request limit is the effective lower ceiling for requests reaching this IIS application.
 - Authentication, `FILE_Edit` authorization, path validation, and upload audit behavior are unchanged. Deploy/runtime validation is pending.
+
+
+## Node search rate limiting — 2026-11-08
+- The general protected API rate limit is now keyed by the authenticated `UserID` rather than client IP: 240 requests per user per 60-second window. This prevents users behind a shared NAT/reverse proxy from consuming one another's API allowance.
+- `GET /api/nodes/search` is excluded from the general API counter and has a dedicated limit of 20 requests per authenticated user per 60-second window. Search still requires the existing `NODE_VIEW` permission; unauthenticated requests are rejected before rate limiting.
+- Origin/Referer CSRF validation remains enabled for state-changing API requests. Login brute-force limits remain IP/account-based and unchanged.
+- Limits are in-memory and per backend process, consistent with the existing session/rate-limit architecture. Runtime multi-user, 401/403, and 429 tests remain pending.
