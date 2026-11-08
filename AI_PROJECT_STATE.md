@@ -495,7 +495,7 @@ User reported that the `Production Reports` section calculates incorrect values,
 
 # NEXT ACTION
 
-1. Run `node --check` for `backend/auth.js`, `backend/server.js`, and `frontend/js/script.js`; fix any syntax issues before deployment.
+1. Run `node --check` for `backend/auth.js`, `backend/server.js`, and `frontend/js/script.js`; then test User Management as Admin (modal and list load) and as non-Admin (API must return 403), plus unauthenticated access (401).
 2. In a browser with SQL Server connected, search a term that returns matches under unloaded branches. Confirm every match is rendered, the counter equals SQL `matchIds.length`, and the same query returns the same result IDs/count for two users with `NODE_VIEW`.
 3. Test repeated Search clicks and Enter during an active search; confirm only one request runs, the button disables/re-enables, and repeated identical searches within 30 seconds use cache. Clear the query and confirm the normal full tree returns.
 4. Test rate limits: two users sharing one client IP retain independent 240/min API budgets; Search allows 20/min per user without consuming the general API counter; the 21st search returns 429 with `Retry-After`; unauthenticated search returns 401 and a user without `NODE_VIEW` returns 403.
