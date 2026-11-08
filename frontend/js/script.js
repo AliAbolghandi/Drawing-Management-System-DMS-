@@ -420,9 +420,11 @@
       const id = toId(node.NodeID);
       if (id === null || byId.has(id)) throw new Error('Search response contains an invalid or duplicate NodeID.');
       byId.set(id, node);
+    }
+    for (const node of visibleNodes) {
       const parentId = toParentId(node.ParentID);
       const key = parentId === null ? 'root' : String(parentId);
-      if (parentId !== null && !visibleNodes.some(item => toId(item.NodeID) === parentId)) throw new Error(`Search response is missing parent Node ${parentId}.`);
+      if (parentId !== null && !byId.has(parentId)) throw new Error(`Search response is missing parent Node ${parentId}.`);
       if (!childrenByParent.has(key)) childrenByParent.set(key, []);
       childrenByParent.get(key).push(node);
     }
