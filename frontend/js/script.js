@@ -462,45 +462,42 @@
     selectSearchResult(nextIndex);
   }
 
-  async function getSearchResults(query) {
-    const cached = searchResultCache.get(query);
+  async function getSearchResults(query, rootNodeId = null) {
+    const cacheKey = rootNodeId === null ? query : `${query}::scope:${rootNodeId}`;
+    const cached = searchResultCache.get(cacheKey);
     if (cached && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) {
-      searchResultCache.delete(query); searchResultCache.set(query, cached);
-      return cached.data;
+      searchResultCache.delete(cacheKey); searchResultCache.set(cacheKey, cached); return cached.data;
     }
-    if (cached) searchResultCache.delete(query);
-    const data = await requestJson(`${API}/nodes/search?q=${encodeURIComponent(query)}`);
-    searchResultCache.set(query, { cachedAt: Date.now(), data });
+    if (cached) searchResultCache.delete(cacheKey);
+    const params = new URLSearchParams({ q: query });
+    if (rootNodeId !== null) params.set('rootNodeId', String(rootNodeId));
+    const data = await requestJson(`${API}/nodes/search?${params.toString()}`);
+    searchResultCache.set(cacheKey, { cachedAt: Date.now(), data });
     while (searchResultCache.size > SEARCH_CACHE_MAX_ENTRIES) searchResultCache.delete(searchResultCache.keys().next().value);
     return data;
   }
 
-  async function searchTree() {
+  async function executeSearch(query, rootNodeId = null, triggerButton = searchButton) {
     if (state.searchInProgress) return;
-    const query = searchInput.value.trim();
     if (!query) {
       state.currentSearchQuery = ''; state.searchMatches = []; state.currentSearchIndex = -1; state.searchTotalResults = 0;
-      clearSearchHighlights();
-      searchInfo.classList.add('hidden');
-      return;
+      clearSearchHighlights(); searchInfo.classList.add('hidden'); return;
     }
     state.searchInProgress = true;
-    if (searchButton) { searchButton.disabled = true; searchButton.setAttribute('aria-busy', 'true'); }
-    state.currentSearchQuery = query;
-    clearSearchHighlights();
+    if (triggerButton) { triggerButton.disabled = true; triggerButton.setAttribute('aria-busy', 'true'); }
+    state.currentSearchQuery = query; clearSearchHighlights();
     state.searchMatches = []; state.currentSearchIndex = -1; state.searchTotalResults = 0;
     searchInfo.innerHTML = '<div class="dms-spinner dms-spinner-inline"></div>Searching...';
     searchInfo.classList.remove('hidden');
     try {
-      const data = await getSearchResults(query);
+      const data = await getSearchResults(query, rootNodeId);
       if (!Array.isArray(data.matchIds) || !Array.isArray(data.visibleNodes)) throw new Error('Invalid search response from server.');
       const matchIds = data.matchIds.map(toId);
       if (matchIds.some(id => id === null)) throw new Error('Search response contains an invalid matching NodeID.');
       if (!state.nodeElements.size) await loadRoots();
       state.currentSearchQuery = query;
       state.nodeElements.forEach(entry => refreshNodeLabel(entry, entry.node));
-      state.searchMatches = matchIds;
-      state.searchTotalResults = data.matchIds.length;
+      state.searchMatches = matchIds; state.searchTotalResults = data.matchIds.length;
       await revealSearchMatches(data.visibleNodes, matchIds);
       if (!state.searchTotalResults) { updateSearchInfo(); return; }
       selectSearchResult(0);
@@ -510,11 +507,91 @@
       searchInfo.textContent = `Search failed: ${error.message}`;
     } finally {
       state.searchInProgress = false;
-      if (searchButton) { searchButton.disabled = false; searchButton.removeAttribute('aria-busy'); }
+      if (triggerButton) { triggerButton.disabled = false; triggerButton.removeAttribute('aria-busy'); }
     }
   }
 
+  async function searchTree() { return executeSearch(searchInput.value.trim(), null, searchButton); }
+
   function collapseAll() { state.nodeElements.forEach(e => e.setExpanded(false).catch(console.error)); }
+  const advanceSearchModal = $('advanceSearchModal');
+  const advanceSearchParent = $('advanceSearchParent');
+  const advanceSearchBranch = $('advanceSearchBranch');
+  const advanceSearchQuery = $('advanceSearchQuery');
+  const advanceSearchError = $('advanceSearchError');
+  const advanceSearchSubmitBtn = $('advanceSearchSubmitBtn');
+
+  function setSelectOptions(select, placeholder, nodes) {
+    select.replaceChildren(new Option(placeholder, ''));
+    nodes.forEach(node => select.add(new Option(`${node.NodeCode || ''} — ${node.NodeName || ''}`, String(node.NodeID))));
+  }
+
+  async function loadAdvanceSearchParents() {
+    advanceSearchParent.disabled = true;
+    advanceSearchParent.replaceChildren(new Option('Loading branches...', ''));
+    advanceSearchBranch.replaceChildren(new Option('Select a branch first...', ''));
+    advanceSearchBranch.disabled = true;
+    const roots = await getChildren(null);
+    const groups = await Promise.all(roots.map(async root => ({ root, children: await getChildren(toId(root.NodeID)) })));
+    advanceSearchParent.replaceChildren(new Option('Select a branch...', ''));
+    groups.forEach(({ root, children }) => {
+      if (!children.length) return;
+      const group = document.createElement('optgroup');
+      group.label = `${root.NodeCode || ''} — ${root.NodeName || ''}`;
+      children.forEach(node => group.appendChild(new Option(`${node.NodeCode || ''} — ${node.NodeName || ''}`, String(node.NodeID))));
+      advanceSearchParent.appendChild(group);
+    });
+    advanceSearchParent.disabled = false;
+    if (advanceSearchParent.options.length === 1) advanceSearchParent.replaceChildren(new Option('No branches available', ''));
+  }
+
+  function openAdvanceSearch() {
+    advanceSearchError.classList.add('hidden'); advanceSearchError.textContent = '';
+    advanceSearchQuery.value = ''; advanceSearchModal.classList.remove('hidden');
+    loadAdvanceSearchParents().catch(error => {
+      console.error('Advance Search branch loading failed:', error);
+      advanceSearchParent.replaceChildren(new Option('Unable to load branches', ''));
+      advanceSearchError.textContent = error.message; advanceSearchError.classList.remove('hidden');
+    });
+    advanceSearchParent.focus();
+  }
+  function closeAdvanceSearch() { advanceSearchModal.classList.add('hidden'); }
+
+  advanceSearchParent?.addEventListener('change', async () => {
+    advanceSearchBranch.disabled = true;
+    advanceSearchBranch.replaceChildren(new Option('Loading child branches...', ''));
+    try {
+      const parentId = toId(advanceSearchParent.value);
+      if (parentId === null) { advanceSearchBranch.replaceChildren(new Option('Select a branch first...', '')); return; }
+      const children = await getChildren(parentId);
+      setSelectOptions(advanceSearchBranch, children.length ? 'Select a child branch...' : 'No child branches available', children);
+      advanceSearchBranch.disabled = children.length === 0;
+    } catch (error) {
+      advanceSearchBranch.replaceChildren(new Option('Unable to load child branches', ''));
+      advanceSearchError.textContent = error.message; advanceSearchError.classList.remove('hidden');
+    }
+  });
+
+  $('advanceSearchOpenBtn')?.addEventListener('click', openAdvanceSearch);
+  $('advanceSearchCloseBtn')?.addEventListener('click', closeAdvanceSearch);
+  $('advanceSearchCancelBtn')?.addEventListener('click', closeAdvanceSearch);
+  advanceSearchModal?.addEventListener('click', event => { if (event.target === advanceSearchModal) closeAdvanceSearch(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !advanceSearchModal.classList.contains('hidden')) closeAdvanceSearch(); });
+  $('advanceSearchForm')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (state.searchInProgress) return;
+    const parentId = toId(advanceSearchParent.value);
+    const branchId = toId(advanceSearchBranch.value);
+    const query = advanceSearchQuery.value.trim();
+    if (parentId === null || branchId === null || !query) {
+      advanceSearchError.textContent = 'Select both branch levels and enter search text.';
+      advanceSearchError.classList.remove('hidden'); return;
+    }
+    advanceSearchError.classList.add('hidden');
+    await executeSearch(query, branchId, advanceSearchSubmitBtn);
+    closeAdvanceSearch();
+  });
+
   searchButton?.addEventListener('click', () => searchTree().catch(console.error));
   searchInput?.addEventListener('keydown', event => { if (event.key === 'Enter') searchTree().catch(console.error); });
   searchInfo?.addEventListener('click', event => {
