@@ -26,8 +26,6 @@
     currentSearchQuery: '',
     searchMatches: [],
     currentSearchIndex: -1,
-    searchMode: false,
-    searchTreeChildren: null,
     searchTotalResults: 0,
     searchInProgress: false,
     srscEditMode: false,
@@ -85,7 +83,6 @@
 
   async function getChildren(parent) {
     const key = parent === null ? 'root' : String(parent);
-    if (state.searchMode && state.searchTreeChildren) return [...(state.searchTreeChildren.get(key) || [])];
     if (state.loadedParents.has(key)) {
       return [...state.nodeCache.values()]
         .filter(n => toParentId(n.ParentID) === parent)
@@ -209,7 +206,7 @@
         childrenBox.className = 'tree-children';
         children.forEach(child => childrenBox.appendChild(createNode(child)));
         wrapper.appendChild(childrenBox);
-        if (!state.searchMode) await Promise.all([prefetchPdfs(children), prefetchDwgs(children), loadSrscStatus(children)]);
+        await Promise.all([prefetchPdfs(children), prefetchDwgs(children), loadSrscStatus(children)]);
       } finally { updateExpand(); }
     }
     async function setExpanded(value) {
@@ -374,7 +371,7 @@
   }
 
   async function loadRoots() {
-    state.searchMode = false; state.searchTreeChildren = null; state.searchTotalResults = 0; state.currentSearchQuery = '';
+    state.searchTotalResults = 0; state.currentSearchQuery = '';
     state.nodeElements.clear(); state.nodeCache.clear(); state.loadedParents.clear(); state.pdfsByNodeId.clear(); state.dwgsByNodeId.clear(); state.currentSelectedNode = null;
     $('emptyDetails')?.classList.remove('hidden'); $('nodeDetails')?.classList.add('hidden');
     tree.innerHTML = '<div class="loading"><div class="dms-spinner"></div><div>Loading equipment structure...</div></div>';
@@ -387,62 +384,56 @@
   }
 
   function clearSearchHighlights() {
-    state.nodeElements.forEach(entry => { if (entry.row.classList.contains('search-match')) { entry.row.classList.remove('search-match'); refreshNodeLabel(entry, entry.node); } });
+    state.nodeElements.forEach(entry => {
+      entry.row.classList.remove('search-match', 'search-current');
+      refreshNodeLabel(entry, entry.node);
+    });
   }
 
   async function revealSearchMatches(visibleNodes, matchIds) {
-    const byId = new Map(visibleNodes.map(n => [toId(n.NodeID), n]));
-    const paths = [...matchIds].map(id => {
-      const chain = []; let cur = byId.get(Number(id)); const seen = new Set();
-      while (cur) {
-        const currentId = toId(cur.NodeID);
-        if (currentId === null || seen.has(currentId)) throw new Error('Invalid or cyclic node hierarchy in search response.');
-        seen.add(currentId); chain.unshift(currentId);
-        const parentId = toParentId(cur.ParentID);
-        cur = parentId !== null ? byId.get(parentId) : null;
-      }
-      return chain;
-    });
-    for (const chain of paths) {
-      for (let i = 0; i < chain.length; i++) {
-        const entry = state.nodeElements.get(chain[i]);
-        if (!entry) throw new Error(`Search result Node ${chain[i]} could not be rendered from the SQL response.`);
-        if (i === chain.length - 1) { entry.row.classList.add('search-match'); refreshNodeLabel(entry, entry.node); }
-        else if (!entry.expanded) await entry.setExpanded(true);
-      }
-    }
-  }
-
-  async function renderSearchTree(visibleNodes, matchIds) {
     const byId = new Map();
-    const childrenByParent = new Map();
     for (const node of visibleNodes) {
       const id = toId(node.NodeID);
       if (id === null || byId.has(id)) throw new Error('Search response contains an invalid or duplicate NodeID.');
       byId.set(id, node);
     }
-    for (const node of visibleNodes) {
-      const parentId = toParentId(node.ParentID);
-      const key = parentId === null ? 'root' : String(parentId);
-      if (parentId !== null && !byId.has(parentId)) throw new Error(`Search response is missing parent Node ${parentId}.`);
-      if (!childrenByParent.has(key)) childrenByParent.set(key, []);
-      childrenByParent.get(key).push(node);
-    }
-    for (const id of matchIds) if (!byId.has(Number(id))) throw new Error(`Search response is missing matching Node ${id}.`);
-    for (const list of childrenByParent.values()) list.sort((a, b) => Number(a.NodeID) - Number(b.NodeID));
-    const roots = childrenByParent.get('root') || [];
-    if (matchIds.length && !roots.length) throw new Error('Search response does not contain the root paths for its matches.');
 
-    state.searchTreeChildren = childrenByParent;
-    state.searchMode = true;
-    state.nodeElements.clear();
-    state.currentSelectedNode = null;
-    $('emptyDetails')?.classList.remove('hidden'); $('nodeDetails')?.classList.add('hidden');
-    visibleNodes.forEach(node => state.nodeCache.set(toId(node.NodeID), node));
-    tree.innerHTML = '';
-    roots.forEach(root => tree.appendChild(createNode(root, { root: true })));
-    updateCount();
-    await revealSearchMatches(visibleNodes, matchIds);
+    const paths = [...matchIds].map(id => {
+      const chain = [];
+      let current = byId.get(Number(id));
+      const seen = new Set();
+      if (!current) throw new Error(`Search response is missing matching Node ${id}.`);
+      while (current) {
+        const currentId = toId(current.NodeID);
+        if (currentId === null || seen.has(currentId)) throw new Error('Invalid or cyclic node hierarchy in search response.');
+        seen.add(currentId);
+        chain.unshift(currentId);
+        const parentId = toParentId(current.ParentID);
+        if (parentId === null) break;
+        current = byId.get(parentId);
+        if (!current) throw new Error(`Search response is missing parent Node ${parentId}.`);
+      }
+      return chain;
+    });
+
+    for (const chain of paths) {
+      for (let i = 0; i < chain.length; i++) {
+        let entry = state.nodeElements.get(chain[i]);
+        if (!entry && i > 0) {
+          const parent = state.nodeElements.get(chain[i - 1]);
+          if (!parent) throw new Error(`Parent Node ${chain[i - 1]} is not present in the full tree.`);
+          await parent.setExpanded(true);
+          entry = state.nodeElements.get(chain[i]);
+        }
+        if (!entry) throw new Error(`Node ${chain[i]} could not be loaded into the full tree.`);
+        if (i === chain.length - 1) {
+          entry.row.classList.add('search-match');
+          refreshNodeLabel(entry, entry.node);
+        } else if (!entry.expanded) {
+          await entry.setExpanded(true);
+        }
+      }
+    }
   }
 
   function updateSearchInfo() {
@@ -489,11 +480,14 @@
     const query = searchInput.value.trim();
     if (!query) {
       state.currentSearchQuery = ''; state.searchMatches = []; state.currentSearchIndex = -1; state.searchTotalResults = 0;
-      searchInfo.classList.add('hidden'); await loadRoots(); return;
+      clearSearchHighlights();
+      searchInfo.classList.add('hidden');
+      return;
     }
     state.searchInProgress = true;
     if (searchButton) { searchButton.disabled = true; searchButton.setAttribute('aria-busy', 'true'); }
     state.currentSearchQuery = query;
+    clearSearchHighlights();
     state.searchMatches = []; state.currentSearchIndex = -1; state.searchTotalResults = 0;
     searchInfo.innerHTML = '<div class="dms-spinner dms-spinner-inline"></div>Searching...';
     searchInfo.classList.remove('hidden');
@@ -502,10 +496,12 @@
       if (!Array.isArray(data.matchIds) || !Array.isArray(data.visibleNodes)) throw new Error('Invalid search response from server.');
       const matchIds = data.matchIds.map(toId);
       if (matchIds.some(id => id === null)) throw new Error('Search response contains an invalid matching NodeID.');
+      if (!state.nodeElements.size) await loadRoots();
+      state.currentSearchQuery = query;
+      state.nodeElements.forEach(entry => refreshNodeLabel(entry, entry.node));
       state.searchMatches = matchIds;
       state.searchTotalResults = data.matchIds.length;
-      await renderSearchTree(data.visibleNodes, matchIds);
-      await Promise.all([prefetchPdfs(data.visibleNodes), prefetchDwgs(data.visibleNodes), loadSrscStatus(data.visibleNodes)]);
+      await revealSearchMatches(data.visibleNodes, matchIds);
       if (!state.searchTotalResults) { updateSearchInfo(); return; }
       selectSearchResult(0);
     } catch (error) {
@@ -540,7 +536,7 @@
     openSrscFolder:openFolder, reloadSrscRoot:loadSrscFolders, refreshSrscStatus:(id)=>loadSrscStatus([{NodeID:id}],{refresh:true}),
     getCurrentSrscView:()=>currentSrscView?{...currentSrscView}:null,
     revealNodeLocation:async(nodeId,nodeCode)=>{
-      const id=toId(nodeId); if(id===null)throw new Error('Invalid NodeID.'); if(state.searchMode || !state.nodeElements.size)await loadRoots();
+      const id=toId(nodeId); if(id===null)throw new Error('Invalid NodeID.'); if(!state.nodeElements.size)await loadRoots();
       const query=String(nodeCode||state.nodeCache.get(id)?.NodeCode||id).trim(); const data=await requestJson(`${API}/nodes/search?q=${encodeURIComponent(query)}`);
       const visibleNodes=data.visibleNodes||[]; const matchIds=(data.matchIds||[]).map(Number);
       if(!matchIds.includes(id)&&!visibleNodes.some(n=>Number(n.NodeID)===id))throw new Error('Could not find this Node in the tree.');
