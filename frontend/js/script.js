@@ -505,7 +505,7 @@
       state.searchMatches = matchIds;
       state.searchTotalResults = data.matchIds.length;
       await renderSearchTree(data.visibleNodes, matchIds);
-      await Promise.all([prefetchPdfs(data.visibleNodes), loadSrscStatus(data.visibleNodes)]);
+      await Promise.all([prefetchPdfs(data.visibleNodes), prefetchDwgs(data.visibleNodes), loadSrscStatus(data.visibleNodes)]);
       if (!state.searchTotalResults) { updateSearchInfo(); return; }
       selectSearchResult(0);
     } catch (error) {
