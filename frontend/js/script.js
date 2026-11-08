@@ -436,6 +436,8 @@
     state.searchTreeChildren = childrenByParent;
     state.searchMode = true;
     state.nodeElements.clear();
+    state.currentSelectedNode = null;
+    $('emptyDetails')?.classList.remove('hidden'); $('nodeDetails')?.classList.add('hidden');
     visibleNodes.forEach(node => state.nodeCache.set(toId(node.NodeID), node));
     tree.innerHTML = '';
     roots.forEach(root => tree.appendChild(createNode(root, { root: true })));
