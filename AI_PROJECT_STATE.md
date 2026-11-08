@@ -464,10 +464,26 @@ User reported that the `Production Reports` section calculates incorrect values,
 - Commit: `abbd1c2aa7236283478d6a3cb1430ca373b3e851` (IIS config); security documentation commit follows in Git history.
 - Validation: XML source structure inspected; no IIS runtime, deployed upload, or boundary-size test has been run. Confirm that the active IIS application for `/api/node-file-upload/:nodeId` uses this `backend/web.config`, then test a folder upload below 500 MB and one exceeding the limit.
 
+
+
+## SQL-backed node search and isolated request limits — 2026-11-08
+- `frontend/js/script.js`: search now uses the complete `visibleNodes` + `matchIds` response from `GET /api/nodes/search` to construct a search-only tree. The client no longer filters matches by `state.nodeElements`; every SQL match and its full ancestor path is inserted into the tree, and all matching paths are expanded so every match is present in the rendered tree. Search children are served from the API response map, not per-user lazy-loaded tree state.
+- Search count/navigation total is `data.matchIds.length`. A response missing a match or ancestor is treated as an API integrity error rather than silently dropping the result.
+- Search is single-flight: `state.searchInProgress` prevents concurrent execution, the Search button is disabled with `aria-busy` during the operation, and Enter is ignored while the same operation is active. Clearing the query restores the regular root tree.
+- Client search-result cache: exact trimmed query key, 30-second TTL, maximum 20 entries (LRU refresh on hit). Cache only stores successful API responses.
+- Search metadata prefetch is batched once after building the search tree; expanding each result branch does not trigger repeated per-branch metadata requests.
+- `backend/auth.js` and `backend/server.js`: general API rate limit is now 240 requests / authenticated UserID / 60 seconds. `/api/nodes/search` is excluded from that general counter and receives a dedicated 20 requests / authenticated UserID / 60 seconds limit. Search still requires `NODE_VIEW`; authentication is enforced before either limiter. Login IP/account protections and CSRF checks remain intact.
+- `frontend/index.html` cache-busts `script.js` as `20261108-sql-search-v2`.
+- Commits: `1605722b6993a33227a1ef92e9b9b8847cab2268` (`backend/auth.js`); `26185eadee0c3684deca47828b4f280605b78c08` (`backend/server.js`); `1d775cb471456e523673789c987dd7b51cf03755` and `ba5b2834c7de6676833107878a6e405acca397af` (`frontend/js/script.js`); `ef1a48068a67b034e42f7abf8b4e7427405b3e0f` (`frontend/index.html`); `2795adb8e10c40715443184625f3d552fff72ed5` (`SECURITY_CHANGELOG.md`).
+- Validation: source-level changes and GitHub file updates completed. No Node syntax check, browser test, live SQL Server search, shared-IP concurrency test, 401/403 test, or 429 boundary test has been run. The DMS-local `skills/DMS-UI-SKILL.md` and upstream Taste Skill `references/app-screens.md` were not available at their documented paths; no visual restyling was performed.
+
 # NEXT ACTION
 
-1. Deploy the 500 MB IIS request-size configuration to the active backend IIS application; verify the effective `web.config` location, then test aggregate folder uploads below and above the limit. After that, deploy the upload changes and test from the SRSC root: verify no upload is possible until one of `DWG`, `DOC`, `PIC`, or `Catalog` is selected, then verify files and selected folders land directly inside the selected folder with their internal structure preserved.
-2. Open `DWG/Part` and upload both individual files and a selected/dropped folder; verify the destination is fixed to `DWG/Part`, no folder choice or manual subfolder field appears, and the selected folder name plus its contents are preserved.
-3. Verify upload permission denial (unauthenticated 401 and authenticated user without `FILE_Edit` 403) and confirm successful upload audit rows in `dbo.Logs`.
-4. Complete password-policy acceptance tests: accept any composition at 8–256 characters; reject fewer than 8 and more than 256; verify create/reset/self-change API behavior.
-5. Test Danieli DWG RBAC and continue SQL import validation for `SQL/Create_DanieliDWG.sql` and the 1,298 expected rows.
+1. Run `node --check` for `backend/auth.js`, `backend/server.js`, and `frontend/js/script.js`; fix any syntax issues before deployment.
+2. In a browser with SQL Server connected, search a term that returns matches under unloaded branches. Confirm every match is rendered, the counter equals SQL `matchIds.length`, and the same query returns the same result IDs/count for two users with `NODE_VIEW`.
+3. Test repeated Search clicks and Enter during an active search; confirm only one request runs, the button disables/re-enables, and repeated identical searches within 30 seconds use cache. Clear the query and confirm the normal full tree returns.
+4. Test rate limits: two users sharing one client IP retain independent 240/min API budgets; Search allows 20/min per user without consuming the general API counter; the 21st search returns 429 with `Retry-After`; unauthenticated search returns 401 and a user without `NODE_VIEW` returns 403.
+5. Deploy and run the outstanding 500 MB IIS upload-limit and folder-upload checks, then complete the upload permission/audit, password-policy, Danieli DWG RBAC, and SQL import checks listed below.
+6. Open `DWG/Part` and upload individual files and a selected/dropped folder; verify destination and hierarchy preservation.
+7. Verify upload permission denial (unauthenticated 401 and authenticated user without `FILE_Edit` 403) and confirm successful upload audit rows in `dbo.Logs`.
+8. Complete password-policy acceptance tests (8–256 characters, any composition) and test Danieli DWG RBAC plus `SQL/Create_DanieliDWG.sql` import validation.
