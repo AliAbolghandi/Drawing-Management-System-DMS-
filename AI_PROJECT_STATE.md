@@ -6,8 +6,8 @@
 - `GET /api/nodes/search` accepts optional `rootNodeId`. SQL recursive CTE restricts matches to that Node's subtree while returning complete ancestors for tree path expansion.
 - Existing `NODE_VIEW` authorization and `auth.searchRateLimit` remain enforced. The root ID is validated and all SQL values are parameterized. No schema or RBAC changes.
 - Files: `frontend/index.html`, `frontend/js/script.js`, `backend/server.js`, `AI_PROJECT_STATE.md`.
-- Validation: source-level patch only. Syntax checks, SQL Server execution, browser interaction, and authorization/rate-limit integration tests remain pending.
-- Commit: pending.
+- Validation: source-level inspection completed. JavaScript syntax checks, SQL Server execution, browser interaction, and authorization/rate-limit integration tests remain pending.
+- Commits: backend API `52dd5e4e3bf23afc33940c157ef8cef8c246c9c3`; frontend logic `bd56fc0a6aaf7a796c164716fd2e42ffd0ebb346`; modal markup/styles `a2cc8a094dfc8b372483e685e29457ef08bc855d`; script cache-version correction `d37ce9ac372e8d3534e852873a0ee2600de51923`; project-state update `4351cbb08394c08ad93691b18010c2c51f1333ee`.
 
 ## NEXT ACTION
 1. Run JavaScript syntax checks for `frontend/js/script.js` and `backend/server.js`.
