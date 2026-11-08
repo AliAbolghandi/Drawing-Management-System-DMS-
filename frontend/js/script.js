@@ -568,7 +568,7 @@
       const parentId = toId(advanceSearchParent.value);
       if (parentId === null) { advanceSearchBranch.replaceChildren(new Option('Select a branch first...', '')); return; }
       const children = await getChildren(parentId);
-      setSelectOptions(advanceSearchBranch, children.length ? 'Select a child branch...' : 'No child branches available', children);
+      setSelectOptions(advanceSearchBranch, children.length ? 'All of selected branch (no child filter)' : 'No child branches available', children);
       advanceSearchBranch.disabled = children.length === 0;
     } catch (error) {
       advanceSearchBranch.replaceChildren(new Option('Unable to load child branches', ''));
@@ -586,12 +586,13 @@
     const parentId = toId(advanceSearchParent.value);
     const branchId = toId(advanceSearchBranch.value);
     const query = advanceSearchQuery.value.trim();
-    if (parentId === null || branchId === null || !query) {
-      advanceSearchError.textContent = 'Select both branch levels and enter search text.';
+    if (parentId === null || !query) {
+      advanceSearchError.textContent = 'Select a first-level branch and enter search text.';
       advanceSearchError.classList.remove('hidden'); return;
     }
     advanceSearchError.classList.add('hidden');
-    await executeSearch(query, branchId, advanceSearchSubmitBtn);
+    // A selected child narrows the search; an empty child selector searches the whole selected parent subtree.
+    await executeSearch(query, branchId ?? parentId, advanceSearchSubmitBtn);
     closeAdvanceSearch();
   });
 
