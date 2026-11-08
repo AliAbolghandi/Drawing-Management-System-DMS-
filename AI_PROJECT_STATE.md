@@ -1,3 +1,12 @@
+# Current task — Advance Search modal click fix (2026-11-08)
+
+- User reported that clicking `advanceSearchOpenBtn` did nothing; no screenshot was required.
+- Moved the click handling to an early delegated `document` listener immediately after the main script's DOM helper is initialized. This avoids relying on the later direct binding being reached if intervening initialization code throws.
+- Removed the old direct button listener to prevent duplicate opens.
+- Bumped the `frontend/js/script.js` cache version in `frontend/index.html` to `20261108-advance-search-fix1`.
+- Commits: script `150e9a1e206c84d076a9e071f72177566a003aec`; HTML cache-bust `f670291394682bfd435b6d7ea33897dbcf0bcc97`.
+- Validation: source-level changes committed. Browser interaction, console-error diagnosis, JavaScript syntax checks, SQL Server search, and authorization tests are not yet run. Confirm on the deployed site with a hard refresh.
+
 # Current task — Scoped Advance Search (2026-11-08)
 
 - Added an Advance Search button beside the standard Search control and a modal with two dependent branch selectors plus a search-text field.
