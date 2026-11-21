@@ -1,3 +1,12 @@
+# Current task — Edit existing profile photo in crop dialog (2026-11-21)
+
+- Updated `frontend/js/profile.js`: clicking `dmsProfileChoosePhoto` fetches the authenticated user's existing image from `GET /api/auth/me/profile-image` and opens it in the existing crop editor. If profile metadata says no image, or the image endpoint returns HTTP 404, the existing file picker is opened.
+- Added `Upload another photo` inside the crop dialog. It reuses the existing JPEG/PNG/WebP file input and replaces the crop source without immediately saving.
+- Applying a crop still stages a 512×512 JPEG locally; upload occurs only after the existing `Save Changes` confirmation. Cancel/close does not overwrite the saved image. No backend, API, SQL, RBAC, or security behavior changed.
+- Updated the profile script cache version in `frontend/index.html`.
+- Commits: `frontend/js/profile.js` 79738e87e65a1f2e2e9509a5aec8441a1f1d37ab; `frontend/index.html` 4f4a5bca00321875ad55097b8425d63bea1d16de.
+- Validation: source replacement assertions passed. JavaScript syntax, authenticated HTTP image retrieval, browser crop interaction, responsive layout, and save/cancel acceptance tests have not yet been run.
+
 # Current task — Profile API middleware order fix (2026-11-21)
 
 - Fixed all six profile API routes in `backend/auth.js` so `authenticate` runs before the per-user `rateLimit`, which requires `req.user.userId`.
