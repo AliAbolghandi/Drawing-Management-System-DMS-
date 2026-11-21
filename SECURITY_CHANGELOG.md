@@ -1,5 +1,13 @@
 # DMS Security Changes
 
+## Profile API middleware ordering — 2026-11-21
+
+- Corrected all profile endpoints so session authentication populates `req.user` before the per-user API rate limiter reads `req.user.userId`.
+- Read-only profile routes use `authenticate -> rateLimit`; state-changing profile routes use `csrf -> authenticate -> rateLimit`.
+- This preserves authentication, Origin/Referer CSRF validation, and per-user rate limiting; it does not weaken endpoint access controls.
+- Runtime HTTP, CSRF, browser, and SQL Server validation remains pending.
+
+
 ## Authentication
 - Added `POST /api/auth/login`.
 - Added `POST /api/auth/logout`.
