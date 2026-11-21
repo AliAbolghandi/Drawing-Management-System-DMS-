@@ -3,8 +3,8 @@
 - Fixed all six profile API routes in `backend/auth.js` so `authenticate` runs before the per-user `rateLimit`, which requires `req.user.userId`.
 - Read-only routes now use `authenticate, rateLimit`. Mutating routes use `csrf, authenticate, rateLimit`, preserving Origin/Referer CSRF enforcement before the authenticated per-user limiter and route handler.
 - Affected routes: `GET /me/profile`, `PUT /me/profile`, `PUT /me/profile-password`, `GET /me/profile-image`, `PUT /me/profile-image`, and `DELETE /me/profile-image`.
-- No frontend, session, RBAC, SQL schema, API contract, or profile modal changes.
-- Commit: `ef3c5ea3a2abe25d2973406a66da80ba12a21c41` (`backend/auth.js`).
+- Updated `SECURITY_CHANGELOG.md` with the middleware-order correction. No frontend, session, RBAC, SQL schema, API contract, or profile modal changes.
+- Commits: `ef3c5ea3a2abe25d2973406a66da80ba12a21c41` (`backend/auth.js`); `a4b8b066341ab22491ef83e0528681ce723dcd02` (`SECURITY_CHANGELOG.md`).
 - Validation: exact-source replacement checks passed for all six routes. Runtime HTTP 401/403/429, CSRF, browser modal, and SQL Server tests have not been run in this environment.
 
 ## NEXT ACTION
