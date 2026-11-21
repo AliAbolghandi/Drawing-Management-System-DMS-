@@ -4,7 +4,7 @@
   const API = `${window.DMS_API_BASE || ''}/api`;
   const CROP_SIZE = 280;
   const OUTPUT_SIZE = 512;
-  let pendingPhotoBlob = null, pendingPhotoRemoval = false, stagedPhotoUrl = null;
+  let pendingPhotoBlob = null, pendingPhotoRemoval = false, stagedPhotoUrl = null, profileHasImage = false;
   let cropObjectUrl = null, cropImage = null, cropBaseScale = 1, cropZoom = 1, cropX = 0, cropY = 0;
   let cropDragging = false, cropDragStartX = 0, cropDragStartY = 0, cropStartX = 0, cropStartY = 0;
 
@@ -54,7 +54,7 @@
     const crop = document.createElement('div');
     crop.id = 'dmsProfileCropModal'; crop.className = 'dms-profile-modal hidden';
     crop.setAttribute('role','dialog'); crop.setAttribute('aria-modal','true'); crop.setAttribute('aria-labelledby','dmsProfileCropTitle');
-    crop.innerHTML = '<div class="dms-profile-crop-dialog"><div class="dms-profile-head" style="padding:0 0 14px"><h2 id="dmsProfileCropTitle">Crop profile photo</h2><button type="button" class="dms-profile-close" id="dmsProfileCropClose" aria-label="Close">×</button></div><div id="dmsProfileCropViewport" class="dms-profile-crop-viewport"><img id="dmsProfileCropImage" class="dms-profile-crop-image" alt="Image crop preview"></div><p class="dms-profile-crop-hint">Drag the image to reposition it. Use the zoom control to choose the framing.</p><label class="dms-profile-zoom" for="dmsProfileZoom"><span>Zoom</span><input id="dmsProfileZoom" type="range" min="1" max="4" step="0.01" value="1"></label><div id="dmsProfileCropError" class="dms-profile-error" hidden></div><div class="dms-profile-crop-actions"><button type="button" class="dms-profile-crop-cancel" id="dmsProfileCropCancel">Cancel</button><button type="button" class="dms-profile-crop-apply" id="dmsProfileCropApply">Use Photo</button></div></div>';
+    crop.innerHTML = '<div class="dms-profile-crop-dialog"><div class="dms-profile-head" style="padding:0 0 14px"><h2 id="dmsProfileCropTitle">Crop profile photo</h2><button type="button" class="dms-profile-close" id="dmsProfileCropClose" aria-label="Close">×</button></div><div id="dmsProfileCropViewport" class="dms-profile-crop-viewport"><img id="dmsProfileCropImage" class="dms-profile-crop-image" alt="Image crop preview"></div><p class="dms-profile-crop-hint">Drag the image to reposition it. Use the zoom control to choose the framing.</p><label class="dms-profile-zoom" for="dmsProfileZoom"><span>Zoom</span><input id="dmsProfileZoom" type="range" min="1" max="4" step="0.01" value="1"></label><div id="dmsProfileCropError" class="dms-profile-error" hidden></div><div class="dms-profile-crop-actions"><button type="button" class="dms-profile-crop-cancel" id="dmsProfileCropChooseAnother">Upload another photo</button><button type="button" class="dms-profile-crop-cancel" id="dmsProfileCropCancel">Cancel</button><button type="button" class="dms-profile-crop-apply" id="dmsProfileCropApply">Use Photo</button></div></div>';
     document.body.appendChild(crop);
     const confirm = document.createElement('div');
     confirm.id = 'dmsProfileConfirmModal'; confirm.className = 'dms-profile-modal hidden';
@@ -105,7 +105,8 @@
       document.getElementById('dmsProfileFullName').textContent = [user.name, user.family].filter(Boolean).join(' ') || user.username || 'User';
       document.getElementById('dmsProfileLastVisit').textContent = formatLastVisit(user.lastLoginAt);
       const photo = document.getElementById('dmsProfilePhoto');
-      if (user.hasProfileImage) { photo.classList.remove('dms-profile-photo-fallback'); photo.innerHTML = `<img src="${API}/auth/me/profile-image?t=${Date.now()}" alt="Profile photo">`; }
+      profileHasImage = Boolean(user.hasProfileImage);
+      if (profileHasImage) { photo.classList.remove('dms-profile-photo-fallback'); photo.innerHTML = `<img src="${API}/auth/me/profile-image?t=${Date.now()}" alt="Profile photo">`; }
       else { photo.classList.add('dms-profile-photo-fallback'); photo.textContent = (user.name || user.username || 'U').slice(0,1).toUpperCase(); }
       modal.classList.remove('hidden');
       document.getElementById('dmsProfileNameInput').focus();
@@ -255,6 +256,44 @@
     }, 'image/jpeg', .92);
   }
   function savePhoto(file) { if (file) openCrop(file); }
+
+  async function editProfilePhoto() {
+    const input = document.getElementById('dmsProfilePhotoInput');
+    if (pendingPhotoBlob) {
+      openCrop(new File([pendingPhotoBlob], 'profile.jpg', { type: 'image/jpeg' }));
+      return;
+    }
+    if (pendingPhotoRemoval || !profileHasImage) {
+      input.click();
+      return;
+    }
+
+    const button = document.getElementById('dmsProfileChoosePhoto');
+    button.disabled = true;
+    try {
+      const response = await fetch(API + '/auth/me/profile-image', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (response.status === 404) {
+        profileHasImage = false;
+        input.click();
+        return;
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not load the current profile photo.');
+      }
+      const blob = await response.blob();
+      const mime = ['image/jpeg', 'image/png', 'image/webp'].includes(blob.type) ? blob.type : 'image/jpeg';
+      const extension = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+      openCrop(new File([blob], 'profile.' + extension, { type: mime }));
+    } catch (error) {
+      showMessage(error.message || 'Could not load the current profile photo.', true);
+    } finally {
+      button.disabled = false;
+    }
+  }
   function removePhoto() {
     pendingPhotoBlob = null; pendingPhotoRemoval = true;
     if (stagedPhotoUrl) URL.revokeObjectURL(stagedPhotoUrl); stagedPhotoUrl = null;
@@ -327,7 +366,8 @@
         const errorBox=document.getElementById('dmsProfilePasswordError'); errorBox.textContent=error.message; errorBox.hidden=false;
       }finally{button.disabled=false;}
     });
-    document.getElementById('dmsProfileChoosePhoto').addEventListener('click',()=>document.getElementById('dmsProfilePhotoInput').click());
+    document.getElementById('dmsProfileChoosePhoto').addEventListener('click',editProfilePhoto);
+    document.getElementById('dmsProfileCropChooseAnother').addEventListener('click',()=>document.getElementById('dmsProfilePhotoInput').click());
     document.getElementById('dmsProfilePhotoInput').addEventListener('change',e=>{ const file=e.target.files?.[0]; e.target.value=''; savePhoto(file); });
     document.getElementById('dmsProfileRemovePhoto').addEventListener('click',removePhoto);
     document.getElementById('dmsProfileCropClose').addEventListener('click',closeCrop);
