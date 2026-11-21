@@ -1,3 +1,18 @@
+# Current task — Profile API middleware order fix (2026-11-21)
+
+- Fixed all six profile API routes in `backend/auth.js` so `authenticate` runs before the per-user `rateLimit`, which requires `req.user.userId`.
+- Read-only routes now use `authenticate, rateLimit`. Mutating routes use `csrf, authenticate, rateLimit`, preserving Origin/Referer CSRF enforcement before the authenticated per-user limiter and route handler.
+- Affected routes: `GET /me/profile`, `PUT /me/profile`, `PUT /me/profile-password`, `GET /me/profile-image`, `PUT /me/profile-image`, and `DELETE /me/profile-image`.
+- No frontend, session, RBAC, SQL schema, API contract, or profile modal changes.
+- Commit: `ef3c5ea3a2abe25d2973406a66da80ba12a21c41` (`backend/auth.js`).
+- Validation: exact-source replacement checks passed for all six routes. Runtime HTTP 401/403/429, CSRF, browser modal, and SQL Server tests have not been run in this environment.
+
+## NEXT ACTION
+1. Deploy the updated `backend/auth.js` to the IIS-hosted backend and restart/recycle the backend application pool.
+2. Sign in again, hard-refresh DMS, and open `dmsProfileButton`; verify `GET /api/auth/me/profile` returns HTTP 200 and the profile modal opens.
+3. Verify profile save, password change, image load/upload/delete, CSRF rejection, and authenticated per-user rate limiting.
+4. Confirm unauthenticated profile API requests still return HTTP 401.
+
 # Current task — Optional child scope in Advance Search (2026-11-08)
 
 - Updated the Advance Search form so `advanceSearchBranch` is optional; only `advanceSearchParent` and `advanceSearchQuery` are required.
