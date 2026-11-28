@@ -568,3 +568,16 @@ User reported that the `Production Reports` section calculates incorrect values,
 6. Open `DWG/Part` and upload individual files and a selected/dropped folder; verify destination and hierarchy preservation.
 7. Verify upload permission denial (unauthenticated 401 and authenticated user without `FILE_Edit` 403) and confirm successful upload audit rows in `dbo.Logs`.
 8. Complete password-policy acceptance tests (8–256 characters, any composition) and test Danieli DWG RBAC plus `SQL/Create_DanieliDWG.sql` import validation.
+
+
+# Current task — Workflow Analytics dashboard upgrade (2026-11-28)
+- Replaced the workflow status chart's 200-row sample with paginated full-table reads of dbo.DrawingRequests and dbo.DrawingRequestStatuses through the existing Admin-only table API.
+- Status chart shows mapped status names, counts, percentage of total, and total request count. Selecting a status opens a request detail dialog listing Request Number, Node, requester, description, and CreatedAt.
+- Existing generic admin table endpoint and RBAC controls are reused; no SQL schema/API backend change. Runtime SQL/browser tests not performed.
+- Files: frontend/admin-dashboard.html, frontend/js/admin-dashboard.js, frontend/css/admin-dashboard.css.
+
+# NEXT ACTION
+1. Deploy these frontend files from main to IIS and hard-refresh the Admin Dashboard.
+2. Confirm all request rows and statuses load, chart percentages total approximately 100%, and click-through lists show correct rows.
+3. Check status table fields (StatusName/StatusCode) and request-detail column fallbacks against actual DB records; validate mobile/responsive behavior.
+4. If browser or SQL tests reveal issues, fix and commit.
