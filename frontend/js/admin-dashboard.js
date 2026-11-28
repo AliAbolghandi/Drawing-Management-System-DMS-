@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id);
   const fmt = value => Number(value || 0).toLocaleString('en-US');
   const escapeHtml = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
-  const state = { tables:new Map(), rows:new Map() };
+  const state = { tables:new Map(), rows:new Map(), workflowRequests:[], workflowStatuses:new Map() };
 
   async function getJson(url){
     const response=await fetch(url,{credentials:'include',cache:'no-store'});
@@ -41,11 +41,19 @@
   function renderWorkflow(rows){
     const box=$('workflowChart');
     if(!state.tables.has('DrawingRequests')){box.innerHTML='<div class="chart-empty">Drawing request workflow is not installed in the current database.</div>';return;}
-    const counts=new Map();
-    rows.forEach(r=>{const status=String(r.StatusID??r.StatusCode??'Unknown');counts.set(status,(counts.get(status)||0)+1);});
+    const counts=new Map();rows.forEach(r=>{const id=String(r.StatusID??'Unknown');counts.set(id,(counts.get(id)||0)+1);});
     if(!counts.size){box.innerHTML='<div class="chart-empty">No drawing requests recorded.</div>';return;}
-    const items=[...counts.entries()].sort((a,b)=>b[1]-a[1]);const max=items[0][1];
-    box.innerHTML=items.map(([status,count])=>`<div class="status-item"><div class="status-item-top"><span>Status ${escapeHtml(status)}</span><strong>${fmt(count)}</strong></div><div class="status-track"><div class="status-fill" style="width:${(count/max)*100}%"></div></div></div>`).join('');
+    const total=rows.length,items=[...counts.entries()].sort((a,b)=>b[1]-a[1]),max=Math.max(1,...items.map(x=>x[1]));
+    box.innerHTML='<div class="workflow-total"><span>Total requests</span><strong>'+fmt(total)+'</strong></div>'+items.map(([id,count])=>{
+      const status=state.workflowStatuses.get(id)||('Status '+id),pct=total?count/total*100:0;
+      return '<button type="button" class="status-item workflow-status-button" data-workflow-status="'+escapeHtml(id)+'"><div class="status-item-top"><span>'+escapeHtml(status)+'</span><strong>'+fmt(count)+' <small>'+pct.toFixed(1)+'%</small></strong></div><div class="status-track"><div class="status-fill" style="width:'+(count/max*100)+'%"></div></div></button>';
+    }).join('');
+  }
+  function openWorkflowDetails(statusId){
+    const status=state.workflowStatuses.get(String(statusId))||('Status '+statusId),rows=state.workflowRequests.filter(r=>String(r.StatusID)===String(statusId));
+    $('workflowDetailsTitle').textContent=status;$('workflowDetailsSummary').textContent=fmt(rows.length)+' requests';
+    $('workflowDetailsRows').innerHTML=rows.length?rows.map(r=>'<tr><td>'+escapeHtml(r.RequestNumber||r.RequestID||'-')+'</td><td>'+escapeHtml(r.NodeCode||r.NodeID||'-')+'</td><td>'+escapeHtml(r.RequesterUsername||r.RequesterUserName||r.RequesterName||r.RequesterUserID||'-')+'</td><td>'+escapeHtml(r.Description||'-')+'</td><td>'+escapeHtml(r.CreatedAt?new Date(r.CreatedAt).toLocaleString():'-')+'</td></tr>').join(''):'<tr><td colspan="5" class="report-empty">No requests in this status.</td></tr>';
+    $('workflowDetailsDialog').showModal();
   }
   function renderRecent(logs){
     const box=$('recentActivity');
@@ -59,19 +67,21 @@
       state.tables.clear();(meta.tables||[]).forEach(t=>state.tables.set(t.tableName,t));
       const count=name=>state.tables.get(name)?.approxRows||0;
       $('totalNodes').textContent=fmt(count('Nodes'));$('danieliPdfs').textContent=fmt(count('DanieliPDF'));$('totalUsers').textContent=fmt(count('Users'));$('activeRoles').textContent=fmt(count('Roles'));$('totalLogs').textContent=fmt(count('Logs'));$('totalRequests').textContent=state.tables.has('DrawingRequests')?fmt(count('DrawingRequests')):'N/A';
-      const [users,logs,requests]=await Promise.all([
+      const [users,logs,requests,statuses]=await Promise.all([
         getJson(`${API}/admin/tables/Users/rows?page=1&pageSize=200`),
         getJson(`${API}/admin/tables/Logs/rows?page=1&pageSize=200&sortBy=CreatedAt&sortDir=desc`),
-        state.tables.has('DrawingRequests')?getJson(`${API}/admin/tables/DrawingRequests/rows?page=1&pageSize=200&sortBy=CreatedAt&sortDir=desc`):Promise.resolve({rows:[]})
+        state.tables.has('DrawingRequests')?getAllRows('DrawingRequests','CreatedAt'):Promise.resolve([]),
+        state.tables.has('DrawingRequestStatuses')?getAllRows('DrawingRequestStatuses','StatusID'):Promise.resolve([])
       ]);
-      state.rows.set('Users',users.rows||[]);state.rows.set('Logs',logs.rows||[]);state.rows.set('DrawingRequests',requests.rows||[]);
+      state.workflowRequests=requests;state.workflowStatuses=new Map(statuses.map(s=>[String(s.StatusID),String(s.StatusName||s.StatusCode||('Status '+s.StatusID))]));
+      state.rows.set('Users',users.rows||[]);state.rows.set('Logs',logs.rows||[]);state.rows.set('DrawingRequests',requests);
       const activeUsers=(users.rows||[]).filter(x=>Number(x.IsActive)===1).length;
       const today=new Date();today.setHours(0,0,0,0);
       const todayLogs=(logs.rows||[]).filter(x=>{const d=new Date(x.CreatedAt);return !Number.isNaN(d.getTime())&&d>=today}).length;
       $('activeUsers').textContent=`${fmt(activeUsers)} active`;$('todayLogs').textContent=`${fmt(todayLogs)} today`;
-      $('activeNodes').textContent='Database records';$('activeRequests').textContent=state.tables.has('DrawingRequests')?`${fmt(requests.rows.length)} latest loaded`:'Workflow unavailable';
+      $('activeNodes').textContent='Database records';$('activeRequests').textContent=state.tables.has('DrawingRequests')?`${fmt(requests.length)} loaded`:'Workflow unavailable';
       $('healthNodes').textContent=fmt(count('Nodes'));$('healthUsers').textContent=fmt(activeUsers);$('healthNotifications').textContent=state.tables.has('Notifications')?fmt(count('Notifications')):'N/A';$('healthFailed').textContent=fmt((logs.rows||[]).filter(x=>String(x.Action||'').includes('FAILED')).length);
-      renderActivity(logs.rows||[]);renderWorkflow(requests.rows||[]);renderRecent(logs.rows||[]);
+      renderActivity(logs.rows||[]);renderWorkflow(requests);renderRecent(logs.rows||[]);
       $('generatedAt').textContent=`Updated ${new Date().toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'})}`;
     }catch(e){console.error(e);showError(e.message);$('generatedAt').textContent='Load failed';}
   }
@@ -239,6 +249,9 @@
   const inDmsModal=new URLSearchParams(location.search).get('dmsModal')==='1'&&window.parent!==window;
   const closeDashboard=()=>{if(inDmsModal){window.parent.postMessage({type:'dms-dashboard-close'},location.origin);return;}location.href='index.html';};
   const openManagement=()=>{if(inDmsModal){window.parent.postMessage({type:'dms-dashboard-navigate',path:'management.html'},location.origin);return;}location.href='management.html';};
+  $('workflowChart').addEventListener('click',e=>{const b=e.target.closest('[data-workflow-status]');if(b)openWorkflowDetails(b.dataset.workflowStatus);});
+  $('workflowDetailsClose').addEventListener('click',()=> $('workflowDetailsDialog').close());
+  $('workflowDetailsDialog').addEventListener('click',e=>{if(e.target===$('workflowDetailsDialog'))$('workflowDetailsDialog').close();});
   $('refreshButton').addEventListener('click',load);$('backButton').addEventListener('click',closeDashboard);$('backButtonBottom').addEventListener('click',closeDashboard);$('managementButton').addEventListener('click',openManagement);
   $('loadProductionReports').addEventListener('click',loadProductionReports);$('reportExpertFilter').addEventListener('change',renderExpertReport);reportDefaultDates();loadProductionReports();load();
 })();
